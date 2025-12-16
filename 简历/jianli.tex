@@ -1,0 +1,124 @@
+\documentclass[11pt, a4paper]{article}
+
+% --- 基础宏包 ---
+% 【修改点1】调整了页边距。原本1.5cm太窄了，导致简历显得很空。
+% 改为左右2.5cm，上下2cm，会让视觉重心更集中，看起来内容更丰满。
+\usepackage[left=2.5cm, right=2.5cm, top=2cm, bottom=2cm]{geometry} 
+\usepackage{xeCJK} % 中文支持
+\usepackage{enumitem} % 列表格式调整
+\usepackage{hyperref} % 超链接支持
+\usepackage{titlesec} % 标题格式调整
+\usepackage{xcolor} % 颜色支持
+
+% --- 字体与颜色设置 ---
+\setCJKmainfont[BoldFont=FandolHei-Regular, ItalicFont=FandolKai-Regular]{FandolSong-Regular}
+
+% 定义一种深蓝色
+\definecolor{darkblue}{RGB}{0, 79, 144}
+
+% --- 链接设置 ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=darkblue,
+    filecolor=darkblue,
+    urlcolor=darkblue,
+}
+
+% --- 格式自定义 ---
+\pagestyle{empty} % 消除页码
+
+\titleformat{\section}{
+  \vspace{-5pt}\scshape\raggedright\Large\bfseries
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-1pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & \textit{#2} \\
+      \textit{\small #3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-5pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & \textit{#2} \\
+    \end{tabular*}\vspace{-5pt}
+}
+
+\renewcommand\labelitemi{$\vcenter{\hbox{\tiny$\bullet$}}$}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+
+% =============================================
+%               简历正文开始
+% =============================================
+
+\begin{document}
+
+% --- 头部信息 ---
+\begin{center}
+    {\Huge \textbf{钮玉彬}} \\ \vspace{10pt} % 稍微增加名字下方的间距
+    电话: (+86) 186-3327-3055 ~|~ 邮箱: \href{mailto:2496175705@qq.com}{2496175705@qq.com} \\ 
+\end{center}
+
+
+% --- 教育背景 ---
+\section{教育背景}
+\resumeSubHeadingListStart
+  \resumeSubheading
+    {软件工程 \quad 本科}{2024年9月 -- 至今}
+    {浙江传媒学院}{杭州，浙江}
+    \resumeItemListStart
+        \item 主修课程：python、c语言、c++、java程序设计，数据结构与算法，web网页开发
+    \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+% 【修改点2】增加一段垂直间距，让各版块之间不那么拥挤
+\vspace{10pt}
+
+% --- 项目经历 ---
+\section{项目经历}
+\resumeSubHeadingListStart
+
+  \resumeProjectHeading
+    {\textbf{Unity游戏开发} $|$ \emph{unity}}{2025年7月 -- 2025年8月}
+    \resumeItemListStart
+        \item 开发了一款通过Unity引擎制作的2D解密游戏，游戏内容基于解密的核心规则实现了类似扫雷的冲突交互与关卡条件判断
+        \item 作品为软件工程短学期课程开发实践项目，获评短学期优秀作品（专业唯一）。
+    \resumeItemListEnd
+
+  \resumeProjectHeading
+    {\textbf{算法设计与优化} $|$ \emph{C++、python}}{2024年11月 -- 至今}
+    \resumeItemListStart
+        \item 校算法竞赛实验室成员，浙传一队队长，带领团队参与过多项程序设计竞赛
+        \item 校程序设计竞赛第六名，一等奖。蓝桥杯省一等奖，天梯赛三等奖。有过多次ACM竞赛参赛经验。
+    \resumeItemListEnd  
+    
+  \resumeProjectHeading
+    {\textbf{AIGC视频制作} $|$ \emph{即梦、sora等}}{2025年10月 -- 至今}
+    \resumeItemListStart
+        \item 与小米（肯尼亚）公司合作，带领团队基于AIGC技术制作手机广告视频。最终作品在官方tiktok账号中发布，反响良好。
+        \item 与百度公司合作，制作主题视频，包括但不限于沙雕漫、漫剧、百度科普说明视频。
+        \item 熟悉AIGC视频工作流开发的全流程，包括但不限于脚本、分镜撰写，提示词调整，图像生成，视频创作与后期剪辑修正。
+        \item 熟练使用nanobanana、sora等主流AIGC图像生成工具，了解AIGC视频生成的最新技术动态与发展趋势。
+    \resumeItemListEnd  
+
+\resumeSubHeadingListEnd
+
+% 【修改点3】核心修改：\vfill
+% 这个命令会自动撑开这里所有的剩余空间，把下面的内容“顶”到页面最底部
+\vfill
+
+% --- 专业技能 ---
+\section{专业技能}
+\begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{编程语言}{: Java, Python, C++, JavaScript, web前端开发} \\
+    }}
+\end{itemize}
+
+\end{document}

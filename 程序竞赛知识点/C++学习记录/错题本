@@ -1,0 +1,6 @@
+常用文件头写法：
+#include <bits/stdc++.h>
+#define int long long
+using namespace std;
+
+c++ main函数的返回值应该是int，注意define longlong带来的影响

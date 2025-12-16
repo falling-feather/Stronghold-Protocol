@@ -1,0 +1,17 @@
+# [CONFIG]
+Title: 我的个人空间
+SearchEngine: Google
+
+# [LINKS]
+ChatGPT | https://chat.openai.com
+GitHub | https://github.com
+Bilibili | https://www.bilibili.com
+
+# [CALENDAR]
+## 2025-12-16
+- [ ] 给杨帅开会
+
+## 2025-12-25
+- [ ] 圣诞节准备礼物
+- [x] 预订餐厅
+

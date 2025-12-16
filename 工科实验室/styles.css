@@ -1,0 +1,377 @@
+/* ===== 基础样式 ===== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary-blue: #0ea5e9;
+    --primary-purple: #a855f7;
+    --primary-pink: #ec4899;
+    --primary-green: #10b981;
+    --primary-orange: #f97316;
+    --primary-red: #ef4444;
+    --bg-dark: #0f172a;
+    --bg-blue: #1e3a8a;
+    --text-light: #e2e8f0;
+    --text-gray: #94a3b8;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%);
+    color: var(--text-light);
+    min-height: 100vh;
+}
+
+/* ===== 工具类 ===== */
+.text-gradient {
+    background: linear-gradient(90deg, #60a5fa, #a78bfa, #f472b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ===== 导航栏 ===== */
+.navbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    padding: 1rem 0;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    animation: slideDown 0.5s ease-out;
+}
+
+@keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.nav-logo {
+    display: flex; align-items: center; gap: 0.5rem;
+    text-decoration: none; color: var(--text-light);
+    font-size: 1.25rem; font-weight: bold;
+    transition: transform 0.3s;
+}
+
+.nav-logo:hover { transform: scale(1.05); }
+
+.logo-icon {
+    width: 2.5rem; height: 2.5rem; border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.5s;
+}
+
+.nav-logo:hover .logo-icon { transform: rotate(360deg); }
+.logo-icon i { width: 1.5rem; height: 1.5rem; color: white; }
+
+.desktop-only { display: inline; }
+@media (max-width: 768px) { .desktop-only { display: none; } }
+
+.nav-menu { display: flex; gap: 0.25rem; }
+
+.nav-item {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    color: var(--text-gray);
+    transition: all 0.3s;
+    position: relative;
+}
+
+.nav-item:hover { background: rgba(255, 255, 255, 0.1); color: var(--text-light); }
+.nav-item.active { background: rgba(14, 165, 233, 0.3); color: #7dd3fc; }
+.nav-item i { width: 1.25rem; height: 1.25rem; }
+
+/* ===== 主内容 ===== */
+.main-content { padding-top: 5rem; min-height: 100vh; }
+.main-content:has(.home-page) { padding-top: 0; }
+
+.page { display: none; animation: fadeIn 0.5s ease-in; }
+.page.active { display: block; }
+.page:not(.home-page) { padding-top: 5rem; min-height: 100vh; overflow-y: auto; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ===== 实验网格 ===== */
+.experiments-grid {
+    max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.experiment-card {
+    padding: 1.5rem; border-radius: 0.75rem;
+    cursor: pointer; transition: all 0.3s;
+    animation: slideUp 0.6s ease-out backwards;
+}
+.experiment-card:hover { transform: translateY(-10px); background: rgba(255, 255, 255, 0.2); }
+
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+.experiment-icon {
+    width: 3rem; height: 3rem; border-radius: 0.5rem;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 1rem;
+}
+.experiment-icon i { width: 1.5rem; height: 1.5rem; color: white; }
+
+.blue-gradient { background: linear-gradient(135deg, var(--primary-blue), #06b6d4); }
+.purple-gradient { background: linear-gradient(135deg, var(--primary-purple), var(--primary-pink)); }
+.green-gradient { background: linear-gradient(135deg, var(--primary-green), #34d399); }
+.orange-gradient { background: linear-gradient(135deg, var(--primary-orange), var(--primary-red)); }
+
+.experiment-card h3 { margin-bottom: 0.5rem; }
+.experiment-card p { color: var(--text-gray); font-size: 0.875rem; margin-bottom: 1rem; }
+.experiment-status {
+    padding: 0.25rem 0.75rem; background: rgba(234, 179, 8, 0.2);
+    color: #fbbf24; border-radius: 9999px; font-size: 0.75rem;
+}
+
+/* ===== 页面头部 ===== */
+.page-header { text-align: center; padding: 3rem 1rem; }
+.page-title { font-size: 3rem; font-weight: bold; margin-bottom: 1rem; }
+.page-subtitle { color: var(--text-gray); font-size: 1.25rem; }
+
+/* ===== 星空首页 ===== */
+.home-page {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    overflow: hidden;
+    background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+}
+
+.stars-background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.star {
+    position: absolute; background: white; border-radius: 50%;
+    animation: twinkle 3s infinite;
+}
+.star.small { width: 1px; height: 1px; }
+.star.medium { width: 2px; height: 2px; }
+.star.large { width: 3px; height: 3px; box-shadow: 0 0 6px rgba(255, 255, 255, 0.8); }
+
+@keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+.home-container {
+    position: relative; width: 100%; height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+}
+
+/* 主星星 - 层级固定为 10，方便卫星穿插 */
+.main-star {
+    position: relative; z-index: 10;
+    transition: transform 0.3s;
+    transform-style: preserve-3d;
+}
+.main-star.shake { animation: starShake 0.5s ease-in-out; }
+.main-star.fading-out { pointer-events: none; }
+
+@keyframes starShake {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    25% { transform: translate(-10px, -10px) rotate(-5deg); }
+    50% { transform: translate(10px, -5px) rotate(5deg); }
+    75% { transform: translate(-5px, 10px) rotate(-3deg); }
+}
+
+.star-body {
+    background: radial-gradient(circle at 30% 30%, #60a5fa 0%, #3b82f6 30%, #2563eb 60%, #1e40af 100%);
+    border-radius: 50%; width: 280px; height: 280px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    animation: starPulse 3s ease-in-out infinite;
+    box-shadow: 0 0 60px rgba(96, 165, 250, 0.8), inset -40px -40px 80px rgba(0, 0, 0, 0.4);
+}
+
+.star-body::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.9) 0%, transparent 50%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+@keyframes starPulse {
+    0%, 100% { box-shadow: 0 0 60px rgba(96, 165, 250, 0.8), inset -40px -40px 80px rgba(0, 0, 0, 0.4); }
+    50% { box-shadow: 0 0 80px rgba(96, 165, 250, 1), inset -50px -50px 100px rgba(0, 0, 0, 0.5); }
+}
+
+.star-title {
+    font-size: 2rem; font-weight: bold; color: white;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    z-index: 3; position: relative;
+}
+
+/* 眼睛 */
+.star-eyes-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+.star-eyes {
+    position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
+    display: flex; gap: 30px;
+}
+.eye { width: 20px; height: 20px; background: white; border-radius: 50%; box-shadow: 0 0 10px white; position: relative; }
+.pupil {
+    width: 12px; height: 12px; background: #1e293b; border-radius: 50%;
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+}
+
+/* 轨道路径 */
+.orbit-path {
+    position: absolute; top: 50%; left: 50%;
+    border: 2px solid rgba(96, 165, 250, 0.2);
+    border-radius: 50%; pointer-events: none; z-index: 1;
+    transform: translate(-50%, -50%) perspective(1200px) rotateX(65deg) rotateZ(25deg);
+}
+.orbit-1 { width: 800px; height: 500px; }
+.orbit-2 { width: 1000px; height: 650px; opacity: 0.4; }
+.orbit-3 { width: 1200px; height: 800px; opacity: 0.3; }
+
+/* 卫星容器 - 移除 transform 和固定 z-index，打破层叠上下文 */
+.satellites-orbit {
+    position: absolute; top: 50%; left: 50%;
+    width: 0; height: 0;
+    transform: none; /* 由 JS 内部的绝对位置决定 */
+    z-index: auto; /* 自动层级，允许子元素与外部元素排序 */
+    overflow: visible; pointer-events: none;
+}
+
+/* 卫星 */
+.satellite {
+    position: absolute; top: 0; left: 0;
+    width: 80px; height: 80px;
+    cursor: pointer; border-radius: 50%;
+    pointer-events: auto;
+    will-change: transform, z-index;
+    z-index: 5; /* 默认在后 */
+}
+
+.satellite:hover .satellite-icon {
+    filter: brightness(1.3);
+    box-shadow: 0 0 40px rgba(255, 255, 255, 0.8);
+}
+
+.satellite-icon {
+    width: 100%; height: 100%; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+}
+
+/* 3D球体效果 */
+.satellite-icon::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.9) 0%, transparent 60%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+.satellite-1 .satellite-icon { background: radial-gradient(circle at 30% 30%, #60a5fa 0%, #1e3a8a 100%); }
+.satellite-2 .satellite-icon { background: radial-gradient(circle at 30% 30%, #a78bfa 0%, #5b21b6 100%); }
+.satellite-3 .satellite-icon { background: radial-gradient(circle at 30% 30%, #10b981 0%, #064e3b 100%); }
+.satellite-4 .satellite-icon { background: radial-gradient(circle at 30% 30%, #f97316 0%, #7c2d12 100%); }
+
+.satellite-icon i { position: relative; z-index: 3; color: white; width: 2rem; height: 2rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+
+.satellite-label-container {
+    position: absolute; bottom: -50px; left: 50%; transform: translateX(-50%);
+    width: 100px; text-align: center; pointer-events: none;
+}
+.satellite-label {
+    display: inline-block; color: white; font-size: 0.875rem; font-weight: 600;
+    background: rgba(0, 0, 0, 0.6); padding: 0.25rem 0.75rem; border-radius: 0.5rem;
+    backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.satellite.focusing { pointer-events: none; z-index: 1000; }
+
+/* ===== 算筹和排序演示样式 ===== */
+.content-section { max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; }
+.section-card { padding: 2rem; border-radius: 1rem; margin-bottom: 2rem; }
+.section-title { font-size: 2rem; font-weight: bold; margin-bottom: 1rem; }
+.section-desc { color: var(--text-gray); margin-bottom: 2rem; }
+
+/* 视频容器 */
+.video-container {
+    position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 0.5rem; margin-top: 1rem;
+}
+.bilibili-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+
+/* 算法原理 */
+.algorithm-principle {
+    margin-bottom: 2rem; padding: 1.5rem; background: rgba(0, 0, 0, 0.2); border-radius: 0.5rem; border-left: 4px solid var(--primary-orange);
+}
+.principle-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; color: var(--primary-orange); }
+.principle-content { color: var(--text-light); line-height: 1.8; }
+.principle-steps { margin: 1rem 0; padding-left: 1.5rem; }
+
+.abacus-controls, .sort-controls {
+    display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;
+    margin-bottom: 2rem; padding: 1.5rem; background: rgba(0, 0, 0, 0.2); border-radius: 0.5rem;
+}
+.control-group { display: flex; align-items: center; gap: 0.5rem; }
+.control-group input, .control-group select {
+    padding: 0.5rem; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; border-radius: 0.25rem;
+}
+.calc-button, .sort-button {
+    padding: 0.75rem 1.5rem; background: linear-gradient(90deg, var(--primary-blue), var(--primary-purple));
+    border: none; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer;
+}
+.sort-button { background: linear-gradient(90deg, var(--primary-orange), var(--primary-red)); }
+
+/* 速度控制器 */
+.speed-control { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.speed-control input[type="range"] { width: 150px; }
+
+.abacus-display { display: flex; flex-direction: column; gap: 2rem; }
+.abacus-row { display: flex; align-items: center; gap: 1rem; padding: 1.5rem; background: rgba(0,0,0,0.2); border-radius: 0.5rem; }
+.abacus-sticks { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.stick {
+    width: 8px; height: 60px; background: linear-gradient(180deg, #d97706, #f59e0b);
+    border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.stick.horizontal { width: 60px; height: 8px; }
+
+.array-display, .buckets-display, .result-display {
+    margin-bottom: 2rem; padding: 1.5rem; background: rgba(0,0,0,0.2); border-radius: 0.5rem;
+}
+.array-bars { display: flex; gap: 0.5rem; align-items: flex-end; justify-content: center; min-height: 200px; }
+.array-bar {
+    min-width: 30px; background: linear-gradient(180deg, var(--primary-blue), var(--primary-purple));
+    border-radius: 4px 4px 0 0; color: white; text-align: center; padding-top: 5px;
+}
+.array-bar.active { background: linear-gradient(180deg, #fbbf24, #f59e0b); transform: scale(1.1); }
+.array-bar.sorted { background: linear-gradient(180deg, var(--primary-green), #34d399); }
+
+.buckets-container { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+.bucket {
+    min-width: 150px; padding: 1rem; background: rgba(255,255,255,0.1);
+    border: 2px dashed rgba(255,255,255,0.3); border-radius: 0.5rem; min-height: 150px;
+}
+.bucket-items { display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: center; margin-top: 1rem; }
+.bucket-item {
+    padding: 0.25rem 0.5rem; background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+    border-radius: 4px; color: white; font-size: 0.875rem;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .orbit-1 { width: 500px; height: 350px; }
+    .star-body { width: 180px; height: 180px; }
+    .satellite { width: 60px; height: 60px; }
+    .nav-menu { flex-wrap: wrap; }
+    .nav-item span { display: none; }
+    .speed-control { width: 100%; margin-top: 1rem; }
+}
+@media (max-width: 480px) {
+    .orbit-1 { width: 400px; height: 280px; }
+    .star-body { width: 150px; height: 150px; }
+}

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正在进入...</title>
+    <style>
+        body
+        {
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #fff;
+            font-family: "SimSun", serif;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <p>正在启动非遗之旅...</p>
+    <script>
+        // 页面加载后立即跳转到 loading.html
+        window.onload = function()
+        {
+            // 使用 replace 而不是 href，这样用户点返回键不会又跳回这里
+            window.location.replace("loading.html");
+        };
+    </script>
+</body>
+</html>

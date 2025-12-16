@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>卫戍协议 - 几何模拟</title>
+    <style>
+      body { 
+        margin: 0; background: #1a1a1a; height: 100vh; 
+        font-family: 'Segoe UI', sans-serif; 
+        display: flex; flex-direction: column; 
+        overflow: hidden;
+        user-select: none; /* 防止双击选中文本 */
+      }
+
+      /* 顶部信息栏 */
+      #top-bar {
+        height: 60px; background: #2c3e50; color: white;
+        display: flex; align-items: center; justify-content: space-around;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        z-index: 10;
+        flex-shrink: 0;
+      }
+      .stat-box { font-size: 18px; font-weight: bold; text-align: center; }
+      .stat-label { font-size: 10px; color: #bdc3c7; display: block; text-transform: uppercase; letter-spacing: 1px; }
+      
+      #btn-next-wave {
+        background: #e74c3c; border: none; color: white; padding: 10px 24px;
+        font-size: 16px; font-weight: bold; cursor: pointer; border-radius: 4px;
+        transition: all 0.2s;
+        box-shadow: 0 4px 0 #c0392b;
+      }
+      #btn-next-wave:hover { background: #ff5e4d; transform: translateY(-2px); box-shadow: 0 6px 0 #c0392b; }
+      #btn-next-wave:active { transform: translateY(2px); box-shadow: 0 0 0 #c0392b; }
+
+      /* 中间游戏区 */
+      #game-area {
+        flex: 1; display: flex; justify-content: center; align-items: center;
+        background: #222; overflow: hidden; position: relative;
+      }
+      canvas { 
+        box-shadow: 0 0 40px rgba(0,0,0,0.5); 
+        border: 2px solid #444;
+      }
+
+      /* 底部商店区 */
+      #shop-panel {
+        height: 190px; background: #34495e; padding: 15px 20px;
+        display: flex; gap: 20px; border-top: 1px solid #444;
+        flex-shrink: 0;
+      }
+
+      /* 商店左侧控制区 */
+      #shop-controls {
+        display: flex; flex-direction: column; gap: 10px; width: 140px; justify-content: center;
+      }
+      .ctrl-btn {
+        background: #2980b9; border: none; color: white; padding: 12px;
+        cursor: pointer; border-radius: 4px; font-size: 13px; font-weight: 600;
+        transition: background 0.2s;
+      }
+      .ctrl-btn:hover { background: #3498db; }
+      .ctrl-btn:disabled { background: #7f8c8d; cursor: not-allowed; opacity: 0.7; }
+
+      /* 商店右侧卡片区 */
+      #shop-cards {
+        flex: 1; display: flex; gap: 15px; align-items: center; overflow-x: auto;
+        padding-bottom: 5px; /* 滚动条预留 */
+      }
+      
+      .shop-card {
+        width: 110px; height: 150px; background: #ecf0f1; border-radius: 6px;
+        display: flex; flex-direction: column; padding: 8px; box-sizing: border-box;
+        cursor: pointer; position: relative; transition: all 0.2s;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      }
+      .shop-card:hover { transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+      .shop-card.selected { outline: 4px solid #f1c40f; transform: translateY(-8px); }
+      .shop-card.bought { opacity: 0.3; pointer-events: none; filter: grayscale(1); transform: scale(0.95); }
+      
+      .card-header { height: 8px; width: 100%; border-radius: 4px; margin-bottom: 8px; }
+      .card-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #2c3e50; }
+      .card-rarity { position: absolute; top: 6px; right: 8px; font-size: 10px; font-family: monospace; letter-spacing: -1px; }
+      .card-stats { font-size: 11px; color: #7f8c8d; flex: 1; line-height: 1.4; margin-top: 5px;}
+      .card-cost { font-size: 20px; font-weight: bold; color: #27ae60; align-self: flex-end; }
+      
+      /* 滚动条美化 */
+      #shop-cards::-webkit-scrollbar { height: 8px; }
+      #shop-cards::-webkit-scrollbar-thumb { background: #7f8c8d; border-radius: 4px; }
+      #shop-cards::-webkit-scrollbar-track { background: #2c3e50; }
+    </style>
+  </head>
+  <body>
+    <div id="top-bar">
+      <div class="stat-box"><span class="stat-label">WAVE</span><span id="wave-display">1</span></div>
+      <div class="stat-box"><span class="stat-label">LIVES</span><span id="lives-display">10</span></div>
+      <div class="stat-box"><span class="stat-label">FUNDS</span>$<span id="money-display">25</span></div>
+      <div class="stat-box"><span class="stat-label">CORE LV</span><span id="core-display">1</span></div>
+      <button id="btn-next-wave">START COMBAT</button>
+    </div>
+
+    <div id="game-area">
+      <canvas id="game-canvas"></canvas>
+    </div>
+
+    <div id="shop-panel">
+      <div id="shop-controls">
+        <button id="btn-refresh" class="ctrl-btn">刷新商店 ($2)</button>
+        <button id="btn-upgrade" class="ctrl-btn">升级核心</button>
+      </div>
+      <div id="shop-cards">
+        </div>
+    </div>
+  
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

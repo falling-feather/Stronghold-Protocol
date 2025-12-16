@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的个人主页 | Campus Life</title>
+    <style>
+        /* === 全局变量：提取自图片色调 === */
+        :root {
+            --bg-color: #f4f6f8;       /* 背景偏冷的灰白色，类似机房墙壁 */
+            --card-bg: #ffffff;        /* 卡片纯白 */
+            --primary-text: #2c2c2c;   /* 深黑，类似背包带 */
+            --secondary-text: #666666; /* 灰色，类似卫衣阴影 */
+            --accent-color: #7b8fa1;   /* 莫兰迪蓝灰，符合整体冷淡风 */
+            --hoodie-grey: #e0e0e0;    /* 卫衣亮灰 */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-image: radial-gradient(#d1d1d1 1px, transparent 1px);
+            background-size: 20px 20px; /* 模拟背景天花板的网格感 */
+        }
+
+        /* === 主卡片容器 === */
+        .profile-card {
+            background: var(--card-bg);
+            width: 90%;
+            max-width: 400px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            overflow: hidden;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .profile-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.12);
+        }
+
+        /* === 顶部背景区 === */
+        .card-header {
+            height: 120px;
+            background: linear-gradient(135deg, #e0e0e0 0%, #cfd9df 100%);
+            position: relative;
+        }
+
+        /* === 头像区域 (放置你的图片) === */
+        .avatar-container {
+            width: 140px;
+            height: 140px;
+            margin: -70px auto 15px; /* 上移重叠 */
+            border-radius: 50%;
+            border: 5px solid var(--card-bg);
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            /* 根据图片调整位置，因为原图人脸靠上 */
+            object-position: center 20%; 
+            transition: transform 0.5s ease;
+        }
+
+        .profile-card:hover .avatar-container img {
+            transform: scale(1.1);
+        }
+
+        /* === 文本内容 === */
+        .info-section {
+            padding: 0 25px 30px;
+        }
+
+        .name {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            color: var(--primary-text);
+        }
+
+        .role {
+            font-size: 14px;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .bio {
+            font-size: 15px;
+            color: var(--secondary-text);
+            line-height: 1.6;
+            margin-bottom: 25px;
+            padding: 0 10px;
+        }
+
+        /* === 状态标签 === */
+        .tags {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        .tag {
+            padding: 5px 12px;
+            background-color: #f0f2f5;
+            border-radius: 15px;
+            font-size: 12px;
+            color: #555;
+            border: 1px solid #e1e4e8;
+        }
+
+        /* === 按钮区域 === */
+        .actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-text);
+            color: white;
+            border: 1px solid var(--primary-text);
+        }
+
+        .btn-primary:hover {
+            background-color: #444;
+            transform: translateY(-2px);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            color: var(--primary-text);
+            border: 1px solid #ddd;
+        }
+
+        .btn-outline:hover {
+            border-color: var(--primary-text);
+            background-color: #f9f9f9;
+        }
+
+        /* === 状态指示灯 === */
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: #4caf50; /* 在线绿色 */
+            border-radius: 50%;
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            border: 2px solid white;
+            z-index: 10;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="profile-card">
+        <!-- 顶部装饰背景 -->
+        <div class="card-header"></div>
+
+        <!-- 头像部分 -->
+        <div class="avatar-container">
+            <!-- 这里使用你的图片，请将图片保存为 profile.jpg 或者修改下方的 src -->
+            <img src="profile.jpg" alt="头像"> 
+        </div>
+
+        <!-- 个人信息 -->
+        <div class="info-section">
+            <h1 class="name">Student.Log <span style="font-size: 16px;">👋</span></h1>
+            <p class="role">CS Major / Library Regular</p>
+            
+            <p class="bio">
+                沉迷代码，日渐消瘦。通常出没于学校机房或图书馆角落。<br>
+                “比起 Bug，我更怕食堂没饭了。”
+            </p>
+
+            <!-- 标签 -->
+            <div class="tags">
+                <span class="tag">#熬夜选手</span>
+                <span class="tag">#卫衣控</span>
+                <span class="tag">#Debugging</span>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="actions">
+                <a href="#" class="btn btn-primary">加个好友</a>
+                <a href="#" class="btn btn-outline">查看课表</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 简单的 JS 交互：点击头像旋转一下 -->
+    <script>
+        const avatar = document.querySelector('.avatar-container img');
+        avatar.addEventListener('click', () => {
+            avatar.style.transform = "rotate(360deg) scale(1.1)";
+            setTimeout(() => {
+                avatar.style.transform = "rotate(0deg) scale(1.1)";
+            }, 500);
+        });
+    </script>
+
+</body>
+</html>

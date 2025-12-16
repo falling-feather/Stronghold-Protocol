@@ -1,0 +1,19 @@
+{
+    "version": "0.0.1",
+    "project": "Cangjie",
+    "taskConfig": {
+        "version": "0.0.1",
+        "tasks": []
+    },
+    "configurations": [
+        {
+            "name": "Cangjie: launch",
+            "request": "launch",
+            "type": "cangjieDebug",
+            "externalConsole": false,
+            "buildBeforeLaunch": true,
+            "env": {},
+            "program": ""
+        }
+    ]
+}

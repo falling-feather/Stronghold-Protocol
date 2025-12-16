@@ -1,0 +1,32 @@
+有些题目会出现要我们求两个数的最大公约数或者化简分数的情况
+这种时候就需要考虑使用辗转相除法来解决：
+def gcb(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+对于a，b两个数字，每次都让整体后移一位，新添加的数是两数相除后的余数
+直到一方除以另一方余数为0为止，最后得到的较大的数就是辗转相处获得的最大公约数
+
+例题：
+P1625 求和
+
+def gcb(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+
+n , m = map(int, input().split())
+fenzi = 0
+fenmu = 1
+for i in range (1 , n + 1):
+    s=1
+    for j in range (i , i + m):
+        s*=j
+    fenzi = fenzi * s + fenmu 
+    fenmu = fenmu * s
+g = gcb(fenzi , fenmu)  
+print(fenzi // g)
+print(fenmu // g)
+
+
+借助辗转相除法化简分数

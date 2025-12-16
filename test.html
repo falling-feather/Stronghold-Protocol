@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>剪纸艺术馆</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * 
+        {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root 
+        {
+            --primary-color: #c62828;
+            --secondary-color: #8e0000;
+            --accent-color: #ffd54f;
+            --text-color: #5d4037;
+            --light-bg: #f9f3e9;
+            --panel-bg: #8d6e63;
+            --panel-width: 280px;
+            --panel-collapsed-width: 60px;
+            --transition-speed: 0.4s;
+        }
+        
+        body 
+        {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, var(--light-bg) 0%, #f5e9db 100%);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        
+        /* 牌匾式标题 */
+        .plaque 
+        {
+            width: 90%;
+            max-width: 500px;
+            margin: 0 auto 30px;
+            background: linear-gradient(to bottom, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: var(--accent-color);
+            padding: clamp(12px, 3vw, 20px) clamp(20px, 5vw, 50px);
+            text-align: center;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(140, 20, 20, 0.5);
+            border: 4px solid var(--accent-color);
+            position: relative;
+            transform: perspective(500px) rotateX(5deg);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+        
+        .plaque h1 
+        {
+            font-size: clamp(1.8rem, 5vw, 2.8rem);
+            font-weight: bold;
+            letter-spacing: clamp(4px, 2vw, 10px);
+            margin: 0;
+        }
+        
+        .plaque::before, .plaque::after 
+        {
+            content: '';
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: clamp(18px, 4vw, 28px);
+            height: clamp(18px, 4vw, 28px);
+            background-color: var(--accent-color);
+            border-radius: 50%;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .plaque::before 
+        {
+            left: clamp(10px, 3vw, 20px);
+        }
+        
+        .plaque::after 
+        {
+            right: clamp(10px, 3vw, 20px);
+        }
+        
+        /* 主内容区 */
+        .main-container 
+        {
+            display: flex;
+            flex: 1;
+            position: relative;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            min-height: 60vh;
+        }
+        
+        /* 控制面板 */
+        .control-panel 
+        {
+            background: linear-gradient(to bottom, var(--panel-bg) 0%, #6d4c41 100%);
+            width: var(--panel-width);
+            padding: 30px 0;
+            transition: all var(--transition-speed) ease;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            border-top-left-radius: 16px;
+            border-bottom-left-radius: 16px;
+        }
+        
+        .control-panel.collapsed 
+        {
+            width: var(--panel-collapsed-width);
+        }
+        
+        .toggle-btn 
+        {
+            position: absolute;
+            top: 50%;
+            right: -15px;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 60px;
+            background: linear-gradient(to right, var(--panel-bg) 0%, #6d4c41 100%);
+            border-radius: 0 8px 8px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            font-size: clamp(14px, 2vw, 16px);
+            box-shadow: 3px 0 8px rgba(0, 0, 0, 0.2);
+            z-index: 6;
+            transition: all 0.3s ease;
+        }
+        
+        .toggle-btn:hover 
+        {
+            background: linear-gradient(to right, #9c7d73 0%, #7d5c51 100%);
+        }
+        
+        .control-buttons 
+        {
+            display: flex;
+            flex-direction: column;
+            gap: clamp(12px, 2vw, 18px);
+            padding: 0 clamp(15px, 4vw, 25px);
+        }
+        
+        .control-btn 
+        {
+            background: linear-gradient(to bottom, #e6cebe 0%, #d7ccc8 100%);
+            color: var(--text-color);
+            border: none;
+            padding: clamp(10px, 2vw, 14px);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: clamp(0.9rem, 2vw, 1.1rem);
+            transition: all 0.3s;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: clamp(8px, 2vw, 12px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid #bcaaa4;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        
+        .control-btn span 
+        {
+            transition: opacity var(--transition-speed) ease;
+        }
+        
+        .control-panel.collapsed .control-btn span 
+        {
+            opacity: 0;
+            display: none;
+        }
+        
+        .control-btn:hover 
+        {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+            background: linear-gradient(to bottom, #efe2d9 0%, #e6d6cf 100%);
+        }
+        
+        .control-btn:active 
+        {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* 剪纸展示区 */
+        .art-display 
+        {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(20px, 4vw, 40px);
+            position: relative;
+            overflow: hidden;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect fill-opacity="0.03" fill="%235d4037" x="0" y="0" width="100" height="100"/></svg>');
+        }
+        
+        .paper-art-container 
+        {
+            position: relative;
+            max-width: 90%;
+            max-height: 90%;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
+            border: clamp(8px, 2vw, 15px) solid #fff;
+            border-radius: 6px;
+            overflow: hidden;
+            transition: all 0.5s ease;
+        }
+        
+        .paper-art 
+        {
+            display: block;
+            max-width: 100%;
+            max-height: 75vh;
+            transition: transform 0.5s ease;
+        }
+        
+        .art-title 
+        {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: clamp(8px, 2vw, 12px);
+            text-align: center;
+            font-size: clamp(1rem, 2.5vw, 1.2rem);
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .paper-art-container:hover .art-title 
+        {
+            transform: translateY(0);
+        }
+        
+        /* 底部响应式控制栏（移动设备专用） */
+        .mobile-controls 
+        {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(141, 110, 99, 0.95);
+            padding: 12px;
+            justify-content: space-around;
+            z-index: 100;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .mobile-control-btn 
+        {
+            background: linear-gradient(to bottom, #e6cebe 0%, #d7ccc8 100%);
+            color: var(--text-color);
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* 介绍模态框 */
+        .modal 
+        {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.85);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal-content 
+        {
+            background: linear-gradient(to bottom, #fff5f5 0%, #fce4e4 100%);
+            padding: clamp(20px, 4vw, 40px);
+            border-radius: 12px;
+            max-width: 700px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+            border: 2px solid var(--primary-color);
+            position: relative;
+        }
+        
+        .close-btn 
+        {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: clamp(24px, 5vw, 32px);
+            cursor: pointer;
+            color: var(--primary-color);
+            transition: all 0.3s;
+        }
+        
+        .close-btn:hover 
+        {
+            transform: rotate(90deg);
+            color: var(--secondary-color);
+        }
+        
+        .modal-content h2 
+        {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: clamp(1.6rem, 4vw, 2.2rem);
+            border-bottom: 2px solid #ffcdd2;
+            padding-bottom: 15px;
+        }
+        
+        .modal-content p 
+        {
+            margin-bottom: 20px;
+            line-height: 1.8;
+            font-size: clamp(1rem, 2.5vw, 1.1rem);
+            text-align: justify;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 1024px) 
+        {
+            :root 
+            {
+                --panel-width: 220px;
+            }
+            
+            .control-btn 
+            {
+                font-size: 0.95rem;
+                padding: 12px;
+            }
+        }
+        
+        @media (max-width: 768px) 
+        {
+            body 
+            {
+                padding: 12px;
+            }
+            
+            .main-container 
+            {
+                flex-direction: column;
+                min-height: 70vh;
+            }
+            
+            .control-panel 
+            {
+                width: 100%;
+                height: auto;
+                padding: 15px 0;
+                border-radius: 12px 12px 0 0;
+                order: 2;
+            }
+            
+            .control-panel.collapsed 
+            {
+                width: 100%;
+                height: 60px;
+                padding: 0;
+            }
+            
+            .control-panel.collapsed .control-buttons 
+            {
+                flex-direction: row;
+                justify-content: space-around;
+                padding: 0 5px;
+            }
+            
+            .control-panel.collapsed .control-btn 
+            {
+                width: 50px;
+                height: 50px;
+                border-radius: 50%;
+                padding: 0;
+                justify-content: center;
+            }
+            
+            .control-panel.collapsed .control-btn i 
+            {
+                margin: 0;
+                font-size: 1.2rem;
+            }
+            
+            .toggle-btn 
+            {
+                top: auto;
+                bottom: -15px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 60px;
+                height: 30px;
+                border-radius: 0 0 8px 8px;
+            }
+            
+            .toggle-btn i 
+            {
+                transform: rotate(90deg);
+            }
+            
+            .control-buttons 
+            {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 10px;
+            }
+            
+            .control-btn 
+            {
+                flex: 1;
+                min-width: 120px;
+                justify-content: center;
+                padding: 10px;
+            }
+            
+            .art-display 
+            {
+                order: 1;
+                padding: 15px;
+                min-height: 50vh;
+            }
+            
+            .mobile-controls 
+            {
+                display: flex;
+            }
+        }
+        
+        @media (max-width: 480px) 
+        {
+            .plaque 
+            {
+                width: 95%;
+                padding: 10px 15px;
+            }
+            
+            .control-btn 
+            {
+                min-width: 100px;
+                font-size: 0.85rem;
+                padding: 8px;
+            }
+            
+            .control-btn i 
+            {
+                font-size: 0.9rem;
+            }
+            
+            .art-display 
+            {
+                padding: 10px;
+            }
+            
+            .paper-art-container 
+            {
+                border-width: 8px;
+            }
+            
+            .mobile-control-btn 
+            {
+                width: 45px;
+                height: 45px;
+                font-size: 1.1rem;
+            }
+        }
+        
+        /* 动画效果 */
+        @keyframes fadeIn 
+        {
+            from 
+            { 
+                opacity: 0; 
+                transform: translateY(20px); 
+            }
+            to 
+            { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+        
+        .main-container 
+        {
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        /* 装饰元素 */
+        .decoration 
+        {
+            position: absolute;
+            opacity: 0.1;
+            pointer-events: none;
+        }
+        
+        .decoration-1 
+        {
+            top: 10%;
+            right: 5%;
+            font-size: clamp(80px, 15vw, 120px);
+            transform: rotate(15deg);
+        }
+        
+        .decoration-2 
+        {
+            bottom: 15%;
+            left: 5%;
+            font-size: clamp(70px, 12vw, 100px);
+            transform: rotate(-10deg);
+        }
+    </style>
+</head>
+<body>
+    <!-- 牌匾式标题 -->
+    <div class="plaque">
+        <h1>剪纸艺术馆</h1>
+    </div>
+    
+    <!-- 主容器 -->
+    <div class="main-container">
+        <!-- 控制面板 -->
+        <div class="control-panel" id="controlPanel">
+            <div class="toggle-btn" id="toggleBtn">
+                <i class="fas fa-chevron-left"></i>
+            </div>
+            <div class="control-buttons">
+                <button class="control-btn" id="nextBtn">
+                    <i class="fas fa-forward"></i>
+                    <span>下一幅</span>
+                </button>
+                <button class="control-btn" id="zoomInBtn">
+                    <i class="fas fa-search-plus"></i>
+                    <span>放大</span>
+                </button>
+                <button class="control-btn" id="zoomOutBtn">
+                    <i class="fas fa-search-minus"></i>
+                    <span>缩小</span>
+                </button>
+                <button class="control-btn" id="infoBtn">
+                    <i class="fas fa-info-circle"></i>
+                    <span>介绍</span>
+                </button>
+                <button class="control-btn" id="backBtn">
+                    <i class="fas fa-undo"></i>
+                    <span>返回</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 剪纸展示区 -->
+        <div class="art-display">
+            <div class="paper-art-container">
+                <img src="1.png" alt="传统剪纸艺术品" class="paper-art" id="paperArt">
+                <div class="art-title">传统吉祥图案剪纸 - 福字</div>
+            </div>
+            
+            <!-- 装饰元素 -->
+            <div class="decoration decoration-1">✂</div>
+            <div class="decoration decoration-2">❤</div>
+        </div>
+    </div>
+    
+    <!-- 移动设备底部控制栏 -->
+    <div class="mobile-controls">
+        <button class="mobile-control-btn" id="mobileNextBtn">
+            <i class="fas fa-forward"></i>
+        </button>
+        <button class="mobile-control-btn" id="mobileZoomInBtn">
+            <i class="fas fa-search-plus"></i>
+        </button>
+        <button class="mobile-control-btn" id="mobileZoomOutBtn">
+            <i class="fas fa-search-minus"></i>
+        </button>
+        <button class="mobile-control-btn" id="mobileInfoBtn">
+            <i class="fas fa-info-circle"></i>
+        </button>
+    </div>
+    
+    <!-- 介绍模态框 -->
+    <div class="modal" id="infoModal">
+        <div class="modal-content">
+            <span class="close-btn" id="closeModal">
+                <i class="fas fa-times"></i>
+            </span>
+            <h2>标题占位符</h2>
+            <p>我是占位符</p>
+
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() 
+        {
+            // 获取元素
+            const controlPanel = document.getElementById('controlPanel');
+            const toggleBtn = document.getElementById('toggleBtn');
+            const paperArt = document.getElementById('paperArt');
+            const nextBtn = document.getElementById('nextBtn');
+            const zoomInBtn = document.getElementById('zoomInBtn');
+            const zoomOutBtn = document.getElementById('zoomOutBtn');
+            const infoBtn = document.getElementById('infoBtn');
+            const backBtn = document.getElementById('backBtn');
+            const infoModal = document.getElementById('infoModal');
+            const closeModal = document.getElementById('closeModal');
+            
+            // 移动设备按钮
+            const mobileNextBtn = document.getElementById('mobileNextBtn');
+            const mobileZoomInBtn = document.getElementById('mobileZoomInBtn');
+            const mobileZoomOutBtn = document.getElementById('mobileZoomOutBtn');
+            const mobileInfoBtn = document.getElementById('mobileInfoBtn');
+            
+            let currentScale = 1;
+            let currentRotation = 0;
+            let currentImageIndex = 0;
+            
+            // 剪纸图片库
+            const imageLibrary = [
+                {
+                    url: "1.png",
+                    title: "传统吉祥图案剪纸 - 福字"
+                },
+                {
+                    url: "1.png",
+                    title: "十二生肖剪纸 - 龙"
+                },
+                {
+                    url: "1.png",
+                    title: "喜庆窗花剪纸"
+                },
+                {
+                    url: "1.png",
+                    title: "花鸟图案剪纸"
+                }
+            ];
+            
+            // 检测设备类型并设置初始面板状态
+            function checkDevice() 
+            {
+                if (window.innerWidth <= 768) 
+                {
+                    controlPanel.classList.add('collapsed');
+                    toggleBtn.querySelector('i').className = 'fas fa-chevron-down';
+                } 
+                else 
+                {
+                    controlPanel.classList.remove('collapsed');
+                    toggleBtn.querySelector('i').className = 'fas fa-chevron-left';
+                }
+            }
+            
+            // 初始化
+            checkDevice();
+            window.addEventListener('resize', checkDevice);
+            
+            // 面板展开/收起功能
+            toggleBtn.addEventListener('click', function() 
+            {
+                controlPanel.classList.toggle('collapsed');
+                const icon = toggleBtn.querySelector('i');
+                if (window.innerWidth <= 768) 
+                {
+                    if (controlPanel.classList.contains('collapsed')) 
+                    {
+                        icon.className = 'fas fa-chevron-down';
+                    } 
+                    else 
+                    {
+                        icon.className = 'fas fa-chevron-up';
+                    }
+                } 
+                else 
+                {
+                    if (controlPanel.classList.contains('collapsed')) 
+                    {
+                        icon.className = 'fas fa-chevron-right';
+                    } 
+                    else 
+                    {
+                        icon.className = 'fas fa-chevron-left';
+                    }
+                }
+            });
+            
+            // 下一幅按钮功能
+            function nextImage() 
+            {
+                currentImageIndex = (currentImageIndex + 1) % imageLibrary.length;
+                paperArt.src = imageLibrary[currentImageIndex].url;
+                document.querySelector('.art-title').textContent = imageLibrary[currentImageIndex].title;
+                resetTransform();
+            }
+            
+            nextBtn.addEventListener('click', nextImage);
+            mobileNextBtn.addEventListener('click', nextImage);
+            
+            // 放大按钮功能
+            function zoomIn() 
+            {
+                currentScale += 0.1;
+                updateTransform();
+            }
+            
+            zoomInBtn.addEventListener('click', zoomIn);
+            mobileZoomInBtn.addEventListener('click', zoomIn);
+            
+            // 缩小按钮功能
+            function zoomOut() 
+            {
+                if (currentScale > 0.2) 
+                {
+                    currentScale -= 0.1;
+                    updateTransform();
+                }
+            }
+            
+            zoomOutBtn.addEventListener('click', zoomOut);
+            mobileZoomOutBtn.addEventListener('click', zoomOut);
+            
+            // 介绍按钮功能
+            function showInfo() 
+            {
+                infoModal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            }
+            
+            infoBtn.addEventListener('click', showInfo);
+            mobileInfoBtn.addEventListener('click', showInfo);
+            
+            // 返回按钮功能
+            backBtn.addEventListener('click', function() 
+            {
+                resetTransform();
+            });
+            
+            // 关闭模态框
+            closeModal.addEventListener('click', function() 
+            {
+                infoModal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            });
+            
+            // 点击模态框外部也可关闭
+            window.addEventListener('click', function(event) 
+            {
+                if (event.target === infoModal) 
+                {
+                    infoModal.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                }
+            });
+            
+            // 更新图片变换
+            function updateTransform() 
+            {
+                paperArt.style.transform = `scale(${currentScale}) rotate(${currentRotation}deg)`;
+            }
+            
+            // 重置变换
+            function resetTransform() 
+            {
+                currentScale = 1;
+                currentRotation = 0;
+                paperArt.style.transform = 'scale(1) rotate(0deg)';
+            }
+            
+            // 添加触摸支持（移动设备）
+            let initialPinchDistance = null;
+            let initialScale = 1;
+            
+            paperArt.addEventListener('touchstart', function(e) 
+            {
+                if (e.touches.length === 2) 
+                {
+                    initialPinchDistance = getDistance(
+                        e.touches[0].clientX, e.touches[0].clientY,
+                        e.touches[1].clientX, e.touches[1].clientY
+                    );
+                    initialScale = currentScale;
+                    e.preventDefault();
+                }
+            });
+            
+            paperArt.addEventListener('touchmove', function(e) 
+            {
+                if (e.touches.length === 2) 
+                {
+                    const currentDistance = getDistance(
+                        e.touches[0].clientX, e.touches[0].clientY,
+                        e.touches[1].clientX, e.touches[1].clientY
+                    );
+                    
+                    if (initialPinchDistance !== null) 
+                    {
+                        currentScale = initialScale * (currentDistance / initialPinchDistance);
+                        // 限制缩放范围
+                        currentScale = Math.max(0.2, Math.min(currentScale, 5));
+                        updateTransform();
+                    }
+                    e.preventDefault();
+                }
+            });
+            
+            paperArt.addEventListener('touchend', function() 
+            {
+                initialPinchDistance = null;
+            });
+            
+            // 计算两点间距离
+            function getDistance(x1, y1, x2, y2) 
+            {
+                return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            }
+        });
+    </script>
+</body>
+</html>

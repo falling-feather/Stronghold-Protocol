@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>蔚县剪纸 - 深度交互版</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* --- 基础样式 --- */
+        :root { --yx-red: #A61B1B; --yx-dark: #222; --yx-paper: #F8F4E6; }
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+        body { font-family: "KaiTi", serif; background: var(--yx-dark); height: 100vh; overflow: hidden; color: #ddd; display: flex; flex-direction: column; }
+        
+        /* 布局 */
+        #app { display: flex; width: 100%; height: 100%; }
+        @media (min-width: 769px) {
+            #app { flex-direction: row; }
+            .sidebar { width: 320px; border-right: 1px solid #444; }
+            .main-area { flex: 1; }
+            .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        }
+        @media (max-width: 768px) {
+            #app { flex-direction: column; }
+            .sidebar { height: auto; width: 100%; order: 2; z-index: 10; padding-bottom: 20px; box-shadow: 0 -2px 10px #000; }
+            .main-area { flex: 1; order: 1; }
+            .tool-grid { display: flex; overflow-x: auto; gap: 10px; padding-bottom: 5px; }
+            .btn { min-width: 90px; font-size: 0.8rem; flex-direction: column; text-align: center; }
+        }
+
+        /* 侧边栏 */
+        .sidebar { background: #1a1a1a; padding: 20px; display: flex; flex-direction: column; }
+        .step-header { border-bottom: 1px solid #333; padding-bottom: 15px; margin-bottom: 15px; }
+        .step-num { color: var(--yx-red); font-size: 1.2rem; font-weight: bold; }
+        .step-desc { font-size: 0.9rem; color: #888; margin-top: 5px; line-height: 1.4; }
+        
+        .controls { flex: 1; }
+        .btn {
+            background: #333; color: #ccc; border: 1px solid #444; padding: 12px;
+            border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: all 0.2s; width: 100%;
+        }
+        .btn:hover { background: #444; }
+        .btn.active { background: var(--yx-red); color: white; border-color: var(--yx-red); }
+        .btn-primary { background: var(--yx-red); color: white; font-weight: bold; margin-top: 10px; }
+        
+        /* 画布区 */
+        .main-area {
+            background: #3e2723 url('https://www.transparenttextures.com/patterns/wood-pattern.png');
+            display: flex; align-items: center; justify-content: center; position: relative;
+        }
+        .canvas-stack {
+            position: relative; width: 100%; max-width: 500px; aspect-ratio: 3/4;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6); background: transparent; transition: transform 0.5s;
+        }
+        .canvas-stack.pressing { transform: scale(0.98); } /* 压实动画 */
+        
+        /* 层级管理 - 关键逻辑 */
+        .layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .layer.interactive { pointer-events: auto; cursor: crosshair; }
+        
+        #layer-bg { z-index: 1; background: var(--yx-paper); transition: background 1s; }
+        #layer-color { z-index: 2; } /* 染色层在下 */
+        #layer-smoke { z-index: 3; } /* 熏黑层在上(作为遮罩) */
+        #layer-draw { z-index: 4; opacity: 0.7; transition: opacity 0.5s; } /* 线稿层 */
+        #layer-tools { z-index: 5; } /* 道具 */
+        #layer-overlay { z-index: 6; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; color: white; font-size: 1.5rem; pointer-events: none;}
+
+        /* 组件 */
+        .color-dots { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .dot { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; cursor: pointer; }
+        .dot.selected { transform: scale(1.2); box-shadow: 0 0 8px white; }
+        
+        .paper-weight {
+            position: absolute; width: 100px; height: 40px; background: linear-gradient(#666, #333);
+            border-radius: 4px; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); opacity: 0; transition: opacity 0.5s;
+            display: flex; align-items: center; justify-content: center; font-size: 12px; color: #aaa;
+        }
+
+        .toast {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8); padding: 15px 25px; border-radius: 8px; z-index: 999;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s; text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="toast" class="toast">提示</div>
+
+    <div id="app">
+        <div class="main-area">
+            <div class="canvas-stack" id="canvasContainer">
+                <div id="layer-bg" class="layer"></div>
+                <!-- 染色层：在黑纸下面，只有透了才能看见 -->
+                <canvas id="layer-color" class="layer" width="600" height="800"></canvas>
+                <!-- 熏黑层：这是实体纸，刻掉它(变透明)才能漏出下面的色 -->
+                <canvas id="layer-smoke" class="layer" width="600" height="800"></canvas>
+                <!-- 线稿层：始终存在，辅助对齐 -->
+                <canvas id="layer-draw" class="layer" width="600" height="800"></canvas>
+                
+                <div id="layer-tools" class="layer">
+                    <div id="weight" class="paper-weight">蔚县铁压尺</div>
+                </div>
+                <div id="layer-overlay" class="layer">处理中...</div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="step-header">
+                <div class="step-num" id="stepTitle">Step 1</div>
+                <div class="step-desc" id="stepDesc">...</div>
+            </div>
+            
+            <div class="controls tool-grid" id="tools"></div>
+            
+            <button class="btn btn-primary" id="nextBtn" onclick="nextStep()">下一步</button>
+        </div>
+    </div>
+
+    <script>
+        // === 全局配置 ===
+        const CONFIG = { w: 600, h: 800 };
+        const state = {
+            step: 0,
+            isDrawing: false,
+            lastPt: null,
+            brushColor: '#333',
+            brushSize: 4,
+            hasDrawn: false,
+            carveMode: false
+        };
+
+        // DOM 获取
+        const els = {
+            title: document.getElementById('stepTitle'),
+            desc: document.getElementById('stepDesc'),
+            tools: document.getElementById('tools'),
+            nextBtn: document.getElementById('nextBtn'),
+            container: document.getElementById('canvasContainer'),
+            weight: document.getElementById('weight'),
+            overlay: document.getElementById('layer-overlay'),
+            toast: document.getElementById('toast'),
+            layers: {
+                draw: document.getElementById('layer-draw'),
+                smoke: document.getElementById('layer-smoke'),
+                color: document.getElementById('layer-color'),
+                bg: document.getElementById('layer-bg'),
+                tools: document.getElementById('layer-tools')
+            },
+            ctx: {}
+        };
+
+        // 初始化 Context
+        ['draw', 'smoke', 'color'].forEach(k => {
+            els.ctx[k] = els.layers[k].getContext('2d');
+            els.ctx[k].lineCap = 'round';
+            els.ctx[k].lineJoin = 'round';
+        });
+
+        // === 核心逻辑流程 ===
+        const STEPS = [
+            {
+                // 1. 画样
+                title: "第一步：画样 (绘制骨架)",
+                desc: "请绘制图案。您的每一笔都将成为后续雕刻的依据。一定要把线条画闭合哦。",
+                init: () => {
+                    activeLayer('draw');
+                    renderTools(`
+                        <button class="btn active" onclick="setMode('pen')"><i class="fas fa-pen"></i> 勾线笔</button>
+                        <button class="btn" onclick="useTemplate()"><i class="fas fa-dragon"></i> 预设图样</button>
+                        <button class="btn" onclick="clearDraw()"><i class="fas fa-undo"></i> 重画</button>
+                    `);
+                }
+            },
+            {
+                // 2. 钉纸
+                title: "第二步：钉纸 (固定)",
+                desc: "蔚县剪纸是多层同时刻制。请在纸张四角点击，钉上纸捻固定。",
+                init: () => {
+                    activeLayer('tools');
+                    els.layers.tools.style.pointerEvents = 'auto';
+                    els.layers.tools.onclick = addPin;
+                    renderTools(`<div style="grid-column:1/-1; text-align:center; color:#888; padding:10px;">请直接点击画布四角</div>`);
+                }
+            },
+            {
+                // 3. 浸水熏样
+                title: "第三步：浸水 & 熏样",
+                desc: "将纸张浸湿后用烟火熏黑。黑白分明，刀路清晰。",
+                init: () => {
+                    activeLayer('none');
+                    renderTools(`
+                        <button class="btn" onclick="doSoak()"><i class="fas fa-tint"></i> 喷水</button>
+                        <button class="btn" id="btnSmoke" disabled onclick="doSmoke()"><i class="fas fa-fire"></i> 熏样</button>
+                    `);
+                }
+            },
+            {
+                // 4. 压实晾干
+                title: "第四步：压实晾干",
+                desc: "放置重物压实纸张，排除气泡并晾干，使纸张变得紧实易刻。",
+                init: () => {
+                    activeLayer('none');
+                    els.nextBtn.disabled = true;
+                    els.nextBtn.style.opacity = 0.5;
+                    renderTools(`
+                        <button class="btn" onclick="doPress()"><i class="fas fa-weight-hanging"></i> 放置压尺</button>
+                    `);
+                }
+            },
+            {
+                // 5. 雕刻 (关键步骤)
+                title: "第五步：雕刻 (阴刻工艺)",
+                desc: "关键步骤！请用刻刀擦除黑色区域。未雕刻的区域将是黑色的，无法上色。",
+                init: () => {
+                    // 进入雕刻，隐藏压尺
+                    els.weight.style.opacity = 0;
+                    
+                    // 将画样层变白，作为引导
+                    els.layers.draw.style.filter = 'invert(1)';
+                    els.layers.draw.style.opacity = 0.8;
+                    
+                    activeLayer('smoke');
+                    // 开启擦除模式：把黑纸擦掉（变透明），漏出下面的层
+                    els.ctx.smoke.globalCompositeOperation = 'destination-out'; 
+                    state.brushSize = 10;
+                    
+                    renderTools(`
+                        <button class="btn active" onclick="state.brushSize=10"><i class="fas fa-cut"></i> 手工刻刀</button>
+                        <button class="btn" style="border:1px solid gold; color:gold;" onclick="autoCarve()"><i class="fas fa-magic"></i> 一键沿线刻 (继承画样)</button>
+                        <div style="grid-column:1/-1; font-size:12px; color:#aaa; margin-top:5px;">提示：试试“一键沿线刻”，它会利用第一步的线条自动镂空！</div>
+                    `);
+                }
+            },
+            {
+                // 6. 染色
+                title: "第六步：点染 (色彩)",
+                desc: "蔚县剪纸特色：三分刻七分染。请在镂空处点染颜色。",
+                init: () => {
+                    // 减淡线稿，突出色彩
+                    els.layers.draw.style.opacity = 0.1;
+                    
+                    activeLayer('color');
+                    els.ctx.color.globalCompositeOperation = 'source-over';
+                    state.brushSize = 25;
+                    
+                    const colors = ['#D32F2F', '#388E3C', '#1976D2', '#FFEB3B', '#FFFFFF'];
+                    let html = `<div class="color-dots" style="grid-column:1/-1">`;
+                    colors.forEach(c => html += `<div class="dot" style="background:${c}" onclick="setColor('${c}', this)"></div>`);
+                    html += `</div>`;
+                    
+                    renderTools(html + `<div style="grid-column:1/-1; font-size:12px; color:#888; margin-top:5px;">注：只有刚才刻掉的区域才能染上色哦</div>`);
+                    setColor(colors[0], document.querySelector('.dot'));
+                }
+            },
+            {
+                title: "完成创作",
+                desc: "您的作品已生成！",
+                init: () => {
+                    activeLayer('none');
+                    els.layers.draw.style.opacity = 0; // 隐藏线稿
+                    els.nextBtn.style.display = 'none';
+                    renderTools(`
+                        <button class="btn active" onclick="saveImg()"><i class="fas fa-download"></i> 保存作品</button>
+                        <button class="btn" onclick="location.reload()">再来一次</button>
+                    `);
+                }
+            }
+        ];
+
+        // === 动作实现 ===
+
+        // 1. 画样
+        function setMode(m) {
+            els.ctx.draw.globalCompositeOperation = 'source-over';
+            state.brushColor = '#333';
+        }
+        function useTemplate() {
+            const ctx = els.ctx.draw;
+            ctx.clearRect(0,0,CONFIG.w, CONFIG.h);
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
+            
+            // 画一个闭合的窗花图案
+            ctx.beginPath();
+            ctx.arc(300, 400, 150, 0, Math.PI*2); // 外圆
+            ctx.stroke();
+            
+            // 画十字
+            ctx.beginPath();
+            ctx.moveTo(300, 250); ctx.lineTo(300, 550);
+            ctx.moveTo(150, 400); ctx.lineTo(450, 400);
+            ctx.stroke();
+            
+            // 画内部花瓣
+            for(let i=0; i<4; i++) {
+                let angle = i * Math.PI/2 + Math.PI/4;
+                let x = 300 + Math.cos(angle)*80;
+                let y = 400 + Math.sin(angle)*80;
+                ctx.beginPath();
+                ctx.arc(x, y, 40, 0, Math.PI*2);
+                ctx.stroke();
+            }
+            state.hasDrawn = true;
+            toast("预设图样已绘制");
+        }
+        function clearDraw() { els.ctx.draw.clearRect(0,0,CONFIG.w, CONFIG.h); state.hasDrawn = false; }
+
+        // 2. 钉纸
+        function addPin(e) {
+            const rect = els.container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const pin = document.createElement('div');
+            pin.innerHTML = '<i class="fas fa-thumbtack"></i>';
+            pin.style.cssText = `position:absolute; left:${x-10}px; top:${y-20}px; color:#666; font-size:24px; transform:rotate(-45deg);`;
+            els.layers.tools.appendChild(pin);
+            toast("已固定");
+        }
+
+        // 3. 熏样
+        function doSoak() {
+            els.layers.bg.style.background = '#ccc'; // 湿纸变灰
+            document.getElementById('btnSmoke').disabled = false;
+            toast("纸张已浸湿");
+        }
+        function doSmoke() {
+            // 熏黑：用黑色填满 smoke 层
+            els.ctx.smoke.globalCompositeOperation = 'source-over';
+            els.ctx.smoke.fillStyle = '#111';
+            els.ctx.smoke.fillRect(0,0,CONFIG.w, CONFIG.h);
+            toast("熏样完成，黑底显现");
+            setTimeout(nextStep, 1000);
+        }
+
+        // 4. 压实
+        function doPress() {
+            els.weight.style.opacity = 1;
+            els.container.classList.add('pressing');
+            els.overlay.innerText = "压实晾干中...";
+            els.overlay.style.opacity = 1;
+            
+            setTimeout(() => {
+                els.overlay.innerText = "晾干完成";
+                els.layers.bg.style.background = '#e0e0e0'; // 变干的颜色
+                els.container.classList.remove('pressing');
+                
+                setTimeout(() => {
+                    els.overlay.style.opacity = 0;
+                    els.nextBtn.disabled = false;
+                    els.nextBtn.style.opacity = 1;
+                    toast("纸张处理完毕");
+                }, 500);
+            }, 1500);
+        }
+
+        // 5. 雕刻 (继承逻辑)
+        function autoCarve() {
+            // 核心继承：读取 layer-draw，在 layer-smoke 上擦除
+            // 这里我们用一个简化的视觉模拟：把 draw 层的像素作为擦除 Mask
+            
+            // 1. 把 smoke 层的混合模式设为 'destination-out' (擦除)
+            const sCtx = els.ctx.smoke;
+            sCtx.globalCompositeOperation = 'destination-out';
+            
+            // 2. 把 draw 层画到 smoke 层上
+            // 凡是 draw 层有线条的地方，smoke 层对应位置就会变透明
+            // 为了刻得宽一点，我们稍微放大线宽
+            sCtx.lineWidth = 8; 
+            sCtx.lineJoin = 'round';
+            sCtx.lineCap = 'round';
+            
+            // 由于 draw 是 canvas，直接 drawImage 只能原样复制
+            // 我们需要重新描边刚才的路径比较复杂，这里用 drawImage 简单模拟
+            // 直接绘制 drawCanvas 会把线作为 mask 擦除黑纸
+            sCtx.drawImage(els.layers.draw, 0, 0);
+            
+            // 为了刻得更深（线条更粗），我们可以稍微偏移重画几次或者手动模拟
+            // 这里为了简单，直接提示
+            toast("✨ 已根据画样自动刻通！");
+            
+            // 手动刻刀恢复
+            sCtx.globalCompositeOperation = 'destination-out';
+        }
+
+        // 6. 染色
+        function setColor(c, el) {
+            state.brushColor = c;
+            document.querySelectorAll('.dot').forEach(d=>d.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+
+        // === 通用绘图引擎 ===
+        function getPos(e) {
+            const rect = els.container.getBoundingClientRect();
+            let x = e.clientX, y = e.clientY;
+            if (e.touches && e.touches.length) { x=e.touches[0].clientX; y=e.touches[0].clientY; }
+            const sx = CONFIG.w / rect.width;
+            const sy = CONFIG.h / rect.height;
+            return { x:(x-rect.left)*sx, y:(y-rect.top)*sy };
+        }
+
+        function draw(e) {
+            if (!state.isDrawing) return;
+            e.preventDefault();
+            const pt = getPos(e);
+            
+            // 路由到当前步骤的 Canvas
+            let ctx = null;
+            if (state.step === 0) ctx = els.ctx.draw; // 画样
+            if (state.step === 4) ctx = els.ctx.smoke; // 雕刻 (Index 4)
+            if (state.step === 5) ctx = els.ctx.color; // 染色 (Index 5)
+            
+            if (!ctx) return;
+            state.hasDrawn = true;
+
+            ctx.beginPath();
+            ctx.moveTo(state.lastPt.x, state.lastPt.y);
+            ctx.lineTo(pt.x, pt.y);
+            ctx.lineWidth = state.brushSize;
+            
+            if (state.step === 4) {
+                // 雕刻：擦除
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineWidth = 15; // 刻刀要宽
+            } else if (state.step === 5) {
+                // 染色：正常叠加
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = state.brushColor;
+                ctx.shadowBlur = 10; ctx.shadowColor = state.brushColor;
+            } else {
+                // 画样
+                ctx.strokeStyle = '#000';
+            }
+            
+            ctx.stroke();
+            state.lastPt = pt;
+        }
+
+        els.container.addEventListener('mousedown', e => { state.isDrawing=true; state.lastPt=getPos(e); draw(e); });
+        els.container.addEventListener('touchstart', e => { state.isDrawing=true; state.lastPt=getPos(e); draw(e); }, {passive:false});
+        els.container.addEventListener('mousemove', draw);
+        els.container.addEventListener('touchmove', draw, {passive:false});
+        window.addEventListener('mouseup', () => state.isDrawing=false);
+        window.addEventListener('touchend', () => state.isDrawing=false);
+
+        // === 流程控制 ===
+        function loadStep(idx) {
+            state.step = idx;
+            const s = STEPS[idx];
+            els.title.innerText = s.title;
+            els.desc.innerText = s.desc;
+            s.init();
+        }
+        function nextStep() {
+            if (state.step < STEPS.length - 1) loadStep(state.step + 1);
+        }
+        function renderTools(html) { els.tools.innerHTML = html; }
+        function activeLayer(id) {
+            Object.values(els.layers).forEach(l => l.classList.remove('interactive'));
+            if(id !== 'none') els.layers[id].classList.add('interactive');
+        }
+        function toast(msg) {
+            els.toast.innerText = msg; els.toast.style.opacity = 1;
+            setTimeout(()=>els.toast.style.opacity=0, 2000);
+        }
+        function saveImg() {
+            const c = document.createElement('canvas'); c.width=CONFIG.w; c.height=CONFIG.h;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
+            ctx.drawImage(els.layers.color,0,0);
+            ctx.drawImage(els.layers.smoke,0,0); // 黑纸盖在颜色上
+            const a = document.createElement('a'); a.download = '蔚县剪纸.png'; a.href = c.toDataURL(); a.click();
+        }
+
+        // 启动
+        loadStep(0);
+
+    </script>
+</body>
+</html>

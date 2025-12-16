@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正在探索中...</title>
+    <style>
+        /* --- 全局样式 --- */
+        *
+        {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html
+        {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: "SimSun", "Songti SC", serif;
+        }
+
+        /* --- 容器 --- */
+        .container
+        {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: url('./加载页面背景.jpg') no-repeat center center;
+            background-size: cover;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- 剪纸展示区域 --- */
+        .paper-cut-wrapper
+        {
+            width: 60vw;
+            max-width: 300px;
+            margin-bottom: 20px;
+            position: relative;
+            transform: translateY(-50px);
+        }
+
+        .paper-cut-img
+        {
+            width: 100%;
+            display: block;
+            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.2));
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        /* --- 进度条区域 --- */
+        .progress-section
+        {
+            width: 80%;
+            max-width: 500px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        /* 小龙形象 */
+        .dragon-mascot
+        {
+            position: absolute;
+            width: 50px;
+            bottom: 35px;
+            left: 0;
+            transform: translateX(-50%);
+            z-index: 10;
+            transition: left 0.1s linear;
+            animation: float 1.5s ease-in-out infinite;
+        }
+
+        @keyframes float
+        {
+            0%, 100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(-5px); }
+        }
+
+        /* 进度条轨道 */
+        .progress-bar-container
+        {
+            width: 100%;
+            height: 20px;
+            position: relative;
+            background: url('./进度条/进度条的底.png') no-repeat center;
+            background-size: 100% 100%;
+            border-radius: 10px;
+        }
+
+        /* 进度条填充 */
+        .progress-fill
+        {
+            height: 100%;
+            width: 0%;
+            background: url('./进度条/进度条.png') no-repeat left center;
+            background-size: cover;
+            border-radius: 10px;
+            transition: width 0.1s linear;
+        }
+
+        /* 文字区域 */
+        .text-area
+        {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+        }
+
+        .loading-text
+        {
+            letter-spacing: 2px;
+        }
+
+        .percentage
+        {
+            font-family: 'Times New Roman', serif;
+        }
+
+        /* 呼吸效果 */
+        @keyframes blink
+        {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .blink-text
+        {
+            animation: blink 1.5s infinite ease-in-out;
+            color: #c0392b;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="paper-cut-wrapper">
+            <img id="paperCut" src="./轮换剪纸/1.png" alt="剪纸" class="paper-cut-img">
+        </div>
+
+        <div class="progress-section">
+            <img id="dragon" src="./小龙形象.png" alt="loading mascot" class="dragon-mascot">
+            
+            <div class="progress-bar-container">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+
+            <div class="text-area">
+                <span class="loading-text">进入探索中......</span>
+                <span id="percentText" class="percentage">0%</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 配置 ---
+        const paperCutImages = ['1.png', '2.png', '3.png', '4.png', '5.png', '6.png', '7.png', '8.png', '9.png', '10.png'];
+        const pathPrefix = './轮换剪纸/';
+        
+        const assetsToPreload = [
+            './index_static/其他/剪纸展示全貌.png',
+            './index_static/其他/剪纸展示框框架.png',
+            './index_static/其他/手指点击.png',
+            './index_static/其他/对话框.png',
+            './index_static/其他/名字框.png',
+            './index_static/小龙.png'
+        ];
+
+        let currentImageIndex = 0;
+        let imagesLoadedCount = 0;
+        let isResourcesReady = false; // 资源是否加载完毕标记
+
+        const paperCutEl = document.getElementById('paperCut');
+        const progressFillEl = document.getElementById('progressFill');
+        const dragonEl = document.getElementById('dragon');
+        const percentTextEl = document.getElementById('percentText');
+        const textSpanEl = document.querySelector('.loading-text');
+
+        // --- 1. 剪纸轮换逻辑 ---
+        function rotatePaperCuts()
+        {
+            setInterval(() => 
+            {
+                paperCutEl.style.opacity = 0;
+                setTimeout(() => 
+                {
+                    currentImageIndex = (currentImageIndex + 1) % paperCutImages.length;
+                    paperCutEl.src = pathPrefix + paperCutImages[currentImageIndex];
+                    paperCutEl.style.opacity = 1;
+                }, 500);
+            }, 2500);
+        }
+
+        // --- 2. 真实预加载逻辑 ---
+        function startPreloading()
+        {
+            if (assetsToPreload.length === 0)
+            {
+                isResourcesReady = true;
+                return;
+            }
+
+            assetsToPreload.forEach(src => 
+            {
+                const img = new Image();
+                img.src = src;
+                // 无论成功还是失败，都算处理完一张
+                img.onload = img.onerror = () => 
+                {
+                    imagesLoadedCount++;
+                    if (imagesLoadedCount === assetsToPreload.length)
+                    {
+                        isResourcesReady = true;
+                        console.log("所有资源预加载完毕");
+                    }
+                };
+            });
+        }
+
+        // --- 3. 智能进度条逻辑 ---
+        function simulateLoading()
+        {
+            let progress = 0;
+            const minDuration = 2500; // 最小播放时间 2.5s
+            const startTime = Date.now();
+
+            const timer = setInterval(() => 
+            {
+                const timePassed = Date.now() - startTime;
+                
+                // 只有当“资源加载完”且“时间也够了”，才允许冲到 100%
+                if (isResourcesReady && timePassed > minDuration)
+                {
+                    progress += 5; // 快速完成
+                }
+                else
+                {
+                    // 否则，慢慢走，且卡在 90% 等待
+                    if (progress < 90)
+                    {
+                        progress += Math.random() * 1.5;
+                    }
+                }
+
+                if (progress >= 100)
+                {
+                    progress = 100;
+                    clearInterval(timer);
+                    updateUI(progress);
+                    onLoadComplete();
+                }
+                else
+                {
+                    updateUI(progress);
+                }
+            }, 50); 
+        }
+
+        function updateUI(value)
+        {
+            const percentage = Math.floor(value);
+            progressFillEl.style.width = value + '%';
+            dragonEl.style.left = value + '%';
+            percentTextEl.innerText = percentage + '%';
+        }
+
+        function onLoadComplete()
+        {
+            textSpanEl.innerText = "点击任意处开启旅程";
+            textSpanEl.classList.add('blink-text');
+            document.body.style.cursor = "pointer";
+
+            document.addEventListener('click', function()
+            {
+                window.location.href = 'coming.html'; 
+            }, { once: true });
+        }
+
+        window.onload = function()
+        {
+            rotatePaperCuts();
+            startPreloading(); // 启动预加载
+            simulateLoading(); // 启动进度条
+        };
+    </script>
+</body>
+</html>

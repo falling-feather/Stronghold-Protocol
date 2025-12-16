@@ -1,0 +1,1 @@
+{"name":"Luogu - P3601","url":"https://www.luogu.com.cn/problem/P3601","memoryLimit":128000,"timeLimit":1000,"tests":[{"input":"233 2333","output":"1056499","id":1763286160944},{"id":1763286160945,"input":"2333333333 2333666666","output":"153096296"}],"group":"luogu","srcPath":"d:\\My Code\\Luogu_P_3601.cpp"}

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Start Page</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow-x: hidden;
+            background-color: #1a1a1a;
+        }
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        .glass-input {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .text-shadow { text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* 状态指示灯动画 */
+        .status-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .status-online { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
+        .status-offline { background-color: #ef4444; }
+        .status-loading { background-color: #f59e0b; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        input::placeholder { color: rgba(255, 255, 255, 0.5); }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen flex flex-col items-center justify-between text-white relative bg-[#1a1a1a]">
+        
+        <div class="z-10 w-full max-w-6xl p-4 flex justify-between items-start">
+            <div class="flex items-center gap-2 text-xs opacity-70 hover:opacity-100 transition cursor-pointer glass-morphism px-3 py-1.5 rounded-full" @click="showConfig = true">
+                <span class="status-dot" :class="statusClass"></span>
+                <span>{{ statusText }}</span>
+            </div>
+            <button @click="syncCloud(false)" class="text-xs opacity-50 hover:opacity-100 p-2" title="重试连接">
+                <i class="fas fa-sync" :class="{'fa-spin': loading}"></i>
+            </button>
+        </div>
+
+        <div class="z-10 w-full max-w-3xl flex flex-col items-center mt-10 mb-8 px-4">
+            
+            <div class="text-center mb-12 select-none">
+                <h1 class="text-7xl md:text-9xl font-light tracking-tighter text-shadow">{{ timeString }}</h1>
+                <p class="text-lg md:text-xl font-medium opacity-90 text-shadow mt-2">{{ dateString }}</p>
+            </div>
+
+            <div class="w-full max-w-2xl relative group">
+                <div class="absolute left-2 top-1/2 -translate-y-1/2 z-20">
+                    <div class="relative">
+                        <button @click="showEngineSelect = !showEngineSelect" class="p-2 rounded-lg hover:bg-white/10 transition flex items-center gap-2 text-sm font-bold opacity-90">
+                            <i :class="currentEngineIcon"></i>
+                        </button>
+                        <div v-if="showEngineSelect" class="absolute top-full left-0 mt-2 glass-morphism rounded-lg overflow-hidden flex flex-col min-w-[120px] z-30">
+                            <button v-for="(eng, key) in engines" :key="key" @click="selectEngine(key)" class="px-4 py-3 text-left hover:bg-white/10 text-sm flex items-center gap-3 transition">
+                                <i :class="eng.icon" class="w-4 text-center"></i> {{ eng.name }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <input 
+                    v-model="searchQuery" 
+                    @keyup.enter="doSearch"
+                    type="text" 
+                    class="w-full glass-input rounded-full py-4 pl-16 pr-14 text-lg text-white outline-none focus:bg-black/40 transition shadow-lg placeholder-gray-400"
+                    :placeholder="'在 ' + engines[currentEngineKey].name + ' 中搜索...'"
+                >
+                <button @click="doSearch" class="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:text-blue-400 transition opacity-80 hover:opacity-100">
+                    <i class="fas fa-search text-xl"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-wrap justify-center gap-4 mt-10 w-full">
+                <a v-for="(link, i) in links" :key="i" :href="link.url" target="_blank" class="flex flex-col items-center gap-2 group cursor-pointer p-2 rounded-xl hover:bg-white/5 transition w-20">
+                    <div class="w-12 h-12 rounded-2xl glass-morphism flex items-center justify-center text-xl group-hover:scale-110 transition shadow-lg text-shadow">
+                        {{ link.name.charAt(0).toUpperCase() }}
+                    </div>
+                    <span class="text-xs opacity-70 group-hover:opacity-100 truncate w-full text-center">{{ link.name }}</span>
+                </a>
+                <button @click="addLink" class="flex flex-col items-center gap-2 group cursor-pointer p-2 rounded-xl hover:bg-white/5 transition w-20 opacity-60 hover:opacity-100">
+                    <div class="w-12 h-12 rounded-2xl border border-white/20 border-dashed flex items-center justify-center text-xl">
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <span class="text-xs">添加</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="z-10 w-full max-w-6xl px-4 pb-6 flex-1 min-h-0 flex flex-col md:flex-row gap-6">
+            
+            <div class="glass-morphism rounded-2xl p-6 flex-1 flex flex-col md:max-w-xs h-[400px]">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-lg">日历</h3>
+                    <div class="flex gap-1 text-xs">
+                        <button @click="changeMonth(-1)" class="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded transition"><i class="fas fa-chevron-left"></i></button>
+                        <button @click="toToday" class="px-3 hover:bg-white/10 rounded transition">今</button>
+                        <button @click="changeMonth(1)" class="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded transition"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-7 text-center text-xs opacity-60 mb-2 font-mono">
+                    <div v-for="d in ['日','一','二','三','四','五','六']">{{d}}</div>
+                </div>
+                <div class="grid grid-cols-7 gap-1 flex-1">
+                    <div v-for="p in startPad" :key="'p'+p"></div>
+                    <div v-for="d in monthDays" :key="d" @click="selDate(d)"
+                         class="rounded-lg flex flex-col items-center justify-center cursor-pointer relative hover:bg-white/10 transition text-sm"
+                         :class="{'bg-blue-500/30 border border-blue-400/50': isSel(d), 'ring-1 ring-emerald-400/50': isToday(d) && !isSel(d)}">
+                        <span>{{d}}</span>
+                        <div class="flex gap-0.5 mt-1 h-1">
+                            <div v-for="(dot, di) in getDots(d)" :key="di" class="w-1 h-1 rounded-full" :class="dot.done ? 'bg-gray-500' : 'bg-blue-400'"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-morphism rounded-2xl p-6 flex-[2] flex flex-col h-[400px]">
+                <div class="flex justify-between items-center mb-4 pb-2 border-b border-white/10">
+                    <div>
+                        <span class="text-xs opacity-60 uppercase tracking-widest">{{ currentYear }}.{{ currentMonth+1 }}</span>
+                        <h2 class="text-2xl font-bold">{{ selDateStr }}</h2>
+                    </div>
+                    <div class="text-xs opacity-60">{{ progressStr }}</div>
+                </div>
+
+                <div class="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-2">
+                    <div v-if="!currEvents.length" class="h-full flex flex-col items-center justify-center opacity-40">
+                        <i class="far fa-calendar-check text-4xl mb-2"></i>
+                        <p>今日暂无安排</p>
+                    </div>
+                    <div v-for="(ev, idx) in currEvents" :key="idx" class="flex items-center gap-3 bg-black/20 p-3 rounded-xl hover:bg-black/30 transition group border border-transparent hover:border-white/10">
+                        <button @click="togEvent(idx)" class="w-5 h-5 rounded-full border border-white/40 flex items-center justify-center transition flex-shrink-0" :class="{'bg-emerald-500 border-none': ev.done}">
+                            <i v-if="ev.done" class="fas fa-check text-[10px]"></i>
+                        </button>
+                        <input v-model="ev.text" @change="save" class="flex-1 bg-transparent outline-none text-sm" :class="{'opacity-50 line-through': ev.done}">
+                        <button @click="delEvent(idx)" class="opacity-0 group-hover:opacity-100 hover:text-red-400 transition px-2"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex gap-2">
+                    <input v-model="newEvent" @keyup.enter="addEvent" placeholder="添加新日程..." class="flex-1 glass-input rounded-lg px-4 py-3 text-sm outline-none focus:bg-black/40 transition">
+                    <button @click="addEvent" class="px-6 py-3 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-sm font-bold backdrop-blur-sm transition">添加</button>
+                </div>
+            </div>
+
+        </div>
+
+        <div v-if="showConfig" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div class="glass-morphism p-6 rounded-2xl w-full max-w-md">
+                <h3 class="text-xl font-bold mb-6">云端设置</h3>
+                <div class="space-y-4 text-sm">
+                    <div>
+                        <label class="block mb-1.5 opacity-70">GitHub Token</label>
+                        <input type="password" v-model="tempConf.token" class="w-full glass-input p-3 rounded-lg outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block mb-1.5 opacity-70">Owner</label>
+                            <input v-model="tempConf.owner" class="w-full glass-input p-3 rounded-lg outline-none">
+                        </div>
+                        <div>
+                            <label class="block mb-1.5 opacity-70">Repo</label>
+                            <input v-model="tempConf.repo" class="w-full glass-input p-3 rounded-lg outline-none">
+                        </div>
+                    </div>
+                    <p class="text-xs opacity-50 text-yellow-500 pt-2" v-if="isOffline">
+                        <i class="fas fa-exclamation-triangle"></i> 当前网络连接 GitHub 困难，已切换为本地模式。
+                    </p>
+                </div>
+                <div class="mt-8 flex justify-end gap-3">
+                    <button @click="showConfig = false" class="px-4 py-2 rounded-lg hover:bg-white/10 transition">关闭</button>
+                    <button @click="saveConf" class="px-6 py-2 bg-blue-600 rounded-lg hover:bg-blue-500 transition font-bold">保存并重试</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const STORAGE_KEY = 'lime_start_cache_v3';
+                const showConfig = ref(false);
+                const loading = ref(false);
+                const isOffline = ref(false); // 新增：是否处于离线模式
+                const connectionError = ref(''); // 新增：错误信息
+                
+                const ghConf = ref({ token: '', owner: '', repo: '', path: 'data.json' });
+                const tempConf = ref({...ghConf.value});
+                const fileSha = ref(null);
+
+                const now = ref(new Date());
+                const timeString = computed(() => now.value.toLocaleTimeString('en-US', {hour12: false, hour:'2-digit', minute:'2-digit'}));
+                const dateString = computed(() => now.value.toLocaleDateString('zh-CN', {weekday:'long', month:'long', day:'numeric'}));
+
+                // 计算顶部状态栏的显示
+                const statusClass = computed(() => {
+                    if (loading.value) return 'status-loading';
+                    if (isOffline.value || !ghConf.value.token) return 'status-offline';
+                    return 'status-online';
+                });
+                
+                const statusText = computed(() => {
+                    if (loading.value) return '同步中...';
+                    if (!ghConf.value.token) return '未配置';
+                    if (isOffline.value) return '离线模式';
+                    return '云端正常';
+                });
+
+                const engines = {
+                    baidu: { name: '百度', icon: 'fas fa-paw', url: 'https://www.baidu.com/s?wd=' },
+                    google: { name: 'Google', icon: 'fab fa-google', url: 'https://www.google.com/search?q=' },
+                    bing: { name: '必应', icon: 'fab fa-microsoft', url: 'https://www.bing.com/search?q=' },
+                    so: { name: '360', icon: 'fas fa-shield-alt', url: 'https://www.so.com/s?q=' }
+                };
+                const currentEngineKey = ref('baidu');
+                const showEngineSelect = ref(false);
+                const searchQuery = ref('');
+
+                const links = ref([
+                    {name: 'GitHub', url: 'https://github.com'},
+                    {name: 'Bilibili', url: 'https://bilibili.com'}
+                ]);
+                const calendar = ref({});
+
+                const today = new Date();
+                const curM = ref(today.getMonth());
+                const curY = ref(today.getFullYear());
+                const selD = ref(today.getDate());
+                
+                const currentEngineIcon = computed(() => engines[currentEngineKey.value].icon);
+                const selDateStr = computed(() => `${curY.value}-${String(curM.value+1).padStart(2,'0')}-${String(selD.value).padStart(2,'0')}`);
+                const currEvents = computed(() => {
+                    if(!calendar.value[selDateStr.value]) calendar.value[selDateStr.value] = [];
+                    return calendar.value[selDateStr.value];
+                });
+                const progressStr = computed(() => {
+                    const total = currEvents.value.length;
+                    const done = currEvents.value.filter(e => e.done).length;
+                    return total ? `${done}/${total}` : '';
+                });
+
+                const monthDays = computed(() => new Date(curY.value, curM.value + 1, 0).getDate());
+                const startPad = computed(() => new Date(curY.value, curM.value, 1).getDay());
+
+                setInterval(() => { now.value = new Date(); }, 1000);
+
+                const loadLocal = () => {
+                    const cache = localStorage.getItem(STORAGE_KEY);
+                    const conf = localStorage.getItem('gh_config');
+                    
+                    if (conf) {
+                        ghConf.value = JSON.parse(conf);
+                        tempConf.value = {...ghConf.value};
+                    }
+
+                    if (cache) {
+                        try {
+                            const data = JSON.parse(cache);
+                            links.value = data.links || links.value;
+                            calendar.value = data.calendar || {};
+                            if(data.engine && engines[data.engine]) currentEngineKey.value = data.engine;
+                            console.log("本地数据加载完成");
+                        } catch(e) {
+                            console.error("本地缓存损坏", e);
+                        }
+                    }
+                };
+
+                const utf8_to_b64 = (str) => window.btoa(unescape(encodeURIComponent(str)));
+                const b64_to_utf8 = (str) => decodeURIComponent(escape(window.atob(str)));
+
+                // 核心优化：带有超时控制的同步函数
+                const syncCloud = async (isWrite = false) => {
+                    if (!ghConf.value.token || !ghConf.value.owner || !ghConf.value.repo) return;
+                    
+                    loading.value = true;
+                    connectionError.value = '';
+                    
+                    const { owner, repo, path, token } = ghConf.value;
+                    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+                    // 创建一个控制器，用于 3 秒后强制中止请求
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3秒超时
+
+                    try {
+                        if (!isWrite) {
+                            // 读操作
+                            const res = await fetch(url, { 
+                                headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' },
+                                signal: controller.signal // 绑定信号
+                            });
+                            
+                            clearTimeout(timeoutId); // 成功了就清除定时器
+
+                            if (res.ok) {
+                                const json = await res.json();
+                                fileSha.value = json.sha;
+                                const content = JSON.parse(b64_to_utf8(json.content));
+                                // 只有当云端数据有效时才覆盖本地
+                                links.value = content.links || links.value;
+                                calendar.value = content.calendar || calendar.value;
+                                if(content.engine) currentEngineKey.value = content.engine;
+                                cacheLocal();
+                                isOffline.value = false; // 标记为在线
+                            } else {
+                                throw new Error(`Status: ${res.status}`);
+                            }
+                        } else {
+                            // 写操作
+                            const data = { links: links.value, calendar: calendar.value, engine: currentEngineKey.value };
+                            const body = {
+                                message: 'Update via Web',
+                                content: utf8_to_b64(JSON.stringify(data)),
+                                sha: fileSha.value
+                            };
+                            const res = await fetch(url, {
+                                method: 'PUT',
+                                headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify(body),
+                                signal: controller.signal
+                            });
+                            
+                            clearTimeout(timeoutId);
+
+                            if (res.ok) {
+                                const json = await res.json();
+                                fileSha.value = json.content.sha;
+                                isOffline.value = false;
+                            } else {
+                                throw new Error(`Write Status: ${res.status}`);
+                            }
+                        }
+                    } catch (e) {
+                        // 捕获所有错误（网络中断、超时、VPN未开）
+                        console.warn("云端同步失败，切换至离线模式:", e);
+                        isOffline.value = true;
+                        connectionError.value = e.name === 'AbortError' ? '连接超时' : '网络不可用';
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                let timer = null;
+                const save = () => {
+                    cacheLocal(); // 任何修改，先无条件存本地
+                    if (timer) clearTimeout(timer);
+                    
+                    // 如果已经是离线模式，就不频繁重试了，除非用户手动点刷新
+                    if(!isOffline.value) {
+                        timer = setTimeout(() => syncCloud(true), 2000);
+                    }
+                };
+
+                const cacheLocal = () => {
+                    const data = { links: links.value, calendar: calendar.value, engine: currentEngineKey.value };
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                };
+
+                const saveConf = () => {
+                    ghConf.value = {...tempConf.value};
+                    localStorage.setItem('gh_config', JSON.stringify(ghConf.value));
+                    showConfig.value = false;
+                    isOffline.value = false; // 尝试重置状态
+                    syncCloud(false);
+                };
+
+                const selectEngine = (key) => {
+                    currentEngineKey.value = key;
+                    showEngineSelect.value = false;
+                    save();
+                };
+
+                const doSearch = () => {
+                    if (!searchQuery.value) return;
+                    window.open(engines[currentEngineKey.value].url + encodeURIComponent(searchQuery.value), '_blank');
+                };
+
+                const addLink = () => {
+                    const name = prompt('网站名称');
+                    const url = prompt('网址');
+                    if (name && url) { links.value.push({name, url}); save(); }
+                };
+
+                const changeMonth = (d) => {
+                    let m = curM.value + d;
+                    if(m>11){curM.value=0;curY.value++}
+                    else if(m<0){curM.value=11;curY.value--}
+                    else{curM.value=m}
+                };
+                const toToday = () => { curM.value = today.getMonth(); curY.value = today.getFullYear(); selD.value = today.getDate(); };
+                const selDate = (d) => selD.value = d;
+                const isSel = (d) => d === selD.value;
+                const isToday = (d) => d === today.getDate() && curM.value === today.getMonth();
+                const getDots = (d) => {
+                    const k = `${curY.value}-${String(curM.value+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                    return (calendar.value[k] || []).slice(0,3);
+                };
+                
+                const addEvent = () => {
+                    if(!newEvent.value) return;
+                    currEvents.value.push({text: newEvent.value, done: false});
+                    newEvent.value = '';
+                    save();
+                };
+                const togEvent = (i) => { currEvents.value[i].done = !currEvents.value[i].done; save(); };
+                const delEvent = (i) => { currEvents.value.splice(i, 1); save(); };
+                const newEvent = ref('');
+
+                onMounted(() => {
+                    // 1. 立即加载本地数据，保证页面秒开
+                    loadLocal();
+                    
+                    // 2. 延迟一点点再去同步云端，避免阻塞主线程渲染
+                    if(ghConf.value.token) {
+                        setTimeout(() => syncCloud(false), 100);
+                    } else {
+                        setTimeout(() => showConfig.value = true, 500);
+                    }
+                });
+
+                return {
+                    now, timeString, dateString,
+                    ghConf, tempConf, showConfig, saveConf, loading, isOffline, statusClass, statusText,
+                    engines, currentEngineKey, showEngineSelect, selectEngine, currentEngineIcon,
+                    searchQuery, doSearch, links, addLink,
+                    curM, curY, monthDays, startPad, changeMonth, toToday, selDate, isSel, isToday,
+                    selDateStr, currEvents, progressStr, newEvent, addEvent, togEvent, delEvent, save,
+                    getDots, syncCloud
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

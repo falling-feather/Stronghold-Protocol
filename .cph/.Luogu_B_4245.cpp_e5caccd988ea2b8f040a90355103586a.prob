@@ -1,0 +1,1 @@
+{"name":"Luogu - B4245","url":"https://www.luogu.com.cn/problem/B4245","memoryLimit":524288,"timeLimit":1000,"tests":[{"input":"3\n1 3 5\n","output":"1,3,5\n","id":1760513537284},{"input":"4\n7 2 9 8\n","output":"7,2,9,8\n","id":1760513537285},{"id":1760513537286,"input":"1\n97\n","output":"97\n"}],"group":"luogu","srcPath":"d:\\My Code\\Luogu_B_4245.cpp"}

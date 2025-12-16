@@ -1,0 +1,1 @@
+{"name":"Luogu - B3625","url":"https://www.luogu.com.cn/problem/B3625","memoryLimit":131072,"timeLimit":1000,"tests":[{"id":1762517367617,"input":"3 5\n.##.#\n.#...\n...#.","output":"Yes"}],"group":"luogu","srcPath":"d:\\My Code\\Luogu_B_3625.cpp"}

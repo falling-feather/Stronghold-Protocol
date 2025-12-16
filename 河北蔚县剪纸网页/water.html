@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>浸水步骤</title>
+    <style>
+        /* --- 全局重置 --- */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            width: 100vw; height: 100vh;
+            overflow: hidden;
+            background-color: #fff;
+            font-family: "SimSun", "Songti SC", serif;
+            display: flex; justify-content: center; align-items: center;
+            cursor: none;
+        }
+
+        .app-container {
+            width: 100%; height: 100%;
+            position: relative; background: #fff;
+            display: flex; flex-direction: column;
+        }
+
+        /* --- Header --- */
+        .header {
+            height: 100px; width: 100%;
+            display: flex; justify-content: space-between;
+            align-items: flex-start; padding: 15px 20px;
+            position: relative; z-index: 20; flex-shrink: 0;
+        }
+
+        .header-left-group {
+            display: flex; flex-direction: column;
+            gap: 10px; align-items: flex-start;
+        }
+
+        .back-btn {
+            width: 36px; height: 36px;
+            background: #b34d00; border-radius: 5px;
+            color: #fff; font-size: 20px; font-weight: bold;
+            display: flex; justify-content: center; align-items: center;
+            border: 2px solid #fff; cursor: pointer;
+        }
+
+        .page-title-text {
+            font-size: 18px; font-weight: bold; color: #333;
+            background-color: #ffcc00; padding: 4px 15px;
+            border-radius: 20px; border: 2px solid #fff;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1); letter-spacing: 2px;
+        }
+
+        .steps-group {
+            display: flex; align-items: center; gap: 2px; margin-top: 5px; 
+        }
+
+        .step-item {
+            position: relative; width: 40px; height: 40px;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        .step-bg { position: absolute; width: 100%; height: 100%; object-fit: contain; z-index: 1; }
+        .step-text { position: relative; width: 60%; z-index: 2; }
+        
+        .step-connector {
+            width: 15px; height: 6px;
+            background: url('./浸水/UI相关/步骤间的进度条.png') no-repeat center;
+            background-size: contain; background-color: #b34d00; 
+        }
+
+        /* --- Workspace --- */
+        .workspace {
+            flex: 1; position: relative;
+            display: flex; justify-content: center; align-items: center;
+            padding: 10px; min-height: 0; overflow: hidden;
+        }
+
+        .paper-bg {
+            width: auto; height: auto;
+            max-width: 90%; max-height: 100%; aspect-ratio: 16/25;
+            background: url('./浸水/UI相关/底面.png') no-repeat center center;
+            background-size: 100% 100%;
+            position: relative;
+            display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        #paper-cut-img {
+            width: 70%; height: auto; max-height: 80%;
+            object-fit: contain; transition: filter 0.5s; z-index: 5;
+        }
+
+        /* --- Toolbar --- */
+        .toolbar {
+            flex-shrink: 0; width: 95%; height: 110px;
+            margin: 0 auto 10px auto; border-radius: 12px;
+            background: url('./浸水/UI相关/工具栏的底.png') no-repeat center center;
+            background-size: 100% 100%;
+            display: flex; align-items: center; padding: 5px;
+            position: relative; z-index: 30;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2); overflow: hidden; 
+        }
+
+        .tools-group {
+            flex: 1; display: flex; justify-content: space-around;
+            align-items: center; height: 100%; min-width: 0;
+        }
+
+        .tool-item {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 4px; height: 100%; flex-shrink: 1; min-width: 50px;
+        }
+
+        .tool-upper-box {
+            position: relative; width: 55px; height: 55px;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        .tool-base-bg {
+            position: absolute; width: 100%; height: 100%;
+            background: url('./浸水/UI相关/工具的底.png') no-repeat center center;
+            background-size: contain; z-index: 0;
+        }
+
+        .tool-icon-inner {
+            z-index: 2; width: 35px; height: 35px;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        .placeholder-text { font-size: 13px; color: #333; font-weight: bold; }
+        .tool-img-bucket { width: 100%; height: 100%; object-fit: contain; }
+        .tool-label-img {
+            height: 14px; width: auto; max-width: 100%; object-fit: contain;
+        }
+
+        .divider {
+            width: 4px; height: 100%;
+            background: url('./浸水/UI相关/分割线.png') no-repeat center;
+            background-size: 100% 100%; margin: 0 10px; flex-shrink: 0;
+        }
+
+        .sidebar-title {
+            width: 40px; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            flex-shrink: 0;
+        }
+        .sidebar-title img { height: 70px; width: auto; object-fit: contain; }
+
+        /* --- 交互元素 --- */
+        #custom-cursor {
+            position: fixed; top: 0; left: 0;
+            width: 40px; pointer-events: none;
+            z-index: 9999; transform: translate(-50%, -50%);
+            
+            /* 【修改点】：增加透明度过渡效果 */
+            transition: opacity 0.2s ease-out;
+            opacity: 1; /* 默认显示 */
+        }
+
+        #drag-bucket {
+            position: fixed; width: 60px; height: auto;
+            pointer-events: none; z-index: 100;
+            display: none; transform: rotate(-10deg); 
+        }
+        #pouring-bucket {
+            position: absolute; width: 80px; height: auto;
+            z-index: 50; display: none; bottom: 15%; right: 15%; 
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="header">
+        <div class="header-left-group">
+            <!-- 【修改点】：添加跳转回 coming.html 的事件 -->
+            <div class="back-btn" onclick="window.location.href='coming.html'">←</div>
+            <div class="page-title-text">花鸟虫鱼</div>
+        </div>
+
+        <div class="steps-group">
+            <div class="step-item">
+                <img src="./浸水/UI相关/上方已进行的步骤.png" class="step-bg">
+                <img src="./浸水/涉及文字/画文字.png" class="step-text">
+            </div>
+            <div class="step-connector"></div>
+            
+            <div class="step-item">
+                <img src="./浸水/UI相关/上方已进行的步骤.png" class="step-bg">
+                <img src="./浸水/涉及文字/钉文字.png" class="step-text">
+            </div>
+            <div class="step-connector"></div>
+
+            <div class="step-item">
+                <img src="./浸水/UI相关/上方已进行的步骤.png" class="step-bg">
+                <img src="./浸水/涉及文字/浸文字.png" class="step-text">
+            </div>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <div class="paper-bg" id="drop-zone">
+            <img id="paper-cut-img" src="./浸水/UI相关/浸水前的剪纸.png" alt="剪纸">
+            <img id="pouring-bucket" src="./浸水/UI相关/拖动后松手的水桶.png">
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <div class="tools-group">
+            <div class="tool-item">
+                <div class="tool-upper-box">
+                    <div class="tool-base-bg"></div>
+                    <div class="tool-icon-inner"><span class="placeholder-text">铅笔</span></div>
+                </div>
+                <img src="./浸水/涉及文字/铅笔文字.png" class="tool-label-img">
+            </div>
+
+            <div class="tool-item">
+                <div class="tool-upper-box">
+                    <div class="tool-base-bg"></div>
+                    <div class="tool-icon-inner"><span class="placeholder-text">纸钉</span></div>
+                </div>
+                <img src="./浸水/涉及文字/纸钉文字.png" class="tool-label-img">
+            </div>
+
+            <div class="tool-item" id="bucket-tool">
+                <div class="tool-upper-box">
+                    <div class="tool-base-bg"></div>
+                    <div class="tool-icon-inner">
+                        <img src="./浸水/UI相关/工具栏中的水桶.png" class="tool-img-bucket">
+                    </div>
+                </div>
+                <img src="./浸水/涉及文字/水桶文字.png" class="tool-label-img">
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="sidebar-title">
+            <img src="./浸水/涉及文字/工具栏文字.png" alt="工具栏">
+        </div>
+    </div>
+</div>
+
+<img id="custom-cursor" src="./浸水/UI相关/手指点击.png" alt="Hand">
+<img id="drag-bucket" src="./浸水/UI相关/工具栏中的水桶.png" alt="Dragging Bucket">
+
+<script>
+    const cursor = document.getElementById('custom-cursor');
+    const bucketTool = document.getElementById('bucket-tool');
+    const dragBucket = document.getElementById('drag-bucket');
+    const dropZone = document.getElementById('drop-zone');
+    const mainPaper = document.getElementById('paper-cut-img');
+    const pouringBucket = document.getElementById('pouring-bucket');
+    
+    let isDragging = false;
+    let cursorHideTimer = null; // 用于存储自动隐藏的计时器
+
+    // --- 【修改点】光标自动隐藏逻辑 ---
+    function resetCursorTimer() {
+        // 如果正在拖拽，强制隐藏光标，不执行显示逻辑
+        if (isDragging) {
+            cursor.style.opacity = 0;
+            return;
+        }
+
+        // 显示光标
+        cursor.style.opacity = 1;
+
+        // 清除旧计时器
+        if (cursorHideTimer) clearTimeout(cursorHideTimer);
+
+        // 设置新计时器：0.5秒后隐藏
+        cursorHideTimer = setTimeout(() => {
+            cursor.style.opacity = 0;
+        }, 300); 
+    }
+
+    // 更新鼠标/手指位置
+    function updateCursorPos(x, y) {
+        cursor.style.left = x + 'px';
+        cursor.style.top = y + 'px';
+        resetCursorTimer(); // 每次移动都重置计时器
+    }
+
+    // 监听鼠标移动
+    document.addEventListener('mousemove', (e) => {
+        updateCursorPos(e.clientX, e.clientY);
+    });
+
+    // 监听触摸移动 (防止手机端光标卡死)
+    document.addEventListener('touchmove', (e) => {
+        if(e.touches.length > 0) {
+            updateCursorPos(e.touches[0].clientX, e.touches[0].clientY);
+        }
+    }, {passive: false});
+
+    // 监听点击/触摸开始，也要重置计时器显示光标
+    document.addEventListener('mousedown', () => {
+        cursor.style.transform = 'translate(-50%, -50%) scale(0.9)';
+        resetCursorTimer();
+    });
+    document.addEventListener('touchstart', (e) => {
+        if(e.touches.length > 0) {
+            updateCursorPos(e.touches[0].clientX, e.touches[0].clientY);
+        }
+        cursor.style.transform = 'translate(-50%, -50%) scale(0.9)';
+    }, {passive: false});
+
+    document.addEventListener('mouseup', () => {
+        cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+    });
+    document.addEventListener('touchend', () => {
+        cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+        // 手机端手指离开后，也应该启动消失计时器
+        resetCursorTimer(); 
+    });
+
+
+    // --- 拖拽逻辑 ---
+    function getEventPos(e) {
+        if (e.touches && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        return { x: e.clientX, y: e.clientY };
+    }
+
+    function startDrag(e) {
+        e.preventDefault();
+        isDragging = true;
+        const pos = getEventPos(e);
+        
+        // 拖拽开始，显示拖拽图，强制隐藏手指光标
+        dragBucket.style.display = 'block';
+        dragBucket.style.left = pos.x + 'px';
+        dragBucket.style.top = pos.y + 'px';
+        cursor.style.opacity = 0; 
+        
+        if (cursorHideTimer) clearTimeout(cursorHideTimer); // 拖拽时不需要计时器
+    }
+
+    function moveDrag(e) {
+        if (!isDragging) return;
+        e.preventDefault();
+        const pos = getEventPos(e);
+        dragBucket.style.left = pos.x + 'px';
+        dragBucket.style.top = pos.y + 'px';
+    }
+
+    function endDrag(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        
+        // 拖拽结束，隐藏拖拽图
+        dragBucket.style.display = 'none';
+        
+        // 恢复光标显示（并启动消失计时器）
+        resetCursorTimer();
+
+        const rect = dropZone.getBoundingClientRect();
+        let pos = e.changedTouches ? { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY } : { x: e.clientX, y: e.clientY };
+
+        if (pos.x > rect.left && pos.x < rect.right &&
+            pos.y > rect.top && pos.y < rect.bottom) {
+            performSoaking();
+        }
+    }
+
+    function performSoaking() {
+        pouringBucket.style.display = 'block';
+        setTimeout(() => {
+            mainPaper.src = "./浸水/UI相关/浸水后的剪纸.png";
+            mainPaper.style.filter = "sepia(0.3) brightness(0.9)"; 
+            setTimeout(() => {
+                pouringBucket.style.display = 'none';
+            }, 1000);
+        }, 500);
+    }
+
+    bucketTool.addEventListener('mousedown', startDrag);
+    bucketTool.addEventListener('touchstart', startDrag, {passive: false});
+    document.addEventListener('mousemove', moveDrag);
+    document.addEventListener('touchmove', moveDrag, {passive: false});
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+</script>
+
+</body>
+</html>

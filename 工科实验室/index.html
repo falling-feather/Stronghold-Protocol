@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工科实验室 - 可视化学习平台</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar" id="navbar">
+            <div class="nav-container">
+            <a href="#home" class="nav-logo" onclick="navigate('home')">
+                <div class="logo-icon">
+                    <i data-lucide="flask-conical"></i>
+                </div>
+                <span class="logo-text desktop-only">工科实验室</span>
+            </a>
+            <div class="nav-menu">
+                <a href="#home" class="nav-item active" onclick="navigate('home')">
+                    <i data-lucide="home"></i>
+                    <span>首页</span>
+                </a>
+                <a href="#mathematics" class="nav-item" onclick="navigate('mathematics')">
+                    <i data-lucide="calculator"></i>
+                    <span>数学</span>
+                </a>
+                <a href="#physics" class="nav-item" onclick="navigate('physics')">
+                    <i data-lucide="atom"></i>
+                    <span>物理</span>
+                </a>
+                <a href="#chemistry" class="nav-item" onclick="navigate('chemistry')">
+                    <i data-lucide="flask-conical"></i>
+                    <span>化学</span>
+                </a>
+                <a href="#algorithms" class="nav-item" onclick="navigate('algorithms')">
+                    <i data-lucide="code"></i>
+                    <span>算法</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <section id="page-home" class="page active home-page">
+            <div class="stars-background" id="stars-bg"></div>
+            <div class="home-container">
+                <div class="main-star" id="main-star">
+                    <div class="star-body">
+                        <h1 class="star-title">工科实验室</h1>
+                    </div>
+                    <div class="star-eyes-container">
+                        <div class="star-eyes">
+                            <div class="eye" id="eye-left">
+                                <div class="pupil" id="pupil-left"></div>
+                            </div>
+                            <div class="eye" id="eye-right">
+                                <div class="pupil" id="pupil-right"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="orbit-path orbit-1"></div>
+                <div class="orbit-path orbit-2"></div>
+                <div class="orbit-path orbit-3"></div>
+                
+                <div class="satellites-orbit" id="satellites-orbit">
+                    <div class="satellite satellite-1" data-target="mathematics" onclick="selectModule('mathematics')">
+                        <div class="satellite-icon blue-gradient">
+                            <i data-lucide="calculator"></i>
+                        </div>
+                        <div class="satellite-label-container">
+                            <span class="satellite-label">数学</span>
+                        </div>
+                    </div>
+                    <div class="satellite satellite-2" data-target="physics" onclick="selectModule('physics')">
+                        <div class="satellite-icon purple-gradient">
+                            <i data-lucide="atom"></i>
+                        </div>
+                        <div class="satellite-label-container">
+                            <span class="satellite-label">物理</span>
+                        </div>
+                    </div>
+                    <div class="satellite satellite-3" data-target="chemistry" onclick="selectModule('chemistry')">
+                        <div class="satellite-icon green-gradient">
+                            <i data-lucide="flask-conical"></i>
+                        </div>
+                        <div class="satellite-label-container">
+                            <span class="satellite-label">化学</span>
+                        </div>
+                    </div>
+                    <div class="satellite satellite-4" data-target="algorithms" onclick="selectModule('algorithms')">
+                        <div class="satellite-icon orange-gradient">
+                            <i data-lucide="code"></i>
+                        </div>
+                        <div class="satellite-label-container">
+                            <span class="satellite-label">算法</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="page-mathematics" class="page">
+            <div class="page-header">
+                <h1 class="page-title text-gradient">数学可视化</h1>
+                <p class="page-subtitle">通过交互式可视化探索数学的奥秘</p>
+            </div>
+            
+            <div class="content-section">
+                <div class="section-card glass">
+                    <h2 class="section-title">算筹加减法演示</h2>
+                    <p class="section-desc">算筹是中国古代的计算工具</p>
+                    <div class="abacus-demo">
+                        <div class="abacus-controls">
+                            <div class="control-group">
+                                <label>第一个数：</label>
+                                <input type="number" id="num1" value="5" min="0" max="99" onchange="updateAbacus()">
+                            </div>
+                            <div class="control-group">
+                                <label>运算符：</label>
+                                <select id="operator" onchange="updateAbacus()">
+                                    <option value="add">+ 加法</option>
+                                    <option value="subtract">- 减法</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>第二个数：</label>
+                                <input type="number" id="num2" value="3" min="0" max="99" onchange="updateAbacus()">
+                            </div>
+                            <button class="calc-button" onclick="calculateAbacus()">计算</button>
+                        </div>
+                        <div class="abacus-display">
+                            <div class="abacus-row">
+                                <div class="abacus-label">第一个数：</div>
+                                <div class="abacus-sticks" id="abacus-num1"></div>
+                            </div>
+                            <div class="abacus-row">
+                                <div class="abacus-label">第二个数：</div>
+                                <div class="abacus-sticks" id="abacus-num2"></div>
+                            </div>
+                            <div class="abacus-row result-row">
+                                <div class="abacus-label">结果：</div>
+                                <div class="abacus-sticks" id="abacus-result"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="content-section">
+                <div class="section-card glass">
+                    <h2 class="section-title">计算工具的历史演变</h2>
+                    <p class="section-desc">了解从算筹到现代计算机的计算工具发展历程</p>
+                    <div class="video-container">
+                        <iframe 
+                            src="https://player.bilibili.com/player.html?bvid=BV1PuHXePE7T&page=1&high_quality=1&danmaku=0" 
+                            scrolling="no" 
+                            border="0" 
+                            frameborder="no" 
+                            framespacing="0" 
+                            allowfullscreen="true"
+                            class="bilibili-video">
+                        </iframe>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="experiments-grid" id="math-experiments"></div>
+        </section>
+
+        <section id="page-physics" class="page">
+            <div class="page-header">
+                <h1 class="page-title text-gradient">物理演示</h1>
+                <p class="page-subtitle">通过动态模拟理解物理世界的运行规律</p>
+            </div>
+            <div class="experiments-grid" id="physics-experiments"></div>
+        </section>
+
+        <section id="page-chemistry" class="page">
+            <div class="page-header">
+                <h1 class="page-title text-gradient">化学实验</h1>
+                <p class="page-subtitle">探索化学元素和反应的奥秘</p>
+            </div>
+            <div class="experiments-grid" id="chemistry-experiments"></div>
+        </section>
+
+        <section id="page-algorithms" class="page">
+            <div class="page-header">
+                <h1 class="page-title text-gradient">算法可视化</h1>
+                <p class="page-subtitle">通过动画理解算法的工作原理</p>
+            </div>
+            
+            <div class="content-section">
+                <div class="section-card glass">
+                    <h2 class="section-title">桶排序算法可视化</h2>
+                    
+                    <div class="algorithm-principle">
+                        <h3 class="principle-title">算法原理</h3>
+                        <div class="principle-content">
+                            <p><strong>桶排序（Bucket Sort）</strong>是一种分配排序算法，其工作原理如下：</p>
+                            <ol class="principle-steps">
+                                <li><strong>分配阶段：</strong>将待排序数组中的元素根据其值的大小，分配到不同的"桶"（bucket）中。</li>
+                                <li><strong>排序阶段：</strong>对每个非空的桶内的元素进行排序。</li>
+                                <li><strong>收集阶段：</strong>按照桶的顺序，依次将每个桶中的元素取出，合并成最终的排序结果。</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <div class="bucket-sort-demo">
+                        <div class="sort-controls">
+                            <button class="sort-button" onclick="generateRandomArray()">生成随机数组</button>
+                            <button class="sort-button" onclick="startBucketSort()">开始排序</button>
+                            <button class="sort-button" onclick="resetBucketSort()">重置</button>
+                            <div class="speed-control">
+                                <label>速度：</label>
+                                <input type="range" id="sort-speed" min="100" max="1000" value="500" step="100">
+                                <span id="speed-value">500ms</span>
+                            </div>
+                        </div>
+                        <div class="array-display">
+                            <div class="array-label">原始数组：</div>
+                            <div class="array-bars" id="original-array"></div>
+                        </div>
+                        <div class="buckets-display">
+                            <div class="buckets-label">桶：</div>
+                            <div class="buckets-container" id="buckets-container"></div>
+                        </div>
+                        <div class="result-display">
+                            <div class="array-label">排序结果：</div>
+                            <div class="array-bars" id="sorted-array"></div>
+                        </div>
+                        <div class="sort-info" id="sort-info"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="experiments-grid" id="algorithms-experiments"></div>
+        </section>
+    </main>
+
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

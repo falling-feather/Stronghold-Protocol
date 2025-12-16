@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>仿生人不会梦见电子羊</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- 资源加载页 -->
+<div id="loader">
+    <div class="loader-content">
+        <div class="spinner"></div>
+        <div class="loading-text">资源加载中... <span id="progress-text">0%</span></div>
+    </div>
+</div>
+
+<div id="app" class="hidden">
+    <!-- 左侧：侧边栏 -->
+    <div class="sidebar">
+        <div class="my-profile">
+            <div class="avatar" id="my-avatar"></div>
+            <div class="my-info">
+                <div class="my-name">玩家</div>
+                <div class="wallet" onclick="UI.toggleWallet()">
+                    余额: ¥<span id="wallet-amount">1500.00</span>
+                </div>
+            </div>
+            <button class="next-day-btn mobile-only" onclick="Game.endDay()">结束今天</button>
+        </div>
+
+        <div class="contact-list" id="contact-list">
+            <!-- JS 渲染 -->
+        </div>
+
+        <div class="sidebar-footer pc-only">
+            <button class="next-day-btn" onclick="Game.endDay()">结束今天 (Day <span id="day-display">1</span>)</button>
+        </div>
+    </div>
+
+    <!-- 右侧：聊天主舞台 -->
+    <div class="chat-stage" id="chat-stage">
+        <div class="chat-header">
+            <div class="back-btn mobile-only" onclick="UI.closeChat()">❮</div>
+            <h3 id="chat-title">未选择会话</h3>
+            <div class="menu-btn">...</div>
+        </div>
+
+        <div class="chat-body" id="msg-container">
+            <div class="empty-state pc-only">
+                <img src="https://api.dicebear.com/7.x/icons/svg?seed=wechat" width="80" style="opacity:0.2">
+                <p>请选择左侧联系人开始聊天</p>
+            </div>
+        </div>
+
+        <div class="chat-footer" id="options-panel">
+            <!-- 选项区 -->
+        </div>
+    </div>
+</div>
+
+<!-- 转场遮罩 -->
+<div id="transition-layer" class="hidden">
+    <div class="trans-content">
+        <h1 id="trans-title">Day 1</h1>
+        <p id="trans-desc">假期开始...</p>
+        <button onclick="UI.hideTransition()">开启新的一天</button>
+    </div>
+</div>
+
+<!-- 脚本加载顺序：先Common，再分卷，最后Core -->
+<script src="data/common.js"></script>
+<script src="data/scripts_group.js"></script>
+<script src="data/scripts_social.js"></script>
+<script src="data/scripts_scam.js"></script>
+<script src="js/core.js"></script>
+</body>
+</html>

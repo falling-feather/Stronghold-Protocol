@@ -1,0 +1,2 @@
+
+    age = list(input().split())
