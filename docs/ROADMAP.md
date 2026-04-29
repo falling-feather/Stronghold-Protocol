@@ -60,8 +60,15 @@
 
 ## v4.x — 联机
 
-- [ ] WebSocket 服务端（Node.js + ws）
-- [ ] 房间系统（创建 / 加入 / 准备）
+- [x] v4.0.0 联机骨架：Node.js + ws WebSocket 服务端（server/index.js, port 8787，房间/聊天/准备/start 协议）；WsAdapter 浏览器客户端（连接/创建/加入/离开/准备/聊天 + 事件总线）；MultiplayerScreen 重写为完整大厅 UI（连接 / 房间列表 / 创建房间 / 房间内准备 / 实时聊天）；`npm run mp-server` 启动后端
+- [x] v4.0.1 联机本地联调：服务端补发已存在对端列表给加入者（修复 B 看不到 A 的 bug）；新增 docs/MULTIPLAYER.md 启动指南/协议表/故障排查
+- [x] v4.1.0 帧同步骨架（只读镜像）：GameEngine.getStateSnapshot() 序列化最小状态（敌人/干员/子弹/HP/资源/波次），host 在 onStateUpdated 节流 ~120ms 通过 ws sendGame 广播；guest 在 start 信号后进入 MultiplayerGuestViewer 只读镜像视图（canvas 简化绘制）；服务端新增 game 类型转发；joined 增加 role 字段区分 host/guest
+- [x] v4.1.1 联机体验打磨：start 信号后 host 自动跳主菜单 + 提示开始游戏；GameScreen 顶部 host 直播横幅显示对端昵称；MultiplayerScreen 房间面板展示双方准备 ✓ 标记 + 角色标签 [主机]/[观战]；guest 观战视图显示 host 昵称 + 对端离开/断线提示
+- [x] v4.2.0 guest 反向标记点：guest 在观战画布点击发出📍标记（含发起者名/可选标签），通过 ws marker 类型广播；host 主画面叠加显示 5 秒后渐隐；guest 自身视图同样显示自己的标记。新增 src/network/mpMarkers.ts 共享模块（installMarkerListener/pushLocalMarker/drawMarkers）
+- [x] v4.2.1 预设指令表情：guest 观战面板新增 6 个快捷按钮（⚠ 危险 / 🛡 备战 / 💰 金钱不足 / 👹 Boss / 🏃 撤退 / 🤝 支援），点击使用最近鼠标位置发送带 label 的 marker；canvas mousemove 跟踪坐标兜底居中
+- [x] v4.2.2 host→guest 事件 toast 推送：服务端新增 event 类型转发；WsAdapter.sendEvent(kind,text,level)；host 在波次开始/进入备战/生命≤3/失败 节点自动 sendEvent；guest 观战界面右上角弹出彩色 toast（info/warn/success/danger），3.5s 后自动淡出
+- [x] v4.2.3 guest 部署提议：guest 观战面板新增「🎯 提议部署」toggle，开启后下次点击解析为格坐标，sendEvent(kind=deploy_request)；host 顶部弹出提示条 + 接受/拒绝按钮，10s 自动关闭；选择后通过 deploy_response 事件回送 toast 给 guest
+- [x] v4.2.4 联机音效反馈：复用 v3.9.0 SFX 系统，guest 点击画布/按钮播 click，发部署提议播 event；host 收到 marker 播 click、收到 deploy_request 播 event、接受播 wave_clear、拒绝播 click；guest 端 event toast 按 level 联动音效（danger/warn→event, success→wave_clear, info→click）
 - [ ] 状态同步策略：增量帧 + 操作包
 - [ ] 双人共享地图、独立资源 / 独立队列
 - [ ] 断线重连 + 延迟补偿

@@ -8,6 +8,9 @@ import { Direction, PactSelection } from '../types';
 import { showOnly } from './shared';
 import { startBgm } from '../core/AudioSystem';
 import type { BoonId } from '../config/boonData';
+import { mpAdapter, isMpHost } from '../network/mpBridge';
+import { installMarkerListener, drawMarkers } from '../network/mpMarkers';
+import { playSfx } from '../core/AudioSystem';
 
 let canvas: HTMLCanvasElement | null = null;
 let engine: GameEngine | null = null;
@@ -79,10 +82,28 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
   // v2.3.0：开发期暴露 engine，便于 devtools 中验证 buff 框架（如：engine.applyEffectToOperator('op_xxx', {id:'t',name:'测试',kind:'buff',stat:'atk',mod:0.5,modType:'pct',duration:10,remaining:10})）
   (window as any).engine = engine;
 
-  engine.onStateUpdated = () => renderUI();
+  engine.onStateUpdated = () => {
+    renderUI();
+    // v4.1.0：host 广播游戏快照（带节流：每 ~120ms 一帧）
+    if (isMpHost()) hostMaybeBroadcast();
+    // v4.1.0：host 检测关键事件并 toast 推送给 guest
+    if (isMpHost()) hostMaybeEmitEvents();
+  };
 
   // v3.9.0：开战时启动 BGM（用户点击为合法手势）
   startBgm();
+
+  // v4.1.1：host 联机时顶部直播横幅
+  ensureMpHostBanner();
+
+  // v4.2.0：host 监听 guest 标记
+  if (isMpHost()) installMarkerListener();
+
+  // v4.1.0：重置 host 事件追踪
+  if (isMpHost()) resetHostEventTracker();
+
+  // v4.2.3：host 监听 guest 部署提议
+  if (isMpHost()) installGuestEventListener();
 
   // v3.5.3：事件日志按钮（点击弹出已触发事件历史）
   const btnEventLog = document.getElementById('btn-event-log');
@@ -397,6 +418,12 @@ function gameLoop(timestamp: number): void {
   }
 
   renderer.render(engine, highlightTemplateId, previewDirection);
+
+  // v4.2.0：host 在主画面叠加 guest 发来的标记
+  if (isMpHost() && canvas) {
+    const ctx = canvas.getContext('2d');
+    if (ctx) drawMarkers(ctx);
+  }
 
   // v2.0.0：场上单位被选中时实时刷新 SP 进度
   if (selectedType === 'map' && selectedId) updateDetailPanel();
@@ -888,4 +915,123 @@ function cleanupDrag(): void {
   document.querySelectorAll('.bench-card.dragging, .shop-card.dragging').forEach(card => {
     card.classList.remove('dragging');
   });
+}
+
+// v4.1.0：host 节流广播游戏快照
+let lastBroadcastAt = 0;
+function hostMaybeBroadcast(): void {
+  const now = performance.now();
+  if (now - lastBroadcastAt < 120) return;
+  lastBroadcastAt = now;
+  if (!engine) return;
+  try {
+    mpAdapter.sendGame(engine.getStateSnapshot());
+  } catch {}
+}
+
+// v4.1.1：host 直播横幅
+function ensureMpHostBanner(): void {
+  let banner = document.getElementById('mp-host-banner');
+  const visible = isMpHost();
+  if (!visible) {
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'mp-host-banner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#27ae60;color:#fff;padding:6px 12px;font-size:12px;font-family:monospace;text-align:center;z-index:9999;box-shadow:0 2px 4px rgba(0,0,0,0.3);';
+    document.body.appendChild(banner);
+  }
+  const peer = mpAdapter.peers[0]?.name ?? '观战者';
+  banner.textContent = `📡 联机直播中 → ${peer}（你的画面会以 ~120ms 间隔同步给对端）`;
+  banner.style.display = 'block';
+}
+
+// v4.1.0：host 关键事件推送（波次/阶段/血量阈值/胜负）
+let lastEvtPhase: 'PREP' | 'COMBAT' | null = null;
+let lastEvtWave = -1;
+let lastEvtLives = -1;
+let endEmitted = false;
+function resetHostEventTracker(): void {
+  lastEvtPhase = null;
+  lastEvtWave = -1;
+  lastEvtLives = -1;
+  endEmitted = false;
+}
+function hostMaybeEmitEvents(): void {
+  if (!engine) return;
+  const snap = engine.getStateSnapshot();
+  // 波次开始
+  if (snap.waveIndex !== lastEvtWave) {
+    if (lastEvtWave >= 0 && snap.waveIndex > lastEvtWave) {
+      mpAdapter.sendEvent('wave', `第 ${snap.waveIndex + 1} 波开始`, 'warn');
+    }
+    lastEvtWave = snap.waveIndex;
+  }
+  // 阶段切换
+  if (snap.phase !== lastEvtPhase) {
+    if (lastEvtPhase === 'COMBAT' && snap.phase === 'PREP') {
+      mpAdapter.sendEvent('phase', '波次结束 进入备战', 'success');
+    }
+    lastEvtPhase = snap.phase;
+  }
+  // 血量低警（只在变低时发，且 ≤3）
+  if (lastEvtLives > 0 && snap.lives < lastEvtLives && snap.lives > 0 && snap.lives <= 3) {
+    mpAdapter.sendEvent('lives', `生命剩余 ${snap.lives}！`, 'danger');
+  }
+  lastEvtLives = snap.lives;
+  // 失败
+  if (!endEmitted && snap.lives <= 0) {
+    mpAdapter.sendEvent('end', '基地陷落 失败', 'danger');
+    endEmitted = true;
+  }
+}
+
+// v4.2.3：host 监听 guest 部署提议
+let guestEventListenerInstalled = false;
+function installGuestEventListener(): void {
+  if (guestEventListenerInstalled) return;
+  guestEventListenerInstalled = true;
+  mpAdapter.on('event', (msg) => {
+    const p = msg.payload as any;
+    if (!p || p.kind !== 'deploy_request') return;
+    const from = String(p.from || '观战者');
+    const text = String(p.text || '部署提议');
+    showDeployRequestPrompt(from, text);
+    playSfx('event'); // v4.2.4：host 收到提议提示音
+  });
+  // v4.2.4：host 收到 guest 标记点也响一下
+  mpAdapter.on('marker', () => {
+    playSfx('click');
+  });
+}
+
+function showDeployRequestPrompt(from: string, text: string): void {
+  // 顶部固定提示条 + 接受/拒绝按钮
+  const id = 'mp-host-deploy-prompt';
+  let bar = document.getElementById(id);
+  if (bar) bar.remove();
+  bar = document.createElement('div');
+  bar.id = id;
+  bar.style.cssText = 'position:fixed;top:36px;left:50%;transform:translateX(-50%);background:#2c3e50;color:#fff;padding:10px 14px;border-radius:6px;font-family:monospace;font-size:13px;z-index:9999;display:flex;gap:10px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,0.4);border:1px solid #3498db;';
+  bar.innerHTML = `
+    <span>📨 <b>${from}</b>：${text}</span>
+    <button id="btn-deploy-accept" style="padding:4px 10px;background:#27ae60;border:none;color:#fff;border-radius:3px;cursor:pointer;">接受</button>
+    <button id="btn-deploy-reject" style="padding:4px 10px;background:#c0392b;border:none;color:#fff;border-radius:3px;cursor:pointer;">拒绝</button>
+  `;
+  document.body.appendChild(bar);
+  const cleanup = () => bar?.remove();
+  document.getElementById('btn-deploy-accept')?.addEventListener('click', () => {
+    mpAdapter.sendEvent('deploy_response', `host 接受了你的提议：${text}`, 'success');
+    playSfx('wave_clear'); // v4.2.4
+    cleanup();
+  });
+  document.getElementById('btn-deploy-reject')?.addEventListener('click', () => {
+    mpAdapter.sendEvent('deploy_response', `host 拒绝了你的提议`, 'info');
+    playSfx('click'); // v4.2.4
+    cleanup();
+  });
+  // 10s 自动关闭
+  setTimeout(cleanup, 10000);
 }

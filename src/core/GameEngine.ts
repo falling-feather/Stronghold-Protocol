@@ -1093,4 +1093,52 @@ export class GameEngine {
       setTimeout(() => alert(`★ 成就解锁 ★\n${lines.join('\n')}${totalReward ? `\n累计奖励：+${totalReward} 碎片` : ''}`), 50);
     }
   }
+
+  // v4.1.0：序列化最小化游戏状态供联机镜像使用
+  getStateSnapshot(): GameStateSnapshot {
+    return {
+      phase: this.phase,
+      money: this.money,
+      lives: this.lives,
+      waveIndex: this.waveIndex,
+      coreLevel: this.coreLevel,
+      combatTimeRemaining: Math.max(0, Math.round(this.combatTimeRemaining * 10) / 10),
+      enemies: this.enemies.map(e => ({
+        id: e.id,
+        x: Math.round(e.pos.x),
+        y: Math.round(e.pos.y),
+        hp: Math.max(0, Math.round(e.stats.hp)),
+        maxHp: e.stats.maxHp,
+        radius: e.radius,
+        color: e.color,
+      })),
+      operators: this.operators.map(o => ({
+        id: o.id,
+        x: Math.round(o.pos.x),
+        y: Math.round(o.pos.y),
+        hp: Math.max(0, Math.round(o.stats.hp)),
+        maxHp: o.stats.maxHp,
+        radius: o.radius,
+        color: o.color,
+        name: o.name,
+      })),
+      projectiles: this.projectiles.map(p => ({
+        x: Math.round(p.pos.x),
+        y: Math.round(p.pos.y),
+        color: p.color,
+      })),
+    };
+  }
+}
+
+export interface GameStateSnapshot {
+  phase: GamePhase;
+  money: number;
+  lives: number;
+  waveIndex: number;
+  coreLevel: number;
+  combatTimeRemaining: number;
+  enemies: { id: string; x: number; y: number; hp: number; maxHp: number; radius: number; color: string }[];
+  operators: { id: string; x: number; y: number; hp: number; maxHp: number; radius: number; color: string; name: string }[];
+  projectiles: { x: number; y: number; color: string }[];
 }
