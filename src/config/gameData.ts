@@ -359,15 +359,15 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
 export const ENEMY_DB = {
   'slug': {
     name: '源石虫', color: '#e74c3c', radius: 15,
-    stats: { hp: 350, maxHp: 350, atk: 150, def: 0, spd: 2.2, range: 0, aspd: 1.0, blockCount: 0 }
+    stats: { hp: 350, maxHp: 350, atk: 150, def: 0, spd: 2.2, range: 0, aspd: 1.0, blockCount: 0, magicResist: 0 }
   },
   'soldier': {
     name: '步兵', color: '#c0392b', radius: 18,
-    stats: { hp: 1200, maxHp: 1200, atk: 350, def: 100, spd: 1.5, range: 0, aspd: 1.5, blockCount: 0 }
+    stats: { hp: 1200, maxHp: 1200, atk: 350, def: 100, spd: 1.5, range: 0, aspd: 1.5, blockCount: 0, magicResist: 30 }
   },
   'heavy': {
     name: '大盾兵', color: '#8e44ad', radius: 22,
-    stats: { hp: 4500, maxHp: 4500, atk: 500, def: 400, spd: 0.8, range: 0, aspd: 2.5, blockCount: 0 }
+    stats: { hp: 4500, maxHp: 4500, atk: 500, def: 400, spd: 0.8, range: 0, aspd: 2.5, blockCount: 0, magicResist: 60 }
   }
 };
 

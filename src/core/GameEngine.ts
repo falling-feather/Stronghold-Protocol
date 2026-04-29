@@ -1,7 +1,7 @@
 import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, resolveSkillForRank, applyTalentsToStats } from '../config/gameData';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
-import { Enemy, Operator, Projectile, GamePhase, Direction } from '../types';
+import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType } from '../types';
 import { getDistance, moveTowards, checkCollision, isInAttackRange } from './MathUtils';
 
 export interface BenchOperator {
@@ -484,6 +484,7 @@ export class GameEngine {
 
   private fireProjectile(source: Operator, target: Enemy) {
     const startPos = { x: source.pos.x + CONFIG.TILE_SIZE / 2, y: source.pos.y + CONFIG.TILE_SIZE / 2 };
+    const sourceTemplate = OPERATOR_DB[source.templateId];
 
     // 技能激活期间的伤害倍率（attack_buff 类）
     let damage = source.stats.atk;
@@ -492,14 +493,27 @@ export class GameEngine {
       if (atkMul) damage = Math.round(damage * atkMul);
     }
 
+    // v2.1.0：解析攻击类型（template.atkType 优先；其次按职业推断）
+    const atkType: AttackType = sourceTemplate?.atkType
+      ?? (sourceTemplate?.class === 'caster' ? 'magic'
+         : sourceTemplate?.class === 'medic' ? 'heal'
+         : 'physical');
+
+    // 颜色提示：法术=紫，真伤=红，治疗=绿，物理=白；激活时统一金色
+    const baseColor = atkType === 'magic' ? '#9b59b6'
+                    : atkType === 'true' ? '#e74c3c'
+                    : atkType === 'heal' ? '#2ecc71'
+                    : '#fff';
+
     this.projectiles.push({
       id: `proj_${Date.now()}_${Math.random()}`,
       pos: startPos,
       targetId: target.id,
       speed: 600,
       damage,
-      color: source.skillActive ? '#f1c40f' : '#fff',
-      markedForDeletion: false
+      color: source.skillActive ? '#f1c40f' : baseColor,
+      markedForDeletion: false,
+      atkType
     });
 
     // 攻击回复技力（每次攻击+1点）；激活期间不再累计
@@ -536,7 +550,20 @@ export class GameEngine {
       }
       proj.pos = moveTowards(proj.pos, target.pos, proj.speed * dt);
       if (getDistance(proj.pos, target.pos) < 15) {
-        target.stats.hp -= proj.damage;
+        // v2.1.0：按攻击类型结算最终伤害
+        let finalDamage = proj.damage;
+        if (proj.atkType === 'physical') {
+          finalDamage = Math.max(proj.damage * 0.05, proj.damage - target.stats.def);
+        } else if (proj.atkType === 'magic') {
+          const mr = target.stats.magicResist ?? 0;
+          finalDamage = Math.max(proj.damage * 0.05, proj.damage * (1 - mr / 100));
+        } else if (proj.atkType === 'true') {
+          finalDamage = proj.damage;
+        } else if (proj.atkType === 'heal') {
+          // v2.1.0：治疗型暂不对敌人生效（v2.1.1 接入友军选择）
+          finalDamage = 0;
+        }
+        target.stats.hp -= finalDamage;
         proj.markedForDeletion = true;
         if (target.stats.hp <= 0 && !target.markedForDeletion) {
           target.markedForDeletion = true;

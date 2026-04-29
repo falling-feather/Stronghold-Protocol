@@ -554,6 +554,10 @@ function updateDetailPanel(): void {
       <div class="stat-row">阻挡: ${template.stats.blockCount}</div>
       <div class="stat-row">攻速: ${template.stats.aspd}s</div>
       <div class="stat-row">费用: ${template.cost}</div>
+      <div class="stat-row">伤害类型: ${(() => {
+        const t = template.atkType ?? (template.class === 'caster' ? 'magic' : template.class === 'medic' ? 'heal' : 'physical');
+        return t === 'magic' ? '法术' : t === 'true' ? '真伤' : t === 'heal' ? '治疗' : '物理';
+      })()}</div>
     </div>
 
     <div class="skill-section">

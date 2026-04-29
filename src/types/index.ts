@@ -17,7 +17,11 @@ export interface BaseStats {
   range: number;
   aspd: number;
   blockCount: number;
+  magicResist?: number; // v2.1.0：魔法抗性，0-100，仅敌人需要；缺省视作 0
 }
+
+// v2.1.0：攻击类型（决定伤害结算公式）
+export type AttackType = 'physical' | 'magic' | 'true' | 'heal';
 
 // 技力回复方式
 export type SpRecoveryType = 'auto' | 'attack' | 'defense' | 'auto_attack' | 'auto_defense' | 'attack_defense' | 'all';
@@ -89,6 +93,7 @@ export interface Projectile {
   damage: number;
   color: string;
   markedForDeletion: boolean;
+  atkType: AttackType; // v2.1.0
 }
 
 export interface ShopItem {
@@ -168,6 +173,7 @@ export interface OperatorTemplate {
     color: string;
     placement: PlacementType;
     class: OperatorClass;
+    atkType?: AttackType; // v2.1.0：缺省按职业推断（caster→magic, medic→heal, 其余→physical）
     stats: BaseStats;
     talents: Talent[];                // 0-2 个
     skills: SkillDefinition[];        // 1-3 个
