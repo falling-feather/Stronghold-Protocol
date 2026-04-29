@@ -1,4 +1,4 @@
-import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType, OperatorClass, ClassTrait, SkillDefinition, BaseStats, Talent, StatusEffect, EnemyTraits } from '../types';
+import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType, OperatorClass, ClassTrait, SkillDefinition, BaseStats, Talent, StatusEffect, EnemyTraits, PactDefinition } from '../types';
 
 export const CONFIG = {
   TILE_SIZE: 64,
@@ -437,3 +437,54 @@ export const WAVES = [
   { count: 12, interval: 2.0, enemyId: 'soldier', reward: 40 },
   { count: 4, interval: 4.0, enemyId: 'heavy', reward: 60 },
 ];
+
+// v3.0.0：盟约叠层数据库
+const mkPactEffect = (id: string, name: string, stat: 'atk' | 'def' | 'aspd' | 'spd' | 'magicResist' | 'blockCount', mod: number, modType: 'flat' | 'pct'): StatusEffect => ({
+  id, name, kind: 'buff', stat, mod, modType, duration: -1, remaining: -1,
+});
+
+export const PACT_DB: Record<string, PactDefinition> = {
+  'pact_flame_blessing': {
+    id: 'pact_flame_blessing',
+    name: '炎佑',
+    desc: '每次击杀敌人累积火种；分级强化全体干员的攻击力',
+    scope: 'all_operators',
+    sources: [{ source: 'kill_any', perEvent: 1 }],
+    cap: 60,
+    tiers: [
+      { threshold: 10, description: 'tier1：干员攻击力 +5%', effects: [mkPactEffect('pact_flame_blessing_t0_atk', '[盟约·炎佑] 灼热 I', 'atk', 0.05, 'pct')] },
+      { threshold: 25, description: 'tier2：干员攻击力 +10%', effects: [mkPactEffect('pact_flame_blessing_t1_atk', '[盟约·炎佑] 灼热 II', 'atk', 0.10, 'pct')] },
+      { threshold: 45, description: 'tier3：干员攻击力 +15%', effects: [mkPactEffect('pact_flame_blessing_t2_atk', '[盟约·炎佑] 灼热 III', 'atk', 0.15, 'pct')] },
+    ],
+  },
+  'pact_lingering_echo': {
+    id: 'pact_lingering_echo',
+    name: '余音',
+    desc: '每次完美通关一波（无漏怪）累积回音；分级降低全体干员攻击间隔',
+    scope: 'all_operators',
+    sources: [{ source: 'wave_perfect', perEvent: 1 }],
+    cap: 9,
+    tiers: [
+      { threshold: 1, description: 'tier1：攻速 +5%（攻击间隔 -5%）', effects: [mkPactEffect('pact_lingering_echo_t0_aspd', '[盟约·余音] 回响 I', 'aspd', -0.05, 'pct')] },
+      { threshold: 3, description: 'tier2：攻速 +10%', effects: [mkPactEffect('pact_lingering_echo_t1_aspd', '[盟约·余音] 回响 II', 'aspd', -0.10, 'pct')] },
+      { threshold: 6, description: 'tier3：攻速 +15%', effects: [mkPactEffect('pact_lingering_echo_t2_aspd', '[盟约·余音] 回响 III', 'aspd', -0.15, 'pct')] },
+    ],
+  },
+  'pact_broken_spring': {
+    id: 'pact_broken_spring',
+    name: '碎铳之簧',
+    desc: '撤退干员时积蓄怒火；衰减叠层带来高强度短期攻击力暴增',
+    scope: 'all_operators',
+    sources: [{ source: 'retreat_any', perEvent: 3 }],
+    decay: { interval: 5, perTick: 1 }, // 每 5 秒掉 1 层
+    cap: 18,
+    tiers: [
+      { threshold: 3, description: 'tier1：干员攻击力 +10%', effects: [mkPactEffect('pact_broken_spring_t0_atk', '[盟约·碎铳之簧] 怒火 I', 'atk', 0.10, 'pct')] },
+      { threshold: 9, description: 'tier2：干员攻击力 +20%', effects: [mkPactEffect('pact_broken_spring_t1_atk', '[盟约·碎铳之簧] 怒火 II', 'atk', 0.20, 'pct')] },
+      { threshold: 15, description: 'tier3：干员攻击力 +30%', effects: [mkPactEffect('pact_broken_spring_t2_atk', '[盟约·碎铳之簧] 怒火 III', 'atk', 0.30, 'pct')] },
+    ],
+  },
+};
+
+// v3.0.0：本局激活的盟约（v3.1.0 将改为开局选择 UI 提供）
+export const ACTIVE_PACTS: string[] = ['pact_flame_blessing', 'pact_lingering_echo', 'pact_broken_spring'];

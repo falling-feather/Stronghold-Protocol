@@ -1,7 +1,7 @@
-import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, resolveSkillForRank, applyTalentsToStats, buildTalentEffects } from '../config/gameData';
+import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, PACT_DB, ACTIVE_PACTS, resolveSkillForRank, applyTalentsToStats, buildTalentEffects } from '../config/gameData';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
-import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat } from '../types';
+import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource } from '../types';
 import { getDistance, moveTowards, checkCollision, isInAttackRange } from './MathUtils';
 
 export interface BenchOperator {
@@ -62,6 +62,9 @@ export class GameEngine {
   private totalEnemiesInWave: number = 0; // 当前波次的总怪物数
   private killedEnemiesInWave: number = 0; // 当前波次已击杀的怪物数
 
+  // v3.0.0：盟约叠层运行时
+  pacts: PactRuntime[] = [];
+
   constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null) {
     this.factionId = factionId;
     this.allowedTemplateIds = allowedTemplateIds;
@@ -70,6 +73,8 @@ export class GameEngine {
     this.money = eff.initialMoney ?? CONFIG.BASE_MONEY;
     this.shop = new ShopSystem(this);
     this.shop.refreshShop(true);
+    // v3.0.0：初始化盟约运行时
+    this.pacts = ACTIVE_PACTS.filter(id => PACT_DB[id]).map(id => ({ defId: id, stack: 0, appliedTier: -1, decayAccum: 0 }));
   }
 
   // 公开给 ShopSystem 调用
@@ -91,6 +96,7 @@ export class GameEngine {
       this.updateEnemies(dt);
       this.updateOperators(dt);
       this.updateProjectiles(dt);
+      this.tickPactDecay(dt); // v3.0.2：盟约衰减
     }
     
     this.cleanup();
@@ -165,6 +171,11 @@ export class GameEngine {
     this.money += this.currentWaveReward;
     this.combatTimeRemaining = 0; // 重置时间
     this.combatTimeLimit = 0;
+
+    // v3.0.0：盟约波次事件
+    const perfect = this.killedEnemiesInWave >= this.totalEnemiesInWave;
+    this.onPactEvent('wave_clear');
+    if (perfect) this.onPactEvent('wave_perfect');
 
     this.operators.forEach(op => {
       op.stats.hp = op.stats.maxHp;
@@ -313,11 +324,15 @@ export class GameEngine {
       direction: direction,
       deployTime: 0,
       costRefunded: false,
-      effects: buildTalentEffects(template.talents, rank, templateId) // sourceId 用 templateId 更稳定
+      effects: [...buildTalentEffects(template.talents, rank, templateId), ...this.getActivePactEffectsForOperator()] // sourceId 用 templateId 更稳定
     });
 
     // 清除待部署状态
     this.pendingDeployment = null;
+
+    // v3.0.0：盟约事件
+    this.onPactEvent('deploy_any');
+    this.onPactEvent(`deploy_class:${template.class}` as PactSource);
 
     this.notifyUpdate();
     return true;
@@ -450,6 +465,8 @@ export class GameEngine {
       if (enemy) enemy.isBlockedBy = null;
     });
     op.blockingEnemyIds = [];
+    // v3.0.0：盟约撤退事件
+    this.onPactEvent('retreat_any');
   }
 
   private updateOperators(dt: number) {
@@ -630,6 +647,93 @@ export class GameEngine {
     return true;
   }
 
+  // v3.0.0：盟约叠层 — 事件入口
+  onPactEvent(source: PactSource) {
+    if (this.pacts.length === 0) return;
+    let dirty = false;
+    for (const rt of this.pacts) {
+      const def = PACT_DB[rt.defId];
+      if (!def) continue;
+      const matched = def.sources.find(s => s.source === source);
+      if (!matched) continue;
+      const before = rt.stack;
+      rt.stack = Math.max(0, Math.min(def.cap, rt.stack + matched.perEvent));
+      if (rt.stack !== before) dirty = this.reconcilePactTier(rt) || dirty;
+    }
+    if (dirty) this.notifyUpdate();
+  }
+
+  // v3.0.0：根据当前 stack 计算 tier 索引并应用差量
+  // 返回是否真的发生 tier 变化（用于触发 UI 刷新）
+  private reconcilePactTier(rt: PactRuntime): boolean {
+    const def = PACT_DB[rt.defId];
+    if (!def) return false;
+    let newTier = -1;
+    for (let i = 0; i < def.tiers.length; i++) {
+      if (rt.stack >= def.tiers[i].threshold) newTier = i; else break;
+    }
+    if (newTier === rt.appliedTier) return false;
+    // 撤掉旧 tier 的 effects（按 id 前缀匹配）
+    const idPrefix = `pact_${def.id.replace(/^pact_/, '')}_`;
+    if (def.scope === 'all_operators') {
+      for (const op of this.operators) {
+        op.effects = op.effects.filter(e => !(e.id.startsWith('pact_') && e.id.includes(def.id.replace(/^pact_/, ''))));
+      }
+    } else if (def.scope === 'all_enemies') {
+      for (const en of this.enemies) {
+        en.effects = en.effects.filter(e => !(e.id.startsWith('pact_') && e.id.includes(def.id.replace(/^pact_/, ''))));
+      }
+    }
+    // 应用新 tier 的 effects（如果有）
+    if (newTier >= 0) {
+      const tierEffects = def.tiers[newTier].effects;
+      if (def.scope === 'all_operators') {
+        for (const op of this.operators) {
+          if (op.isRetreated) continue;
+          for (const eff of tierEffects) op.effects.push({ ...eff, remaining: eff.duration });
+        }
+      } else if (def.scope === 'all_enemies') {
+        for (const en of this.enemies) {
+          if (en.markedForDeletion) continue;
+          for (const eff of tierEffects) en.effects.push({ ...eff, remaining: eff.duration });
+        }
+      }
+    }
+    rt.appliedTier = newTier;
+    void idPrefix; // 为后续更精细前缀匹配预留
+    return true;
+  }
+
+  // v3.0.0：返回当前已激活 tier 的所有 effects（用于干员部署时叠加）
+  getActivePactEffectsForOperator(): StatusEffect[] {
+    const out: StatusEffect[] = [];
+    for (const rt of this.pacts) {
+      const def = PACT_DB[rt.defId];
+      if (!def || def.scope !== 'all_operators' || rt.appliedTier < 0) continue;
+      for (const eff of def.tiers[rt.appliedTier].effects) out.push({ ...eff, remaining: eff.duration });
+    }
+    return out;
+  }
+
+  // v3.0.2：盟约衰减
+  private tickPactDecay(dt: number) {
+    if (this.pacts.length === 0) return;
+    let dirty = false;
+    for (const rt of this.pacts) {
+      const def = PACT_DB[rt.defId];
+      if (!def?.decay) continue;
+      if (rt.stack <= 0) continue;
+      rt.decayAccum += dt;
+      while (rt.decayAccum >= def.decay.interval && rt.stack > 0) {
+        rt.decayAccum -= def.decay.interval;
+        rt.stack = Math.max(0, rt.stack - def.decay.perTick);
+        dirty = this.reconcilePactTier(rt) || dirty;
+      }
+      if (rt.stack === 0) rt.decayAccum = 0;
+    }
+    if (dirty) this.notifyUpdate();
+  }
+
   // 内部：倒计时 + 清理过期效果。duration<0 视为永久，不递减。
   private tickEffects(effects: StatusEffect[], dt: number) {
     for (let i = effects.length - 1; i >= 0; i--) {
@@ -689,6 +793,11 @@ export class GameEngine {
             const blocker = this.operators.find(op => op.id === target.isBlockedBy);
             if (blocker) blocker.blockingEnemyIds = blocker.blockingEnemyIds.filter(id => id !== target.id);
           }
+          // v3.0.0：盟约击杀事件
+          this.onPactEvent('kill_any');
+          if (target.traits?.flying) this.onPactEvent('kill_flying');
+          if (target.traits?.stealth) this.onPactEvent('kill_stealth');
+          if (target.bossPhaseTriggered || target.traits?.bossPhase) this.onPactEvent('kill_elite');
           // v2.4.0：死亡召唤
           if (target.traits?.summon && target.traits.summon.on === 'death') {
             const sm = target.traits.summon;

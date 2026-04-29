@@ -1,7 +1,7 @@
 // 游戏对局屏幕：包含初始化、UI 渲染循环、交互事件、详情面板、拖拽（v1.5.x）
 import { GameEngine } from '../core/GameEngine';
 import { Renderer } from '../view/Renderer';
-import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps, resolveSkillForRank, CLASS_TRAITS } from '../config/gameData';
+import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps, resolveSkillForRank, CLASS_TRAITS, PACT_DB } from '../config/gameData';
 import { FactionId } from '../config/factions';
 import { Roster, rosterToAllowedSet } from '../config/roster';
 import { Direction } from '../types';
@@ -187,6 +187,7 @@ function renderUI(): void {
   uiLives.innerText = engine.lives.toString();
   uiMoney.innerText = Math.floor(engine.money).toString();
   if (uiCore) uiCore.innerText = engine.coreLevel.toString();
+  renderPactBadges();
 
   if (engine.phase === 'COMBAT') {
     bottomArea.classList.add('hidden');
@@ -212,6 +213,29 @@ function renderUI(): void {
   }
 
   setTimeout(() => calculateLayout(), 50);
+}
+
+// v3.0.0：盟约徽记渲染
+function renderPactBadges(): void {
+  const container = document.getElementById('pact-badges');
+  if (!container || !engine) return;
+  if (engine.pacts.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  const tierColors = ['#7f8c8d', '#3498db', '#9b59b6', '#f1c40f'];
+  container.innerHTML = engine.pacts.map(rt => {
+    const def = PACT_DB[rt.defId];
+    if (!def) return '';
+    const tierIdx = rt.appliedTier; // -1 表示未达阈值
+    const colorIdx = Math.max(0, tierIdx + 1);
+    const color = tierColors[Math.min(colorIdx, tierColors.length - 1)];
+    const nextTier = def.tiers[tierIdx + 1];
+    const tierDesc = tierIdx >= 0 ? def.tiers[tierIdx].description : '未激活';
+    const nextDesc = nextTier ? `\n下一档 @ ${nextTier.threshold}：${nextTier.description}` : '\n已达最高档';
+    const title = `${def.name}（${rt.stack}/${def.cap}）\n${def.desc}\n当前：${tierDesc}${nextDesc}`;
+    return `<div class="pact-badge" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:bold;margin-left:6px;border:2px solid rgba(255,255,255,0.4);">${rt.stack}</div>`;
+  }).join('');
 }
 
 function gameLoop(timestamp: number): void {

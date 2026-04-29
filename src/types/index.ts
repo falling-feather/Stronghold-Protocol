@@ -76,6 +76,37 @@ export interface EnemyTraits {
   bossPhase?: { atHpPct: number; effect: StatusEffect };
 }
 
+// v3.0.0：盟约叠层
+export type PactSource =
+  | 'kill_any' | 'kill_elite' | 'kill_flying' | 'kill_stealth'
+  | 'deploy_any' | `deploy_class:${string}`
+  | 'retreat_any'
+  | 'wave_clear' | 'wave_perfect';
+
+export interface PactTier {
+  threshold: number;
+  effects: StatusEffect[];
+  description: string;
+}
+
+export interface PactDefinition {
+  id: string;
+  name: string;
+  desc: string;
+  scope: 'all_operators' | 'all_enemies' | 'global';
+  sources: { source: PactSource; perEvent: number }[];
+  decay?: { interval: number; perTick: number };
+  cap: number;
+  tiers: PactTier[];
+}
+
+export interface PactRuntime {
+  defId: string;
+  stack: number;
+  appliedTier: number; // -1 表示未达任何阈值
+  decayAccum: number;
+}
+
 export interface Enemy extends Entity {
   waypointIndex: number;
   isBlockedBy: string | null;
