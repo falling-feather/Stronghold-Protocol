@@ -1,4 +1,5 @@
 import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, RARITY_RATES, resolveSkillForRank, applyTalentsToStats } from '../config/gameData';
+import { FACTION_DB, FactionId } from '../config/factions';
 import { Enemy, Operator, Projectile, GamePhase, ShopItem, Direction } from '../types';
 import { getDistance, moveTowards, checkCollision, isInAttackRange } from './MathUtils';
 
@@ -31,8 +32,9 @@ export class GameEngine {
   projectiles: Projectile[] = [];
   
   phase: GamePhase = 'PREP';
-  money: number = CONFIG.BASE_MONEY;
-  lives: number = CONFIG.BASE_LIVES;
+  factionId: FactionId;
+  money: number;
+  lives: number;
   waveIndex: number = 0;
   coreLevel: number = 1;
   
@@ -60,7 +62,11 @@ export class GameEngine {
   private totalEnemiesInWave: number = 0; // 当前波次的总怪物数
   private killedEnemiesInWave: number = 0; // 当前波次已击杀的怪物数
 
-  constructor() {
+  constructor(factionId: FactionId = 'command') {
+    this.factionId = factionId;
+    const eff = FACTION_DB[factionId].effect;
+    this.lives = eff.initialLives ?? CONFIG.BASE_LIVES;
+    this.money = eff.initialMoney ?? CONFIG.BASE_MONEY;
     this.refreshShop(true);
   }
 

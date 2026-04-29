@@ -3,6 +3,7 @@ import { Renderer } from './view/Renderer';
 import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps } from './config/gameData';
 import { resolveSkillForRank } from './config/gameData';
 import { CLASS_TRAITS } from './config/gameData';
+import { FACTION_DB, FactionId, getSavedFactionId, saveFactionId, listFactions } from './config/factions';
 import { Direction } from './types';
 
 // 开始界面控制（延迟获取，确保DOM已加载）
@@ -74,7 +75,7 @@ function initGame() {
   selectRandomMap();
 
   // 初始化引擎和渲染器
-  engine = new GameEngine();
+  engine = new GameEngine(currentFactionId);
   renderer = new Renderer(canvas);
 
   // 设置事件监听
@@ -832,7 +833,77 @@ function initStartScreen() {
     return;
   }
   
+  // 开始游戏 → 阵营选择页
   btnStartGame.addEventListener('click', () => {
+    showFactionScreen();
+  });
+
+  // 阵营选择页初始化
+  initFactionScreen();
+}
+
+// === 阵营选择页（v1.3.0）===
+let currentFactionId: FactionId = getSavedFactionId();
+
+function showFactionScreen() {
+  if (startScreen) startScreen.style.display = 'none';
+  const fs = document.getElementById('faction-screen')!;
+  fs.style.display = 'flex';
+  renderFactionScreen();
+}
+
+function hideFactionScreen() {
+  const fs = document.getElementById('faction-screen')!;
+  fs.style.display = 'none';
+  if (startScreen) startScreen.style.display = 'flex';
+}
+
+function initFactionScreen() {
+  const fs = document.getElementById('faction-screen');
+  if (!fs) return;
+  document.getElementById('btn-faction-back')?.addEventListener('click', hideFactionScreen);
+  document.getElementById('btn-faction-confirm')?.addEventListener('click', () => {
+    saveFactionId(currentFactionId);
+    fs.style.display = 'none';
     initGame();
   });
+}
+
+function renderFactionScreen() {
+  const grid = document.getElementById('faction-grid')!;
+  const detail = document.getElementById('faction-detail')!;
+  const factions = listFactions();
+
+  // 右侧卡片网格
+  grid.innerHTML = '';
+  factions.forEach(f => {
+    const card = document.createElement('div');
+    card.className = 'faction-card' + (f.id === currentFactionId ? ' selected' : '');
+    card.style.color = f.color;
+    card.innerHTML = `
+      <div>
+        <div class="fc-name">${f.name}</div>
+        <div class="fc-tag">${f.shortDesc}</div>
+      </div>
+      <div class="fc-quick">${f.perks[0]}<br>${f.perks[1]}</div>
+    `;
+    card.addEventListener('click', () => {
+      currentFactionId = f.id;
+      renderFactionScreen();
+    });
+    grid.appendChild(card);
+  });
+
+  // 左侧详情
+  const f = FACTION_DB[currentFactionId];
+  detail.style.color = f.color;
+  detail.innerHTML = `
+    <div class="fd-name" style="color:${f.color};">${f.name}</div>
+    <div class="fd-tag">${f.shortDesc}</div>
+    <div class="fd-desc" style="color:#ecf0f1;">${f.fullDesc}</div>
+    <div style="font-size:13px;color:#7f8c8d;letter-spacing:2px;margin-bottom:8px;">阵营加成</div>
+    <ul class="fd-perks">
+      ${f.perks.map(p => `<li>${p}</li>`).join('')}
+    </ul>
+  `;
 }
