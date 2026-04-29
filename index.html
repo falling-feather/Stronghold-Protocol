@@ -494,7 +494,49 @@
     <div id="start-screen">
       <h1>卫戍协议模拟器</h1>
       <button id="btn-start-game">开始游戏</button>
+      <button id="btn-multiplayer" style="margin-top:14px;padding:12px 32px;font-size:18px;background:#16a085;border:none;color:white;border-radius:6px;cursor:pointer;font-weight:bold;">联机模式</button>
       <p>基于明日方舟的塔防策略游戏</p>
+    </div>
+
+    <!-- 联机模式面板（v1.4.0 占位） -->
+    <div id="mp-screen" style="display:none;">
+      <div class="faction-header">
+        <button class="faction-back" id="btn-mp-back">← 返回</button>
+        <h2>联机模式（开发中）</h2>
+        <span style="width:80px;"></span>
+      </div>
+      <div id="mp-body" style="flex:1;padding:30px;overflow-y:auto;">
+        <div style="max-width:700px;margin:0 auto;color:#ecf0f1;">
+          <div style="background:rgba(243,156,18,0.1);border-left:4px solid #f39c12;padding:14px 18px;border-radius:3px;margin-bottom:24px;">
+            <b style="color:#f39c12;">⚠ 仅供调试</b>
+            <div style="margin-top:6px;font-size:13px;color:#bdc3c7;">本页面为 v1.4.0 骨架占位，未接入真实 WebSocket 服务。所有操作仅验证 UI 流程。</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+            <!-- 创建房间 -->
+            <div style="background:rgba(255,255,255,0.04);border:1px solid #34495e;border-radius:6px;padding:20px;">
+              <div style="font-size:18px;font-weight:bold;margin-bottom:12px;color:#3498db;">创建房间</div>
+              <div style="font-size:13px;color:#bdc3c7;margin-bottom:14px;line-height:1.6;">作为房主创建一个对局，生成邀请码给朋友。</div>
+              <input id="mp-host-name" placeholder="你的昵称" value="Host" style="width:100%;padding:8px;background:#2c3e50;border:1px solid #4a627a;color:#ecf0f1;border-radius:3px;margin-bottom:10px;">
+              <button id="btn-mp-host" style="width:100%;padding:10px;background:#3498db;border:none;color:white;border-radius:3px;cursor:pointer;font-weight:bold;">创建房间</button>
+            </div>
+
+            <!-- 加入房间 -->
+            <div style="background:rgba(255,255,255,0.04);border:1px solid #34495e;border-radius:6px;padding:20px;">
+              <div style="font-size:18px;font-weight:bold;margin-bottom:12px;color:#16a085;">加入房间</div>
+              <div style="font-size:13px;color:#bdc3c7;margin-bottom:14px;line-height:1.6;">输入房主提供的邀请码加入对局。</div>
+              <input id="mp-room-code" placeholder="房间号" style="width:100%;padding:8px;background:#2c3e50;border:1px solid #4a627a;color:#ecf0f1;border-radius:3px;margin-bottom:8px;">
+              <input id="mp-guest-name" placeholder="你的昵称" value="Guest" style="width:100%;padding:8px;background:#2c3e50;border:1px solid #4a627a;color:#ecf0f1;border-radius:3px;margin-bottom:10px;">
+              <button id="btn-mp-join" style="width:100%;padding:10px;background:#16a085;border:none;color:white;border-radius:3px;cursor:pointer;font-weight:bold;">加入房间</button>
+            </div>
+          </div>
+
+          <!-- 连接状态 -->
+          <div id="mp-status" style="margin-top:24px;padding:16px;background:rgba(0,0,0,0.3);border-radius:4px;font-family:monospace;font-size:13px;color:#95a5a6;min-height:60px;">
+            状态：未连接
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 阵营选择界面（v1.3.0） -->
