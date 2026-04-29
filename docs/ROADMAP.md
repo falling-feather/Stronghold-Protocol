@@ -43,6 +43,7 @@
 - [x] v3.3.2 PactScreen 共鸣预览：选择阶段扫描 RESONANCE_DB，列出当前 selections 可能触发的共鸣（金色胶囊条 + tooltip 显示 tier 要求）
 - [x] v3.3.3 共鸣枷锁加成：PactResonance.shackledBoosts；4 个共鸣均开启；engine activeResonances 改为 Map<id,boost>，boost=true 时 effects 复制一份（翻倍）；getActivePactEffectsForOperator 同步翻倍；UI 翻倍版徽记/预览胶囊改红金渐变 + ⛓×2 标记
 - [x] v3.3.4 文档收束：docs/PACT_DESIGN.md 追加第 6 章「共鸣的枷锁加成」（数据/运行时/翻倍机制/UI/设计准则）
+- [x] v3.4.0 PACT_PICK_MAX 提至 3：玩家可同时携带 3 个盟约，最多触发 2~3 个共鸣（5 pact × 4 共鸣覆盖关系下，3 选最多覆盖 2 共鸣）；为后续平衡调优预留空间
 
 ## v4.x — 联机
 

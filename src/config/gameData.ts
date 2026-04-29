@@ -545,8 +545,9 @@ export const SELECTABLE_PACTS: string[] = [
 ];
 
 // v3.1.0：开局选择盟约的数量上下限
+// v3.4.0：上限从 2 提至 3，使玩家可同时触发最多 2~3 个共鸣
 export const PACT_PICK_MIN = 1;
-export const PACT_PICK_MAX = 2;
+export const PACT_PICK_MAX = 3;
 
 // v3.3.0：盟约共鸣 — 多个盟约同时达 minTier 时触发额外加成
 const mkResoEffect = (id: string, name: string, stat: 'atk' | 'def' | 'aspd' | 'spd' | 'magicResist' | 'blockCount', mod: number, modType: 'flat' | 'pct'): StatusEffect => ({
