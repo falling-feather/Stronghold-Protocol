@@ -4,7 +4,7 @@ import { Renderer } from '../view/Renderer';
 import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps, resolveSkillForRank, CLASS_TRAITS, PACT_DB } from '../config/gameData';
 import { FactionId } from '../config/factions';
 import { Roster, rosterToAllowedSet } from '../config/roster';
-import { Direction } from '../types';
+import { Direction, PactSelection } from '../types';
 import { showOnly } from './shared';
 
 let canvas: HTMLCanvasElement | null = null;
@@ -40,7 +40,7 @@ let pendingDragStartGrid: { x: number, y: number } | null = null;
 let resizeListenersBound = false;
 let interactionEventsBound = false;
 
-export function startGame(factionId: FactionId, roster: Roster, activePactIds: string[] | null = null): void {
+export function startGame(factionId: FactionId, roster: Roster, activePactSelections: PactSelection[] | null = null): void {
   appRoot = document.getElementById('app-root');
   showOnly('app-root');
 
@@ -72,7 +72,7 @@ export function startGame(factionId: FactionId, roster: Roster, activePactIds: s
   selectRandomMap();
 
   const allowed = rosterToAllowedSet(roster);
-  engine = new GameEngine(factionId, allowed, activePactIds);
+  engine = new GameEngine(factionId, allowed, activePactSelections);
   renderer = new Renderer(canvas);
   // v2.3.0：开发期暴露 engine，便于 devtools 中验证 buff 框架（如：engine.applyEffectToOperator('op_xxx', {id:'t',name:'测试',kind:'buff',stat:'atk',mod:0.5,modType:'pct',duration:10,remaining:10})）
   (window as any).engine = engine;
@@ -233,8 +233,9 @@ function renderPactBadges(): void {
     const nextTier = def.tiers[tierIdx + 1];
     const tierDesc = tierIdx >= 0 ? def.tiers[tierIdx].description : '未激活';
     const nextDesc = nextTier ? `\n下一档 @ ${nextTier.threshold}：${nextTier.description}` : '\n已达最高档';
-    const title = `${def.name}（${rt.stack}/${def.cap}）\n${def.desc}\n当前：${tierDesc}${nextDesc}${def.penaltyDesc ? '\n' + def.penaltyDesc : ''}`;
-    return `<div class="pact-badge" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:bold;margin-left:6px;border:2px solid rgba(255,255,255,0.4);">${rt.stack}</div>`;
+    const title = `${def.name}${rt.shackled ? ' ⛓枷锁' : ''}（${rt.stack}/${def.cap}）\n${def.desc}\n当前：${tierDesc}${nextDesc}${(def.penaltyDesc && rt.shackled) ? '\n' + def.penaltyDesc + '（生效中）' : ''}`;
+    const borderColor = rt.shackled ? '#c0392b' : 'rgba(255,255,255,0.4)';
+    return `<div class="pact-badge" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:bold;margin-left:6px;border:2px solid ${borderColor};">${rt.stack}${rt.shackled ? '⛓' : ''}</div>`;
   }).join('');
 }
 

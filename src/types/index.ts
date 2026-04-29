@@ -108,6 +108,13 @@ export interface PactRuntime {
   stack: number;
   appliedTier: number; // -1 表示未达任何阈值
   decayAccum: number;
+  shackled?: boolean; // v3.2.1：枷锁模式（true=承受 penalty，但阈值降低）
+}
+
+// v3.2.1：玩家选盟约时携带的元信息
+export interface PactSelection {
+  defId: string;
+  shackled: boolean;
 }
 
 export interface Enemy extends Entity {

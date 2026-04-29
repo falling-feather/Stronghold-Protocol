@@ -1,14 +1,15 @@
-// 盟约选择页（v3.1.0）：阵营确认后插入此页，玩家选 1-2 个盟约后进入对局
+// 盟约选择页（v3.1.0；v3.2.1：每个盟约可切换 普通/枷锁 模式）
 import { PACT_DB, SELECTABLE_PACTS, PACT_PICK_MIN, PACT_PICK_MAX } from '../config/gameData';
+import { PactSelection } from '../types';
 import { screenState, showOnly } from './shared';
 import { startGame } from './GameScreen';
 
-let selectedPacts: string[] = [];
+let selections: PactSelection[] = []; // 玩家已选盟约（含 shackled 标记）
 let initialized = false;
 
 export function showPactScreen(): void {
   showOnly('pact-screen');
-  selectedPacts = [];
+  selections = [];
   renderPactScreen();
 }
 
@@ -18,11 +19,11 @@ export function initPactScreen(): void {
   if (!ps) return;
   document.getElementById('btn-pact-back')?.addEventListener('click', () => showOnly('faction-screen'));
   document.getElementById('btn-pact-confirm')?.addEventListener('click', () => {
-    if (selectedPacts.length < PACT_PICK_MIN) {
+    if (selections.length < PACT_PICK_MIN) {
       alert(`至少需要选择 ${PACT_PICK_MIN} 个盟约`);
       return;
     }
-    startGame(screenState.currentFactionId, screenState.currentRoster, selectedPacts.slice());
+    startGame(screenState.currentFactionId, screenState.currentRoster, selections.slice());
   });
   initialized = true;
 }
@@ -32,36 +33,51 @@ function renderPactScreen(): void {
   const counter = document.getElementById('pact-counter');
   if (!grid || !counter) return;
 
-  counter.textContent = `已选 ${selectedPacts.length} / ${PACT_PICK_MAX}（至少 ${PACT_PICK_MIN}）`;
+  counter.textContent = `已选 ${selections.length} / ${PACT_PICK_MAX}（至少 ${PACT_PICK_MIN}）`;
 
   grid.innerHTML = '';
   for (const id of SELECTABLE_PACTS) {
     const def = PACT_DB[id];
     if (!def) continue;
-    const isSelected = selectedPacts.includes(id);
+    const sel = selections.find(s => s.defId === id);
+    const isSelected = !!sel;
+    const isShackled = !!sel?.shackled;
 
     const card = document.createElement('div');
     card.className = 'pact-card' + (isSelected ? ' selected' : '');
     card.style.cssText = `
-      border: 2px solid ${isSelected ? '#f1c40f' : '#34495e'};
+      border: 2px solid ${isSelected ? (isShackled ? '#c0392b' : '#f1c40f') : '#34495e'};
       border-radius: 10px;
       padding: 14px 16px;
-      background: ${isSelected ? 'rgba(241,196,15,0.10)' : 'rgba(0,0,0,0.25)'};
+      background: ${isSelected ? (isShackled ? 'rgba(192,57,43,0.10)' : 'rgba(241,196,15,0.10)') : 'rgba(0,0,0,0.25)'};
       cursor: pointer;
       transition: all 0.15s;
       color: #ecf0f1;
+      position: relative;
     `;
 
     const sources = def.sources.map(s => `${s.source}(+${s.perEvent})`).join('，');
     const decayTxt = def.decay ? `<div style="color:#e67e22;font-size:12px;">衰减：每 ${def.decay.interval}s 掉 ${def.decay.perTick} 层</div>` : '';
-    const tiersHtml = def.tiers.map((t, i) => `<li style="margin:2px 0;color:${['#7f8c8d','#3498db','#9b59b6','#f1c40f'][Math.min(i+1,3)]};">阈值 ${t.threshold}：${t.description}</li>`).join('');
-    // v3.2.0：枷锁段
+    // v3.2.1：枷锁模式下展示降低后的阈值
+    const thrFn = (t: number) => isShackled ? Math.max(1, Math.ceil(t * 0.7)) : t;
+    const tiersHtml = def.tiers.map((t, i) => {
+      const eff = thrFn(t.threshold);
+      const orig = t.threshold;
+      const thrTxt = isShackled && eff !== orig ? `<s style="color:#7f8c8d;">${orig}</s> ${eff}` : `${eff}`;
+      return `<li style="margin:2px 0;color:${['#7f8c8d','#3498db','#9b59b6','#f1c40f'][Math.min(i+1,3)]};">阈值 ${thrTxt}：${t.description}</li>`;
+    }).join('');
     const penaltyTxt = def.penaltyDesc
-      ? `<div style="margin-top:8px;padding:6px 8px;border-left:3px solid #c0392b;background:rgba(192,57,43,0.12);color:#e74c3c;font-size:12px;">⛓ ${def.penaltyDesc}</div>`
+      ? `<div style="margin-top:8px;padding:6px 8px;border-left:3px solid #c0392b;background:rgba(192,57,43,${isShackled ? 0.20 : 0.06});color:${isShackled ? '#e74c3c' : '#7f8c8d'};font-size:12px;">⛓ ${def.penaltyDesc}${isShackled ? '（已生效）' : '（未启用）'}</div>`
+      : '';
+
+    // v3.2.1：模式切换按钮（仅当此盟约有 penalty 时）
+    const modeBtn = def.penalty
+      ? `<button class="pact-mode-toggle" data-pid="${id}" style="position:absolute;top:10px;right:10px;padding:3px 9px;font-size:11px;border-radius:4px;border:1px solid ${isShackled ? '#c0392b' : '#7f8c8d'};background:${isShackled ? '#c0392b' : 'transparent'};color:${isShackled ? '#fff' : '#bdc3c7'};cursor:pointer;">${isShackled ? '枷锁 ⛓' : '普通'}</button>`
       : '';
 
     card.innerHTML = `
-      <div style="font-size:18px;font-weight:bold;margin-bottom:6px;color:#f1c40f;">${def.name}</div>
+      ${modeBtn}
+      <div style="font-size:18px;font-weight:bold;margin-bottom:6px;color:${isShackled ? '#e74c3c' : '#f1c40f'};padding-right:60px;">${def.name}</div>
       <div style="font-size:13px;color:#bdc3c7;margin-bottom:8px;">${def.desc}</div>
       <div style="font-size:12px;color:#95a5a6;">来源：${sources}　上限：${def.cap}</div>
       ${decayTxt}
@@ -69,19 +85,35 @@ function renderPactScreen(): void {
       ${penaltyTxt}
     `;
 
-    card.addEventListener('click', () => {
-      const idx = selectedPacts.indexOf(id);
+    // 卡片主体点击：选中/取消
+    card.addEventListener('click', (ev) => {
+      const target = ev.target as HTMLElement;
+      if (target.classList.contains('pact-mode-toggle')) return;
+      const idx = selections.findIndex(s => s.defId === id);
       if (idx >= 0) {
-        selectedPacts.splice(idx, 1);
+        selections.splice(idx, 1);
       } else {
-        if (selectedPacts.length >= PACT_PICK_MAX) {
-          // 达到上限：替换最早一个
-          selectedPacts.shift();
-        }
-        selectedPacts.push(id);
+        if (selections.length >= PACT_PICK_MAX) selections.shift();
+        selections.push({ defId: id, shackled: false });
       }
       renderPactScreen();
     });
+
+    // 模式切换按钮
+    if (def.penalty) {
+      const btn = card.querySelector('.pact-mode-toggle') as HTMLButtonElement | null;
+      btn?.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        let s = selections.find(x => x.defId === id);
+        if (!s) {
+          if (selections.length >= PACT_PICK_MAX) selections.shift();
+          s = { defId: id, shackled: false };
+          selections.push(s);
+        }
+        s.shackled = !s.shackled;
+        renderPactScreen();
+      });
+    }
 
     grid.appendChild(card);
   }

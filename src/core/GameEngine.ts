@@ -1,7 +1,7 @@
 import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, PACT_DB, DEFAULT_ACTIVE_PACTS, resolveSkillForRank, applyTalentsToStats, buildTalentEffects } from '../config/gameData';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
-import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource } from '../types';
+import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection } from '../types';
 import { getDistance, moveTowards, checkCollision, isInAttackRange } from './MathUtils';
 
 export interface BenchOperator {
@@ -65,7 +65,7 @@ export class GameEngine {
   // v3.0.0：盟约叠层运行时
   pacts: PactRuntime[] = [];
 
-  constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null, activePactIds: string[] | null = null) {
+  constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null, activePactSelections: PactSelection[] | null = null) {
     this.factionId = factionId;
     this.allowedTemplateIds = allowedTemplateIds;
     const eff = FACTION_DB[factionId].effect;
@@ -73,9 +73,13 @@ export class GameEngine {
     this.money = eff.initialMoney ?? CONFIG.BASE_MONEY;
     this.shop = new ShopSystem(this);
     this.shop.refreshShop(true);
-    // v3.0.0/v3.1.0：初始化盟约运行时（外部传入；缺省走 DEFAULT_ACTIVE_PACTS）
-    const ids = (activePactIds && activePactIds.length > 0) ? activePactIds : DEFAULT_ACTIVE_PACTS;
-    this.pacts = ids.filter(id => PACT_DB[id]).map(id => ({ defId: id, stack: 0, appliedTier: -1, decayAccum: 0 }));
+    // v3.0.0/v3.1.0/v3.2.1：初始化盟约运行时（外部传入 selections；缺省走 DEFAULT_ACTIVE_PACTS 全部非枷锁）
+    const selections: PactSelection[] = (activePactSelections && activePactSelections.length > 0)
+      ? activePactSelections
+      : DEFAULT_ACTIVE_PACTS.map(id => ({ defId: id, shackled: false }));
+    this.pacts = selections.filter(s => PACT_DB[s.defId]).map(s => ({
+      defId: s.defId, stack: 0, appliedTier: -1, decayAccum: 0, shackled: !!s.shackled,
+    }));
   }
 
   // 公开给 ShopSystem 调用
@@ -669,9 +673,11 @@ export class GameEngine {
   private reconcilePactTier(rt: PactRuntime): boolean {
     const def = PACT_DB[rt.defId];
     if (!def) return false;
+    // v3.2.1：枷锁模式阈值缩减（0.7上取整，下限 1）
+    const thr = (t: number) => rt.shackled ? Math.max(1, Math.ceil(t * 0.7)) : t;
     let newTier = -1;
     for (let i = 0; i < def.tiers.length; i++) {
-      if (rt.stack >= def.tiers[i].threshold) newTier = i; else break;
+      if (rt.stack >= thr(def.tiers[i].threshold)) newTier = i; else break;
     }
     if (newTier === rt.appliedTier) return false;
     // 撤掉旧 tier 的 effects（按 id 前缀匹配）
@@ -712,8 +718,8 @@ export class GameEngine {
     for (const rt of this.pacts) {
       const def = PACT_DB[rt.defId];
       if (!def || def.scope !== 'all_operators') continue;
-      // 枷锁：选择即背负，与 tier 无关
-      if (def.penalty) {
+      // v3.2.0/v3.2.1：仅枷锁模式下附加 penalty
+      if (def.penalty && rt.shackled) {
         for (const eff of def.penalty) out.push({ ...eff, remaining: eff.duration });
       }
       // tier 加成：仅当 stack 达阈值
