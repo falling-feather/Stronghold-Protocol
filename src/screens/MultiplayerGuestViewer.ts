@@ -38,6 +38,7 @@ export function initMultiplayerGuestViewer(): void {
         <button id="btn-mp-guest-deploy" style="padding:6px 12px;background:#16a085;border:none;color:#fff;border-radius:3px;cursor:pointer;font-size:12px;font-weight:bold;">🎯 提议部署 (点格子)</button>
         <button id="btn-mp-guest-focus" style="padding:6px 12px;background:#8e44ad;border:none;color:#fff;border-radius:3px;cursor:pointer;font-size:12px;font-weight:bold;">⭐ 提议关注 (点干员)</button>
         <button id="btn-mp-guest-enemy" style="padding:6px 12px;background:#d35400;border:none;color:#fff;border-radius:3px;cursor:pointer;font-size:12px;font-weight:bold;">⚠ 标记敌人 (点敌人)</button>
+        <button id="btn-mp-guest-defend" style="padding:6px 12px;background:#27ae60;border:none;color:#fff;border-radius:3px;cursor:pointer;font-size:12px;font-weight:bold;">🛡 提议防守 (点位置)</button>
       </div>
       <div id="mp-guest-toasts" style="position:fixed;top:60px;right:20px;display:flex;flex-direction:column;gap:6px;z-index:10000;pointer-events:none;"></div>
       <div id="mp-guest-chat" style="display:flex;flex-direction:column;width:100%;max-width:${W + 40}px;margin-top:8px;background:#1a1d24;border:1px solid #34495e;border-radius:4px;font-family:monospace;font-size:11px;">
@@ -67,6 +68,7 @@ export function initMultiplayerGuestViewer(): void {
   let deployMode = false;
   let focusMode = false;
   let enemyMode = false;
+  let defendMode = false;
   canvas.addEventListener('mousemove', (ev) => {
     const rect = canvas!.getBoundingClientRect();
     lastMouse = {
@@ -139,6 +141,19 @@ export function initMultiplayerGuestViewer(): void {
       render();
       return;
     }
+    if (defendMode) {
+      // v4.3.8：防守提议模式 — 任意点位（格坐标）
+      const gx = Math.floor(x / CONFIG.TILE_SIZE);
+      const gy = Math.floor(y / CONFIG.TILE_SIZE);
+      mpAdapter.sendEvent('defend_request', `🛡 提议在格 (${gx},${gy}) 加固防守`, 'warn', { x, y, gx, gy });
+      showEventToast(`已发送防守提议 → 格 (${gx},${gy})`, 'info');
+      pushLocalMarker(x, y, mpAdapter.localPeer?.name ?? '我', '🛡防守');
+      playSfx('event');
+      defendMode = false;
+      updateDefendBtn();
+      render();
+      return;
+    }
     mpAdapter.sendMarker(x, y);
     pushLocalMarker(x, y, mpAdapter.localPeer?.name ?? '我');
     playSfx('click'); // v4.2.4
@@ -159,10 +174,11 @@ export function initMultiplayerGuestViewer(): void {
   }
   deployBtn?.addEventListener('click', () => {
     deployMode = !deployMode;
-    if (deployMode) { focusMode = false; enemyMode = false; }
+    if (deployMode) { focusMode = false; enemyMode = false; defendMode = false; }
     updateDeployBtn();
     updateFocusBtn();
     updateEnemyBtn();
+    updateDefendBtn();
   });
   updateDeployBtn();
 
@@ -180,10 +196,11 @@ export function initMultiplayerGuestViewer(): void {
   }
   focusBtn?.addEventListener('click', () => {
     focusMode = !focusMode;
-    if (focusMode) { deployMode = false; enemyMode = false; }
+    if (focusMode) { deployMode = false; enemyMode = false; defendMode = false; }
     updateDeployBtn();
     updateFocusBtn();
     updateEnemyBtn();
+    updateDefendBtn();
   });
   updateFocusBtn();
 
@@ -201,12 +218,35 @@ export function initMultiplayerGuestViewer(): void {
   }
   enemyBtn?.addEventListener('click', () => {
     enemyMode = !enemyMode;
-    if (enemyMode) { deployMode = false; focusMode = false; }
+    if (enemyMode) { deployMode = false; focusMode = false; defendMode = false; }
     updateDeployBtn();
     updateFocusBtn();
     updateEnemyBtn();
+    updateDefendBtn();
   });
   updateEnemyBtn();
+
+  // v4.3.8：防守提议按钮
+  const defendBtn = document.getElementById('btn-mp-guest-defend') as HTMLButtonElement | null;
+  function updateDefendBtn(): void {
+    if (!defendBtn) return;
+    if (defendMode) {
+      defendBtn.textContent = '✕ 取消防守提议';
+      defendBtn.style.background = '#c0392b';
+    } else {
+      defendBtn.textContent = '🛡 提议防守 (点位置)';
+      defendBtn.style.background = '#27ae60';
+    }
+  }
+  defendBtn?.addEventListener('click', () => {
+    defendMode = !defendMode;
+    if (defendMode) { deployMode = false; focusMode = false; enemyMode = false; }
+    updateDeployBtn();
+    updateFocusBtn();
+    updateEnemyBtn();
+    updateDefendBtn();
+  });
+  updateDefendBtn();
 
   // v4.2.1：预设快捷指令按钮
   const quick = document.getElementById('mp-guest-quick');

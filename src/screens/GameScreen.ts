@@ -1066,6 +1066,14 @@ function installGuestEventListener(): void {
       showHostBriefBanner(`${icon} ${from}：${text}`);
       playSfx(ack === 'help' ? 'event' : 'wave_clear');
       pushMpHostHistory({ icon, from, text, ts: performance.now() });
+    } else if (p.kind === 'defend_request') {
+      // v4.3.8：guest 提议防守点 — 在该点叠加 🛡 防守 marker + 顶部短横幅
+      const dx = Number((p.extra && p.extra.x) ?? 0);
+      const dy = Number((p.extra && p.extra.y) ?? 0);
+      pushLocalMarker(dx, dy, from, '🛡防守');
+      showHostBriefBanner(`🛡 ${from} 提议加固防守`);
+      playSfx('event');
+      pushMpHostHistory({ icon: '🛡', from, text, ts: performance.now() });
     }
   });
   // v4.2.4：host 收到 guest 标记点也响一下

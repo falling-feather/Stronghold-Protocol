@@ -77,6 +77,7 @@
 - [x] v4.3.5 host 提议历史面板：联机时 host 主画面右上 (top:130px) 注入可折叠迷你面板「📜 提议历史 (近 5)」，记录最近 5 条 marker / deploy_request / focus_request / enemy_intel；带 icon (📍/🎯/⭐/⚠) + from + 摘要 + 相对时间 (Ns前/Nm前)；focus_request 行可点击 → selectItem('map', operatorId) 跳转高亮干员；每 5s 自动刷新时间
 - [x] v4.3.6 预告后 guest 快反馈：showEventToast 扩展 actions/stayMs 选项；guest 收到 wave 事件 toast 上附「✅ 可以」「🆘 需援」按钮（停留 8s），点击发 intel_response 事件（extra.ack=ready/help）；host 收到 intel_response → showHostBriefBanner + push history (✅/🆘) + 对应 sfx (wave_clear/event)
 - [x] v4.3.7 v4 阶段总结 + README/MULTIPLAYER 增补：新增 docs/V4_SUMMARY.md 收束 v4.0~v4.3.6 全量功能、协议、关键文件、设计决策、未完成项；README 加联机协作小节 + 快速启动段；MULTIPLAYER 顶部说明改写、协议表加 game/marker/event、新增 event.kind 一览（10 种）、新增"v4.3.x 协作 UI 概览"小节
+- [x] v4.3.8 提议防守点：guest 观战面板新增「🛡 提议防守」toggle（与部署/关注/敌情互斥），开启后下次点击发 defend_request(extra.x/y/gx/gy)；host 在该点叠加 🛡防守 marker（复用 mpMarkers）+ 顶部短暂绿色 banner（3s）+ history 🛡 行 + event sfx；guest 端本地立即 marker 反馈
 - [ ] 状态同步策略：增量帧 + 操作包
 - [ ] 双人共享地图、独立资源 / 独立队列
 - [ ] 断线重连 + 延迟补偿

@@ -95,6 +95,7 @@ JSON 文本帧。
 | `focus_response` | host→guest | host 对 focus_request 的回应 toast |
 | `enemy_intel` | guest→host | guest 标记最近敌人；`extra.enemyId/x/y`；host 在敌人位置叠加 ⚠敌情 marker + 顶部短横幅 (v4.3.2) |
 | `intel_response` | guest→host | guest 对 wave 预告的快反馈；`extra.ack=ready/help`；host 顶部短横幅 + history (v4.3.6) |
+| `defend_request` | guest→host | guest 提议防守点；`extra.x/y/gx/gy`；host 在该点叠加 🛡防守 marker + 顶部短横幅 (v4.3.8) |
 
 ## 5. 已知限制
 
@@ -107,8 +108,8 @@ JSON 文本帧。
 
 **host（主画面）**
 - 右下 fixed `#mp-host-chat`：可折叠聊天面板（标题栏 ▾/▸，140px 日志 + 输入 + 5 个快捷预设按钮 [好/不好/等一下/GG/GL]）
-- 右上 top:130px `#mp-host-history`：📜 提议历史 (近 5)，记录 marker 📍 / deploy_request 🎯 / focus_request ⭐ / enemy_intel ⚠ / intel_response ✅🆘；focus 行可点击跳转干员
-- 顶部 top:36px：deploy_request / focus_request 横幅（接受/拒绝/查看/忽略）+ enemy_intel/intel_response 短横幅（3s）
+- 右上 top:130px `#mp-host-history`：📜 提议历史 (近 5)，记录 marker 📍 / deploy_request 🎯 / focus_request ⭐ / enemy_intel ⚠ / defend_request 🛡 / intel_response ✅🆘；focus 行可点击跳转干员
+- 顶部 top:36px：deploy_request / focus_request 横幅（接受/拒绝/查看/忽略）+ enemy_intel/defend_request/intel_response 短横幅（3s）
 
 **guest（观战面板）**
 - 中央 Canvas 640×512：渲染 host 推送的快照 + marker 圆环
