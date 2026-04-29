@@ -425,6 +425,24 @@ export const ENEMY_DB: Record<string, { name: string; color: string; radius: num
     stats: { hp: 900, maxHp: 900, atk: 400, def: 50, spd: 1.8, range: 0, aspd: 1.2, blockCount: 0, magicResist: 10 },
     // v2.4.1：隐身—仅可被特种干员攻击
     traits: { stealth: true }
+  },
+  // v3.10.0：装甲斥候 — 600 护盾，护盾耗尽前不扣 hp
+  'bulwark': {
+    name: '装甲斥候', color: '#2980b9', radius: 18,
+    stats: { hp: 1500, maxHp: 1500, atk: 300, def: 200, spd: 1.2, range: 0, aspd: 1.8, blockCount: 0, magicResist: 40 },
+    traits: { shield: 600 }
+  },
+  // v3.10.0：狂战 — 被击后 2.5s 内加速并提高攻速
+  'berserker': {
+    name: '狂战', color: '#b03a2e', radius: 17,
+    stats: { hp: 1100, maxHp: 1100, atk: 380, def: 80, spd: 1.6, range: 0, aspd: 1.4, blockCount: 0, magicResist: 20 },
+    traits: { enrageOnHit: { aspdMod: -0.15, spdMod: 0.25, durationS: 2.5 } }
+  },
+  // v3.10.0：碎晶兽 — 死亡分裂为 3 只源石虫
+  'splitter': {
+    name: '碎晶兽', color: '#9b59b6', radius: 16,
+    stats: { hp: 800, maxHp: 800, atk: 260, def: 60, spd: 1.4, range: 0, aspd: 1.6, blockCount: 0, magicResist: 25 },
+    traits: { summon: { childId: 'slug', count: 3, on: 'death' } }
   }
 };
 
@@ -436,6 +454,10 @@ export const WAVES = [
   { count: 4, interval: 2.0, enemyId: 'phantom', reward: 35 },
   { count: 12, interval: 2.0, enemyId: 'soldier', reward: 40 },
   { count: 4, interval: 4.0, enemyId: 'heavy', reward: 60 },
+  // v3.10.0：新敌人波次
+  { count: 4, interval: 3.0, enemyId: 'bulwark', reward: 50 },
+  { count: 6, interval: 1.5, enemyId: 'berserker', reward: 45 },
+  { count: 3, interval: 2.5, enemyId: 'splitter', reward: 55 },
 ];
 
 // v3.0.0：盟约叠层数据库

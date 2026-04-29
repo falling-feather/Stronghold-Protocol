@@ -249,6 +249,16 @@ export class Renderer {
     this.ctx.fillStyle = '#e67e22'; 
     this.ctx.fillRect(-12, -22, 24 * (enemy.stats.hp / enemy.stats.maxHp), 4);
 
+    // v3.10.0：护盾条（在血条上方，蓝色）
+    const maxShield = enemy.traits?.shield ?? 0;
+    const curShield = enemy.currentShield ?? 0;
+    if (maxShield > 0 && curShield > 0) {
+      this.ctx.fillStyle = '#1c3d5a';
+      this.ctx.fillRect(-12, -27, 24, 3);
+      this.ctx.fillStyle = '#3498db';
+      this.ctx.fillRect(-12, -27, 24 * (curShield / maxShield), 3);
+    }
+
     this.ctx.restore();
   }
 

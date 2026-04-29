@@ -550,6 +550,8 @@ export class GameEngine {
       effects: [],
       traits: template.traits,
       bossPhaseTriggered: false,
+      // v3.10.0：护盾初始化
+      currentShield: template.traits?.shield ?? 0,
     });
   }
 
@@ -1026,7 +1028,33 @@ export class GameEngine {
           // v2.1.0：治疗型暂不对敌人生效（v2.1.x 接入友军选择再做）
           finalDamage = 0;
         }
-        target.stats.hp -= finalDamage;
+        // v3.10.0：先扣护盾，溢出再扣 hp
+        let dmgToHp = finalDamage;
+        if ((target.currentShield ?? 0) > 0 && proj.atkType !== 'heal') {
+          const absorbed = Math.min(target.currentShield!, finalDamage);
+          target.currentShield = (target.currentShield ?? 0) - absorbed;
+          dmgToHp = finalDamage - absorbed;
+        }
+        target.stats.hp -= dmgToHp;
+        // v3.10.0：被击狂怒 — 命中即给 enemy 加短期 aspd/spd buff（覆盖刷新）
+        if (target.traits?.enrageOnHit && proj.atkType !== 'heal' && finalDamage > 0) {
+          const er = target.traits.enrageOnHit;
+          const existing = target.effects.find(e => e.id === 'enrage_on_hit');
+          if (existing) {
+            existing.remaining = er.durationS;
+          } else {
+            target.effects.push({
+              id: 'enrage_on_hit', name: '被击狂怒', kind: 'buff',
+              stat: 'aspd', mod: er.aspdMod, modType: 'pct',
+              duration: er.durationS, remaining: er.durationS,
+            });
+            target.effects.push({
+              id: 'enrage_on_hit_spd', name: '被击狂怒·迅捷', kind: 'buff',
+              stat: 'spd', mod: er.spdMod, modType: 'pct',
+              duration: er.durationS, remaining: er.durationS,
+            });
+          }
+        }
         proj.markedForDeletion = true;
         if (target.stats.hp <= 0 && !target.markedForDeletion) {
           target.markedForDeletion = true;
@@ -1111,6 +1139,8 @@ export class GameEngine {
         maxHp: e.stats.maxHp,
         radius: e.radius,
         color: e.color,
+        shield: e.currentShield ? Math.max(0, Math.round(e.currentShield)) : 0,
+        maxShield: e.traits?.shield ?? 0,
       })),
       operators: this.operators.map(o => ({
         id: o.id,
@@ -1138,7 +1168,7 @@ export interface GameStateSnapshot {
   waveIndex: number;
   coreLevel: number;
   combatTimeRemaining: number;
-  enemies: { id: string; x: number; y: number; hp: number; maxHp: number; radius: number; color: string }[];
+  enemies: { id: string; x: number; y: number; hp: number; maxHp: number; radius: number; color: string; shield?: number; maxShield?: number }[];
   operators: { id: string; x: number; y: number; hp: number; maxHp: number; radius: number; color: string; name: string }[];
   projectiles: { x: number; y: number; color: string }[];
 }

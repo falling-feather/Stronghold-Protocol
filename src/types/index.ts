@@ -74,6 +74,9 @@ export interface EnemyTraits {
   stealth?: boolean;
   summon?: { childId: string; count: number; on: 'death' };
   bossPhase?: { atHpPct: number; effect: StatusEffect };
+  // v3.10.0：护盾、被击狂怒
+  shield?: number;
+  enrageOnHit?: { aspdMod: number; spdMod: number; durationS: number };
 }
 
 // v3.0.0：盟约叠层
@@ -164,6 +167,7 @@ export interface Enemy extends Entity {
   effects: StatusEffect[]; // v2.3.0
   traits?: EnemyTraits;       // v2.4.0
   bossPhaseTriggered?: boolean; // v2.4.0
+  currentShield?: number;     // v3.10.0
 }
 
 export interface Operator extends Entity {
