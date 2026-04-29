@@ -30,10 +30,13 @@
 
 ## v3.x — 盟约叠层
 
-- [ ] 盟约配置（炎佑 / 碎铳之簧 / 余音 …）
-- [ ] 叠层来源：击杀 / 部署 / 撤退 / 波次结算
-- [ ] 叠层效果分层（每 N 层触发不同 Buff）
-- [ ] 叠层 UI：顶栏徽记 + 详情悬浮卡
+> 设计文档：[PACT_DESIGN.md](PACT_DESIGN.md)
+
+- [x] v3.0.0-design 盟约叠层设计文档：PactDefinition/PactRuntime/onPactEvent/reconcile/tick decay 框架；事件源映射（kill/deploy/retreat/wave_clear）；与 v2.3.0 effects 复用约定
+- [ ] v3.0.0 框架落地 + 盟约「炎佑」（kill_any → 干员攻击力分级）+ 顶栏徽记最小 UI
+- [ ] v3.0.1 wave_clear/wave_perfect 触发 + 盟约「余音」
+- [ ] v3.0.2 deploy/retreat 触发 + 盟约「碎铳之簧」（含衰减）
+- [ ] v3.1.0 开局盟约选择 UI + 至少 5 个盟约配置
 
 ## v4.x — 联机
 
