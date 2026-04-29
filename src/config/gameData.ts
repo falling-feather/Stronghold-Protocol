@@ -652,4 +652,29 @@ export const RESONANCE_DB: Record<string, PactResonance> = {
     effects: [mkResoEffect('resonance_reso_echo_spring_aspd', '[共鸣·余簧] 余簧鸣震', 'aspd', -0.05, 'pct')],
     shackledBoosts: true,
   },
+  // v3.4.2：补齐最后 2 对达成 10 对全覆盖，任何 3 选必触发 3 共鸣
+  reso_flame_echo: {
+    id: 'reso_flame_echo',
+    name: '共鸣·焰响',
+    desc: '炎佑 + 余音回响 同时达 tier1：全体魔抗 +5',
+    requires: [
+      { defId: 'pact_flame_blessing', minTier: 0 },
+      { defId: 'pact_lingering_echo', minTier: 0 },
+    ],
+    scope: 'all_operators',
+    effects: [mkResoEffect('resonance_reso_flame_echo_mr', '[共鸣·焰响] 焰中余韵', 'magicResist', 5, 'flat')],
+    shackledBoosts: true,
+  },
+  reso_iron_spring: {
+    id: 'reso_iron_spring',
+    name: '共鸣·铁簧',
+    desc: '钢铁誓约 + 碎铳之簧 同时达 tier1：全体攻击 +4',
+    requires: [
+      { defId: 'pact_iron_resolve', minTier: 0 },
+      { defId: 'pact_broken_spring', minTier: 0 },
+    ],
+    scope: 'all_operators',
+    effects: [mkResoEffect('resonance_reso_iron_spring_atk', '[共鸣·铁簧] 钢簧之击', 'atk', 4, 'flat')],
+    shackledBoosts: true,
+  },
 };
