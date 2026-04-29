@@ -13,7 +13,8 @@
 - [x] v1.2.0 干员模板：职业 / 天赋 / 技能多档（叠层影响数值）
 - [x] v1.3.0 阵营选择页 + 阵容编排页
 - [x] v1.4.0 联机模式占位
-- [x] v1.5.0 ShopSystem 提取 + UI 多页面化
+- [x] v1.5.0 ShopSystem 提取（商店/合并/临时商店/出售迁出 GameEngine）
+- [x] v1.5.1 UI 多页面化：main.ts 拆分至 src/screens/{Start,Faction,Roster,Multiplayer,Game}Screen.ts
 
 ## v2.x — 战斗系统深化
 
