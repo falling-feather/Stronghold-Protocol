@@ -1,6 +1,7 @@
-import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, RARITY_RATES, resolveSkillForRank, applyTalentsToStats } from '../config/gameData';
+import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, resolveSkillForRank, applyTalentsToStats } from '../config/gameData';
 import { FACTION_DB, FactionId } from '../config/factions';
-import { Enemy, Operator, Projectile, GamePhase, ShopItem, Direction } from '../types';
+import { ShopSystem } from './ShopSystem';
+import { Enemy, Operator, Projectile, GamePhase, Direction } from '../types';
 import { getDistance, moveTowards, checkCollision, isInAttackRange } from './MathUtils';
 
 export interface BenchOperator {
@@ -9,12 +10,7 @@ export interface BenchOperator {
   rank: 1 | 2; // 角色等阶
 }
 
-// 角色池统计
-interface OperatorPoolStats {
-  count: number; // 累计获得次数（最多7次）
-  rank1Count: number; // 当前拥有的1阶数量
-  rank2Count: number; // 当前拥有的2阶数量
-}
+// 角色池统计类型已迁至 src/types/index.ts（外部主要通过 ShopSystem 访问）
 
 // 待部署的角色（第一步：放置位置）
 interface PendingDeployment {
@@ -39,13 +35,15 @@ export class GameEngine {
   lives: number;
   waveIndex: number = 0;
   coreLevel: number = 1;
-  
-  shopItems: ShopItem[] = [];
-  
-  // 角色池系统
-  operatorPool: Map<string, OperatorPoolStats> = new Map(); // 记录每个角色的获取统计
-  isInTemporaryShop: boolean = false; // 是否在临时商店中
-  temporaryShopItems: ShopItem[] = []; // 临时商店物品
+
+  // === 商店子系统（v1.5.0）=== 实例在 constructor 里初始化
+  shop!: ShopSystem;
+  // 向后兼容的代理访问（main.ts / Renderer 还在用这些字段名）
+  get shopItems() { return this.shop.shopItems; }
+  get temporaryShopItems() { return this.shop.temporaryShopItems; }
+  get isInTemporaryShop() { return this.shop.isInTemporaryShop; }
+  get operatorPool() { return this.shop.operatorPool; }
+
   
   // 待部署状态
   pendingDeployment: PendingDeployment | null = null;
@@ -70,7 +68,13 @@ export class GameEngine {
     const eff = FACTION_DB[factionId].effect;
     this.lives = eff.initialLives ?? CONFIG.BASE_LIVES;
     this.money = eff.initialMoney ?? CONFIG.BASE_MONEY;
-    this.refreshShop(true);
+    this.shop = new ShopSystem(this);
+    this.shop.refreshShop(true);
+  }
+
+  // 公开给 ShopSystem 调用
+  notifyUpdate() {
+    if (this.onStateUpdated) this.onStateUpdated();
   }
 
   update(dt: number) {
@@ -113,10 +117,6 @@ export class GameEngine {
     
     // 结束战斗
     this.endCombat();
-  }
-
-  private notifyUpdate() {
-    if (this.onStateUpdated) this.onStateUpdated();
   }
 
   // === 战斗流程 ===
@@ -179,74 +179,17 @@ export class GameEngine {
     }, 100);
   }
 
-  // === 商店与经济 ===
-  refreshShop(forceFree: boolean = false) {
-    // 如果在临时商店，不能刷新
-    if (this.isInTemporaryShop) {
-      alert("请先完成临时商店的选择！");
-      return;
-    }
-    
-    const cost = 2;
-    if (!forceFree) {
-      if (this.phase !== 'PREP') return;
-      if (this.money < cost) return;
-      this.money -= cost;
-    }
-
-    this.shopItems = [];
-    const shopSize = 3 + (this.coreLevel >= 3 ? 1 : 0) + (this.coreLevel >= 5 ? 1 : 0);
-    let attempts = 0;
-    const maxAttempts = shopSize * 10; // 防止无限循环
-
-    for (let i = 0; i < shopSize && attempts < maxAttempts; attempts++) {
-      const templateId = this.rollForOperator();
-      const template = OPERATOR_DB[templateId as keyof typeof OPERATOR_DB];
-      
-      // 检查角色池限制
-      const poolStats = this.operatorPool.get(templateId);
-      if (poolStats && poolStats.count >= 7) {
-        // 如果已达到上限，重新roll
-        continue;
-      }
-      
-      this.shopItems.push({
-        uid: `shop_${Date.now()}_${i}`,
-        templateId: templateId,
-        cost: template.cost,
-        bought: false
-      });
-      i++;
-    }
-    this.notifyUpdate();
+  // === 商店与经济（v1.5.0：实现迁至 ShopSystem，此处保留 thin proxy）===
+  refreshShop(forceFree: boolean = false): void {
+    this.shop.refreshShop(forceFree);
   }
 
-  private rollForOperator(): string {
-    const levelIndex = Math.min(this.coreLevel - 1, RARITY_RATES.length - 1);
-    const rates = RARITY_RATES[levelIndex];
-    const roll = Math.random();
-    let cumulative = 0;
-    let targetRarity = 1;
-    for (let i = 0; i < rates.length; i++) {
-      cumulative += rates[i];
-      if (roll <= cumulative) {
-        targetRarity = i + 1;
-        break;
-      }
-    }
-    const candidates = Object.entries(OPERATOR_DB)
-      .filter(([id, op]) => op.rarity === targetRarity && (this.allowedTemplateIds === null || this.allowedTemplateIds.has(id)))
-      .map(([id, _]) => id);
+  tryBuyOperator(shopItemUid: string): boolean {
+    return this.shop.tryBuyOperator(shopItemUid);
+  }
 
-    if (candidates.length === 0) {
-      // 当前稀有度在 roster 里为空，退回全部允许同稀有度
-      const fallback = Object.entries(OPERATOR_DB)
-        .filter(([_, op]) => op.rarity === targetRarity)
-        .map(([id, _]) => id);
-      if (fallback.length === 0) return Object.keys(OPERATOR_DB)[0];
-      return fallback[Math.floor(Math.random() * fallback.length)];
-    }
-    return candidates[Math.floor(Math.random() * candidates.length)];
+  sellBenchOperator(benchUid: string): boolean {
+    return this.shop.sellBenchOperator(benchUid);
   }
 
   upgradeCore() {
@@ -254,196 +197,13 @@ export class GameEngine {
     if (this.money >= upgradeCost && this.coreLevel < 5) {
       this.money -= upgradeCost;
       this.coreLevel++;
-      this.refreshShop(true);
+      this.shop.refreshShop(true);
     }
   }
 
-  // === 购买、出售、部署、撤回 (核心逻辑) ===
+  // === 部署 / 撤回 ===
 
-  tryBuyOperator(shopItemUid: string): boolean {
-    if (this.phase !== 'PREP') return false;
-    if (this.isInTemporaryShop) {
-      // 临时商店购买逻辑
-      return this.tryBuyTemporaryShop(shopItemUid);
-    }
-    
-    const item = this.shopItems.find(i => i.uid === shopItemUid);
-    if (!item || item.bought) return false;
-    
-    const template = OPERATOR_DB[item.templateId as keyof typeof OPERATOR_DB];
-    if (!template) return false;
-    
-    // 检查角色池限制（每个角色最多7次）
-    const poolStats = this.operatorPool.get(item.templateId);
-    if (poolStats && poolStats.count >= 7) {
-      alert("该角色已达到最大获取次数！");
-      return false;
-    }
-    
-    if (this.money < item.cost) return false;
-    if (this.bench.length >= CONFIG.MAX_BENCH_SIZE) {
-        alert("备战区已满！");
-        return false;
-    }
-
-    this.money -= item.cost;
-    item.bought = true;
-    
-    // 更新角色池统计
-    if (!poolStats) {
-      this.operatorPool.set(item.templateId, { count: 1, rank1Count: 1, rank2Count: 0 });
-    } else {
-      poolStats.count++;
-      poolStats.rank1Count++;
-    }
-    
-    this.bench.push({
-        uid: `bench_${Date.now()}_${Math.random()}`,
-        templateId: item.templateId,
-        rank: 1 // 默认1阶
-    });
-
-    // 检查是否需要合并（3个一阶同名角色）
-    this.checkAndMergeOperators(item.templateId);
-
-    this.notifyUpdate();
-    return true;
-  }
-  
-  private tryBuyTemporaryShop(shopItemUid: string): boolean {
-    const item = this.temporaryShopItems.find(i => i.uid === shopItemUid);
-    if (!item || item.bought) return false;
-    
-    if (this.bench.length >= CONFIG.MAX_BENCH_SIZE) {
-      alert("备战区已满！");
-      return false;
-    }
-    
-    item.bought = true;
-    
-    // 临时商店免费获得
-    const template = OPERATOR_DB[item.templateId as keyof typeof OPERATOR_DB];
-    if (!template) return false;
-    
-    // 更新角色池统计
-    const poolStats = this.operatorPool.get(item.templateId);
-    if (!poolStats) {
-      this.operatorPool.set(item.templateId, { count: 1, rank1Count: 1, rank2Count: 0 });
-    } else {
-      poolStats.count++;
-      poolStats.rank1Count++;
-    }
-    
-    this.bench.push({
-      uid: `bench_${Date.now()}_${Math.random()}`,
-      templateId: item.templateId,
-      rank: 1
-    });
-    
-    // 退出临时商店
-    this.exitTemporaryShop();
-    
-    this.notifyUpdate();
-    return true;
-  }
-  
-  private checkAndMergeOperators(templateId: string) {
-    const poolStats = this.operatorPool.get(templateId);
-    if (!poolStats || poolStats.rank1Count < 3) return;
-    
-    // 找到所有1阶同名角色（包括场上的和备战区的）
-    const rank1OnField = this.operators.filter(op => op.templateId === templateId && op.rank === 1);
-    
-    // 需要撤回场上的角色
-    rank1OnField.forEach(op => {
-      this.recallOperator(op.id);
-    });
-    
-    // 重新获取备战区的1阶角色（可能已经撤回了一些）
-    const allRank1 = this.bench.filter(b => b.templateId === templateId && b.rank === 1);
-    
-    if (allRank1.length >= 3) {
-      // 移除3个1阶
-      for (let i = 0; i < 3; i++) {
-        const index = this.bench.findIndex(b => b.uid === allRank1[i].uid);
-        if (index !== -1) {
-          this.bench.splice(index, 1);
-        }
-      }
-      
-      // 添加1个2阶
-      this.bench.push({
-        uid: `bench_${Date.now()}_${Math.random()}`,
-        templateId: templateId,
-        rank: 2
-      });
-      
-      // 更新统计
-      poolStats.rank1Count -= 3;
-      poolStats.rank2Count += 1;
-      
-      // 进入临时商店
-      this.enterTemporaryShop(templateId);
-    }
-  }
-  
-  private enterTemporaryShop(mergedTemplateId: string) {
-    const template = OPERATOR_DB[mergedTemplateId as keyof typeof OPERATOR_DB];
-    if (!template) return;
-    
-    const nextShopLevel = template.shopLevel + 1;
-    
-    // 筛选出比当前角色商店等级高一级的角色
-    const candidates = Object.entries(OPERATOR_DB)
-      .filter(([, op]) => op.shopLevel === nextShopLevel)
-      .map(([id]) => id);
-    
-    if (candidates.length === 0) {
-      alert("自动合并完成！但暂时没有更高等级的角色可用。");
-      return;
-    }
-    
-    // 随机选择3-4个角色（避免重复）
-    const shopSize = Math.min(3 + Math.floor(Math.random() * 2), candidates.length); // 3或4个，但不超过候选数
-    const shuffled = [...candidates].sort(() => Math.random() - 0.5); // 打乱数组
-    this.temporaryShopItems = [];
-    
-    for (let i = 0; i < shopSize; i++) {
-      const selectedId = shuffled[i];
-      
-      this.temporaryShopItems.push({
-        uid: `temp_shop_${Date.now()}_${i}`,
-        templateId: selectedId,
-        cost: 0, // 免费
-        bought: false
-      });
-    }
-    
-    this.isInTemporaryShop = true;
-    alert(`自动合并完成！获得2阶${template.name}！\n进入临时商店，可免费获得一个角色。`);
-    this.notifyUpdate();
-  }
-  
-  private exitTemporaryShop() {
-    this.isInTemporaryShop = false;
-    this.temporaryShopItems = [];
-  }
-
-  // 新增：出售备战区角色
-  sellBenchOperator(benchUid: string): boolean {
-    const index = this.bench.findIndex(b => b.uid === benchUid);
-    if (index === -1) return false;
-    
-    const op = this.bench[index];
-    const template = OPERATOR_DB[op.templateId];
-    
-    this.bench.splice(index, 1);
-    this.money += template.saleValue;
-    this.notifyUpdate();
-    return true;
-  }
-
-  // 新增：撤回战场上的角色回备战区
+  // 撤回战场上的角色回备战区
   recallOperator(operatorId: string): boolean {
     const index = this.operators.findIndex(op => op.id === operatorId);
     if (index === -1) return false;

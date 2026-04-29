@@ -94,6 +94,13 @@ export interface ShopItem {
   bought: boolean;
 }
 
+// 角色池统计（v1.5.0：从 GameEngine 提到 types）
+export interface OperatorPoolStats {
+  count: number;       // 累计获得次数（上限 7）
+  rank1Count: number;  // 当前持有 1 阶数
+  rank2Count: number;  // 当前持有 2 阶数
+}
+
 // 模板数据结构扩展
 // === v1.2.0 干员体系（参考明日方舟）===
 //
