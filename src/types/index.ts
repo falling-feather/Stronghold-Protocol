@@ -84,7 +84,9 @@ export type PactSource =
   | 'kill_any' | 'kill_elite' | 'kill_flying' | 'kill_stealth'
   | 'deploy_any' | `deploy_class:${string}`
   | 'retreat_any'
-  | 'wave_clear' | 'wave_perfect';
+  | 'wave_clear' | 'wave_perfect'
+  // v3.11.0：新事件源
+  | 'kill_shielded' | 'kill_in_enrage';
 
 export interface PactTier {
   threshold: number;

@@ -1068,6 +1068,9 @@ export class GameEngine {
           if (target.traits?.flying) this.onPactEvent('kill_flying');
           if (target.traits?.stealth) this.onPactEvent('kill_stealth');
           if (target.bossPhaseTriggered || target.traits?.bossPhase) this.onPactEvent('kill_elite');
+          // v3.11.0：击杀护盾敌 / 击杀狂怒中敌
+          if ((target.traits?.shield ?? 0) > 0) this.onPactEvent('kill_shielded');
+          if (target.effects.some(e => e.id === 'enrage_on_hit')) this.onPactEvent('kill_in_enrage');
           // v2.4.0：死亡召唤
           if (target.traits?.summon && target.traits.summon.on === 'death') {
             const sm = target.traits.summon;

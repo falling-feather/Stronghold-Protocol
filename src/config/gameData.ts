@@ -552,6 +552,40 @@ export const PACT_DB: Record<string, PactDefinition> = {
     penalty: [mkPactPenalty('pact_iron_resolve_penalty_atk', '[枷锁·钢铁誓约] 笨重', 'atk', -0.08, 'pct')],
     penaltyDesc: '枷锁：干员攻击 -8%',
   },
+  // v3.11.0：破甲誓约 — 击破护盾敌人累积，提升全体攻击力
+  'pact_shield_breaker': {
+    id: 'pact_shield_breaker',
+    name: '破甲誓约',
+    desc: '每次击杀带护盾敌人累积破甲烙印；分级强化全体干员的攻击力',
+    scope: 'all_operators',
+    sources: [{ source: 'kill_shielded', perEvent: 1 }],
+    cap: 15,
+    tiers: [
+      { threshold: 3, description: 'tier1：攻击力 +5%', effects: [mkPactEffect('pact_shield_breaker_t0_atk', '[盟约·破甲] 烙印 I', 'atk', 0.05, 'pct')] },
+      { threshold: 8, description: 'tier2：攻击力 +10%', effects: [mkPactEffect('pact_shield_breaker_t1_atk', '[盟约·破甲] 烙印 II', 'atk', 0.10, 'pct')] },
+      { threshold: 15, description: 'tier3：攻击力 +18%', effects: [mkPactEffect('pact_shield_breaker_t2_atk', '[盟约·破甲] 烙印 III', 'atk', 0.18, 'pct')] },
+    ],
+    // v3.11.0：枷锁 — 攻速 -5%（aspd×1.05 间隔变长）
+    penalty: [mkPactPenalty('pact_shield_breaker_penalty_aspd', '[枷锁·破甲] 重手', 'aspd', 0.05, 'pct')],
+    penaltyDesc: '枷锁：干员攻速 -5%',
+  },
+  // v3.11.0：狩猎之心 — 击杀狂怒中的敌人累积，提升全体移动速度
+  'pact_hunt_enrage': {
+    id: 'pact_hunt_enrage',
+    name: '狩猎之心',
+    desc: '每次击杀仍在被击狂怒状态的敌人累积狩猎之火；分级提升全体干员移动速度',
+    scope: 'all_operators',
+    sources: [{ source: 'kill_in_enrage', perEvent: 2 }],
+    cap: 20,
+    tiers: [
+      { threshold: 4, description: 'tier1：移动速度 +5%', effects: [mkPactEffect('pact_hunt_enrage_t0_spd', '[盟约·狩猎] 追踪 I', 'spd', 0.05, 'pct')] },
+      { threshold: 10, description: 'tier2：移动速度 +10%', effects: [mkPactEffect('pact_hunt_enrage_t1_spd', '[盟约·狩猎] 追踪 II', 'spd', 0.10, 'pct')] },
+      { threshold: 20, description: 'tier3：移动速度 +15%', effects: [mkPactEffect('pact_hunt_enrage_t2_spd', '[盟约·狩猎] 追踪 III', 'spd', 0.15, 'pct')] },
+    ],
+    // v3.11.0：枷锁 — 魔抗 -3 flat
+    penalty: [mkPactPenalty('pact_hunt_enrage_penalty_mr', '[枷锁·狩猎] 狂热', 'magicResist', -3, 'flat')],
+    penaltyDesc: '枷锁：干员魔抗 -3',
+  },
 };
 
 // v3.1.0：默认激活盟约（开发期 fallback；正式开局走 PactScreen 选择 → 透传至 GameEngine）
@@ -564,6 +598,9 @@ export const SELECTABLE_PACTS: string[] = [
   'pact_broken_spring',
   'pact_aerial_hunter',
   'pact_iron_resolve',
+  // v3.11.0
+  'pact_shield_breaker',
+  'pact_hunt_enrage',
 ];
 
 // v3.1.0：开局选择盟约的数量上下限
@@ -697,6 +734,32 @@ export const RESONANCE_DB: Record<string, PactResonance> = {
     ],
     scope: 'all_operators',
     effects: [mkResoEffect('resonance_reso_iron_spring_atk', '[共鸣·铁簧] 钢簧之击', 'atk', 4, 'flat')],
+    shackledBoosts: true,
+  },
+  // v3.11.0：破甲誓约 + 钢铁誓约 → 防御 +5
+  reso_break_iron: {
+    id: 'reso_break_iron',
+    name: '共鸣·破岩',
+    desc: '破甲誓约 + 钢铁誓约 同时达 tier1：全体防御 +5',
+    requires: [
+      { defId: 'pact_shield_breaker', minTier: 0 },
+      { defId: 'pact_iron_resolve', minTier: 0 },
+    ],
+    scope: 'all_operators',
+    effects: [mkResoEffect('resonance_reso_break_iron_def', '[共鸣·破岩] 破岩之誓', 'def', 5, 'flat')],
+    shackledBoosts: true,
+  },
+  // v3.11.0：狩猎之心 + 高翔之狩 → 攻速 +5%
+  reso_hunt_storm: {
+    id: 'reso_hunt_storm',
+    name: '共鸣·烈猎',
+    desc: '狩猎之心 + 高翔之狩 同时达 tier1：全体攻速 +5%',
+    requires: [
+      { defId: 'pact_hunt_enrage', minTier: 0 },
+      { defId: 'pact_aerial_hunter', minTier: 0 },
+    ],
+    scope: 'all_operators',
+    effects: [mkResoEffect('resonance_reso_hunt_storm_aspd', '[共鸣·烈猎] 烈风之追', 'aspd', -0.05, 'pct')],
     shackledBoosts: true,
   },
 };
