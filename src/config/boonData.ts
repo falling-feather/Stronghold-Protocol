@@ -8,7 +8,11 @@ export type BoonId =
   | 'boon_pact_warmup'
   | 'boon_event_chance'
   | 'boon_shop_discount'
-  | 'boon_double_first_event';
+  | 'boon_double_first_event'
+  // v3.13.0
+  | 'boon_kill_bounty'
+  | 'boon_wave_bonus'
+  | 'boon_starting_money_big';
 
 export interface Boon {
   id: BoonId;
@@ -66,6 +70,28 @@ export const BOON_DB: Record<BoonId, Boon> = {
     name: '初遇眷顾',
     desc: '本局必触发首个事件（首次结算波次后）',
     icon: '✨',
+    rarity: 'rare',
+  },
+  // v3.13.0
+  boon_kill_bounty: {
+    id: 'boon_kill_bounty',
+    name: '赏金猟人',
+    desc: '每击杀一名敌人额外 +1 资金',
+    icon: '💵',
+    rarity: 'common',
+  },
+  boon_wave_bonus: {
+    id: 'boon_wave_bonus',
+    name: '后勤补给',
+    desc: '每波结算额外 +15 资金',
+    icon: '📦',
+    rarity: 'common',
+  },
+  boon_starting_money_big: {
+    id: 'boon_starting_money_big',
+    name: '重金启动',
+    desc: '开局额外 +120 资金（与「充裕预算」不叠加）',
+    icon: '💰',
     rarity: 'rare',
   },
 };

@@ -60,6 +60,7 @@
 - [x] v3.10.0 敌人扩充（护盾 / 被击狂怒 / 碎尸召唤）：EnemyTraits 新增 shield + enrageOnHit；新增 3 敌人 — 装甲斥候 (bulwark, 600 护盾，护盾耗尽前不扣 hp)、狂战 (berserker, 命中后 2.5s 内 aspd-15%/spd+25%)、碎晶兽 (splitter, 死亡分裂为 3 只源石虫)；WAVES 追加 3 波 (bulwark/berserker/splitter)；GameEngine.updateProjectiles 加护盾分流 + enrage status 注入；getStateSnapshot 同步 shield/maxShield；Renderer 在 hp 条上方画蓝色护盾条
 - [x] v3.11.0 盟约扩充（搭配 v3.10 新机制）：PactSource 新增 kill_shielded / kill_in_enrage；GameEngine 击杀分支按 traits.shield/effects.id=='enrage_on_hit' 派发；新增 2 盟约 — 破甲誓约 (pact_shield_breaker, kill_shielded → atk +5/10/18%, 枷锁 aspd +5%) 与 狩猎之心 (pact_hunt_enrage, kill_in_enrage perEvent=2 → spd +5/10/15%, 枷锁 mr -3)；SELECTABLE_PACTS 扩至 7；新增 2 共鸣 reso_break_iron (破甲+钢铁→def +5) / reso_hunt_storm (狩猎+高翔→aspd -5%)
 - [x] v3.12.0 共鸣全覆盖（7C2=21）：补齐剩余 9 对 — reso_break_flame/echo/spring/aerial/hunt + reso_hunt_flame/echo/spring/iron；任意 3 选必触发 3 共鸣的全覆盖性恢复
+- [x] v3.13.0 boon 扩充（7→10）：新增 boon_kill_bounty (击杀 +1 钱, common)、boon_wave_bonus (每波 +15 钱, common)、boon_starting_money_big (开局 +120 钱, rare)；GameEngine 接入：kill_any 分支判 kill_bounty、endCombat 判 wave_bonus、initialMoney 分支判 starting_money_big；ach_boon_collector target 同步 7→10
 
 ## v4.x — 联机
 

@@ -63,9 +63,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: 'ach_boon_collector',
     name: '福利收藏家',
-    desc: '尝试过全部 7 个 boon',
+    desc: '尝试过全部 10 个 boon',
     icon: '🎴',
-    progress: (s) => ({ cur: s.boonsUsed.length, target: 7 }),
+    progress: (s) => ({ cur: s.boonsUsed.length, target: 10 }),
     reward: { shards: 200, note: '+200 碎片' },
   },
   {

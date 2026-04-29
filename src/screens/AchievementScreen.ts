@@ -51,7 +51,7 @@ function render(): void {
       ['史诗事件', stats.totalEpicEvents],
       ['单局共鸣峰值', stats.maxResonanceInRun],
       ['枷锁通关', stats.shackledRunsWon],
-      ['尝试 Boon', `${stats.boonsUsed.length} / 7`],
+      ['尝试 Boon', `${stats.boonsUsed.length} / 10`],
     ];
     statEl.innerHTML = items.map(([k, v]) =>
       `<div style="background:#2a2d35;padding:8px 14px;border-radius:6px;border:1px solid #3a3d45;"><span style="color:#95a5a6;">${k}</span> <span style="color:#f1c40f;font-weight:700;margin-left:6px;">${v}</span></div>`

@@ -91,7 +91,7 @@ export class GameEngine {
     const boon = activeBoonId ? BOON_DB[activeBoonId] : null;
     const eff = FACTION_DB[factionId].effect;
     const boonLives = boon?.id === 'boon_starting_lives' ? 2 : 0;
-    const boonMoney = boon?.id === 'boon_starting_money' ? 60 : 0;
+    const boonMoney = boon?.id === 'boon_starting_money' ? 60 : (boon?.id === 'boon_starting_money_big' ? 120 : 0);
     this.lives = (eff.initialLives ?? CONFIG.BASE_LIVES) + getStartingLivesBonus() + boonLives;
     this.money = (eff.initialMoney ?? CONFIG.BASE_MONEY) + getStartingMoneyBonus() + boonMoney;
     this.shop = new ShopSystem(this);
@@ -231,6 +231,8 @@ export class GameEngine {
     this.phase = 'PREP';
     this.waveIndex++;
     this.money += this.currentWaveReward;
+    // v3.13.0：boon 后勤补给 — 每波额外 +15
+    if (this.activeBoonId === 'boon_wave_bonus') this.money += 15;
     this.combatTimeRemaining = 0; // 重置时间
     this.combatTimeLimit = 0;
 
@@ -1065,6 +1067,8 @@ export class GameEngine {
           }
           // v3.0.0：盟约击杀事件
           this.onPactEvent('kill_any');
+          // v3.13.0：boon 赏金猟人 — 每击杀 +1 资金
+          if (this.activeBoonId === 'boon_kill_bounty') this.money += 1;
           if (target.traits?.flying) this.onPactEvent('kill_flying');
           if (target.traits?.stealth) this.onPactEvent('kill_stealth');
           if (target.bossPhaseTriggered || target.traits?.bossPhase) this.onPactEvent('kill_elite');
