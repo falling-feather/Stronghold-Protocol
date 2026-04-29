@@ -379,6 +379,21 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     defaultSkillIndex: 0,
     saleValue: 1, shopLevel: 3,
   },
+  'specialist_blade': {
+    name: '影刃', cost: 16, rarity: 3, color: '#1abc9c', placement: 'ground', class: 'specialist',
+    atkType: 'physical',
+    stats: { hp: 1300, maxHp: 1300, atk: 520, def: 120, spd: 0, range: 1.2, aspd: 1.1, blockCount: 1 },
+    talents: [
+      mkTalent('夜视', '可侦测隐身敌人；攻击力 +{r1}% / +{r2}%', 'atk_pct', 10, 16),
+    ],
+    skills: [
+      mkSkill('s_assassinate', '暗杀', '攻击力提升 {atkMul}×', 'attack', 'attack_buff',
+        { initialSp: 0, cost: 18, duration: 10, values: { atkMul: 1.6 } },
+        { initialSp: 4, cost: 15, duration: 12, values: { atkMul: 2.0 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 2,
+  },
 };
 
 export const ENEMY_DB: Record<string, { name: string; color: string; radius: number; stats: BaseStats; traits?: EnemyTraits }> = {
@@ -404,6 +419,12 @@ export const ENEMY_DB: Record<string, { name: string; color: string; radius: num
     stats: { hp: 600, maxHp: 600, atk: 250, def: 20, spd: 2.6, range: 0, aspd: 1.0, blockCount: 0, magicResist: 20 },
     // v2.4.0：飞行—仅可被高地干员攻击
     traits: { flying: true }
+  },
+  'phantom': {
+    name: '潜行刺客', color: '#34495e', radius: 14,
+    stats: { hp: 900, maxHp: 900, atk: 400, def: 50, spd: 1.8, range: 0, aspd: 1.2, blockCount: 0, magicResist: 10 },
+    // v2.4.1：隐身—仅可被特种干员攻击
+    traits: { stealth: true }
   }
 };
 
@@ -412,6 +433,7 @@ export const WAVES = [
   { count: 10, interval: 1.2, enemyId: 'slug', reward: 20 },
   { count: 6, interval: 2.5, enemyId: 'soldier', reward: 30 },
   { count: 5, interval: 1.4, enemyId: 'flyer', reward: 25 },
+  { count: 4, interval: 2.0, enemyId: 'phantom', reward: 35 },
   { count: 12, interval: 2.0, enemyId: 'soldier', reward: 40 },
   { count: 4, interval: 4.0, enemyId: 'heavy', reward: 60 },
 ];

@@ -26,6 +26,7 @@
 - [x] v2.3.1 skill atkMul/aspdPct 改造接入 effects：tryActivateSkill 时直接 push 到 op.effects，由 modifyStat 统一计算；fireProjectile/updateOperators 移除内联分支
 - [x] v2.3.2 天赋接入 effects：atk_pct/def_pct/aspd_pct/block_plus 在部署时 push 为 duration=-1 的永久 effects；hp_pct 仍在 applyTalentsToStats 烘焙；新增 buildTalentEffects；StatusStat 扩展 'blockCount'；tickEffects 跳过永久效果；blockCount 走 modifyStat
 - [x] v2.4.0 敌人特性框架（飞行 / 隐身 / 召唤 / Boss 阶段）：EnemyTraits{flying,stealth,summon,bossPhase} 接入 ENEMY_DB；目标过滤（飞行需高地；隐身需特种）；Boss 阶段用 v2.3.0 effects 触发；死亡召唤；新增飞虫敌人；Renderer 飞行投影 / 隐身半透明 / Boss 红环
+- [x] v2.4.1 隐身敌人 + 特种干员模板：新增潜行刺客（stealth）与影刃（class:specialist, placement:ground）；隐身波次接入 WAVES
 
 ## v3.x — 盟约叠层
 
