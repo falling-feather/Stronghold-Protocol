@@ -2,7 +2,8 @@ import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, PACT_
 import { rollEvent, EVENT_TRIGGER_CHANCE } from '../config/eventData';
 import { BoonId, BOON_DB } from '../config/boonData';
 import { getStartingMoneyBonus, getPactExtraStack, getEventChanceBonus, getStartingSpBonus, getStartingLivesBonus, getDecayMultiplier, calcShardsForRun } from '../config/metaData';
-import { addShards } from './MetaSave';
+import { addShards, bumpStat, setStatMax, recordBoonUsed, getStats, unlockAchievement, isAchievementUnlocked } from './MetaSave';
+import { ACHIEVEMENTS, checkAchievements } from '../config/achievements';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
 import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection, EventCard, EventEngineHandle } from '../types';
@@ -105,6 +106,9 @@ export class GameEngine {
     });
     // 初始 stack 立即结算 tier，让 meta 加成战斗前就生效
     this.pacts.forEach(rt => (this as any).reconcilePactTier(rt));
+    // v3.7.0：开局统计
+    bumpStat('totalRunsAttempted', 1);
+    if (activeBoonId) recordBoonUsed(activeBoonId);
   }
 
   // 公开给 ShopSystem 调用
@@ -188,6 +192,10 @@ export class GameEngine {
       const epicCount = this.eventHistory.filter(h => h.rarity === 'epic').length;
       const earned = calcShardsForRun({ wavesCleared: WAVES.length, victory: true, epicEventsTriggered: epicCount });
       addShards(earned);
+      // v3.7.0：通关统计
+      bumpStat('totalRunsWon', 1);
+      if (this.pacts.some(p => p.shackled)) bumpStat('shackledRunsWon', 1);
+      this.checkAndAnnounceAchievements();
       alert(`全域威胁已清除！\n获得碎片：+${earned}（含通关奖励 50 + 每史诗事件 +15）`);
       return false;
     }
@@ -212,6 +220,10 @@ export class GameEngine {
     if (perfect) this.onPactEvent('wave_perfect');
     // v3.6.0：每波结束发 4 碎片（perfect +2），积少成多
     addShards(4 + (perfect ? 2 : 0));
+    // v3.7.0：累计波数 + 共鸣峰值
+    bumpStat('totalWavesCleared', 1);
+    setStatMax('maxResonanceInRun', this.activeResonances.size);
+    this.checkAndAnnounceAchievements();
 
     this.operators.forEach(op => {
       op.stats.hp = op.stats.maxHp;
@@ -257,6 +269,8 @@ export class GameEngine {
       optionLabel: opt.label,
       afterWave: this.waveIndex,
     });
+    // v3.7.0：史诗事件计数
+    if ((ev.rarity ?? 'common') === 'epic') bumpStat('totalEpicEvents', 1);
     this.pendingEvent = null;
     this.notifyUpdate();
   }
@@ -1025,8 +1039,29 @@ export class GameEngine {
       const epicCount = this.eventHistory.filter(h => h.rarity === 'epic').length;
       const earned = calcShardsForRun({ wavesCleared: this.waveIndex, victory: false, epicEventsTriggered: epicCount });
       addShards(earned);
+      this.checkAndAnnounceAchievements();
       alert(`任务失败！\n清剿波次：${this.waveIndex}\n获得碎片：+${earned}\n页面将刷新。`);
       location.reload();
+    }
+  }
+
+  // v3.7.0：扫描所有未解锁成就，命中后发奖并弹一次性公告
+  private checkAndAnnounceAchievements(): void {
+    const stats = getStats();
+    const already = ACHIEVEMENTS.filter(a => isAchievementUnlocked(a.id)).map(a => a.id);
+    const newly = checkAchievements(stats, already);
+    if (newly.length === 0) return;
+    const lines: string[] = [];
+    let totalReward = 0;
+    for (const a of newly) {
+      if (unlockAchievement(a.id)) {
+        const r = a.reward.shards ?? 0;
+        if (r > 0) { addShards(r); totalReward += r; }
+        lines.push(`${a.icon} ${a.name} —— ${a.desc}（${a.reward.note ?? ''}）`);
+      }
+    }
+    if (lines.length > 0) {
+      setTimeout(() => alert(`★ 成就解锁 ★\n${lines.join('\n')}${totalReward ? `\n累计奖励：+${totalReward} 碎片` : ''}`), 50);
     }
   }
 }

@@ -54,6 +54,7 @@
 - [x] v3.6.1 升级树扩充 + 前置依赖：MetaUpgrade 新增 prereq 字段；新增 4 项二级升级（坚壁计划/物流优势/韧链/深渊低语）；前置未满足时卡片置灰显示「🔒 需要：xx Lv.N」；GameEngine 应用起始生命/盟约衰减缩放/商店折扣/epic 权重加成
 - [x] v3.6.2 开局福利（boon）3 选 1：PactScreen→BoonScreen→Game 流程；7 个 boon（充裕预算/能量预热/加固防线/誓约觉醒/命运牵引/黑市渠道/初遇眷顾）；按 rarity 加权抽取；可跳过；本局生效（不影响 meta 持久数据）
 - [x] v3.6.3 升级树重置返还 + 分类标签：MetaUpgrade 新增 tag 字段（经济/盟约/事件/防御）；MetaScreen 顶部分类筛选 chip；重置按钮改为返还 80% 已花费碎片（resetMetaWithRefund）；重置前 confirm 显示返还数额
+- [x] v3.7.0 成就 / 解锁系统：MetaSave 扩 stats（累计开局/通关/波数/史诗/单局共鸣峰值/枷锁通关/已用 boon 集合）+ achievements 持久层；新增 8 个成就（首胜/沙场老将/百战之躯/深渊探求/共鸣大师/枷锁勇者/福利收藏家/不屈意志），命中即弹窗发放碎片奖励；GameEngine 在每波/通关/失败/事件解析时联动统计；主菜单新增「🏆 成就」入口（AchievementScreen 含进度条与统计摘要）
 
 ## v4.x — 联机
 

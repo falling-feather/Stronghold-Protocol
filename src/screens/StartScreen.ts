@@ -2,6 +2,7 @@
 import { showFactionScreen, initFactionScreen } from './FactionScreen';
 import { showMultiplayerScreen, initMultiplayerScreen } from './MultiplayerScreen';
 import { showMetaScreen, initMetaScreen } from './MetaScreen';
+import { showAchievementScreen, initAchievementScreen } from './AchievementScreen';
 
 export function initStartScreen(): void {
   const startScreen = document.getElementById('start-screen');
@@ -16,8 +17,10 @@ export function initStartScreen(): void {
   btnStartGame.addEventListener('click', () => showFactionScreen());
   document.getElementById('btn-multiplayer')?.addEventListener('click', () => showMultiplayerScreen());
   document.getElementById('btn-meta-tree')?.addEventListener('click', () => showMetaScreen());
+  document.getElementById('btn-achievements')?.addEventListener('click', () => showAchievementScreen());
 
   initFactionScreen();
   initMultiplayerScreen();
   initMetaScreen();
+  initAchievementScreen();
 }
