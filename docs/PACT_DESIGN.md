@@ -174,3 +174,53 @@ interface PactResonance {
 - 每个共鸣只挑两个 pact 配对，避免组合爆炸
 - 加成幅度建议 ≤ pact tier1 的一半（小幅协同奖励，不喧宾夺主）
 - 与枷锁解耦：是否枷锁不影响共鸣触发，只看 appliedTier
+
+---
+
+## 6. 共鸣的枷锁加成（v3.3.3+）
+
+### 6.1 概念
+
+若某共鸣的 `requires` 中至少 1 个 pact 在 PactScreen 被切换到「枷锁」模式，且该共鸣允许（`shackledBoosts: true`），则共鸣激活时效果**翻倍**。这给玩家提供了"用更重的代价换取更强的协同"的可选深度。
+
+### 6.2 数据扩展
+
+```ts
+interface PactResonance {
+  // ... 原有字段
+  shackledBoosts?: boolean; // true 表示支持枷锁加成
+}
+```
+
+实装中 4 个共鸣全部开启该开关。
+
+### 6.3 运行时实现
+
+- `engine.activeResonances: Map<string, boolean>`，值为当前 boost 状态
+- `reconcileResonances` 内：
+  - `allMet` 仍由 tier 决定
+  - `boost = reso.shackledBoosts && requires.some(r => pact.shackled)`
+  - `(allMet, boost)` 二维状态机：
+    - `!wasActive && allMet` → 挂载（×2 if boost else ×1）
+    - `wasActive && allMet && wasBoost !== boost` → 撤旧再挂新倍数
+    - `wasActive && !allMet` → 撤
+- `getActivePactEffectsForOperator()` 给新部署干员按当前 boost 复制相同份数
+
+### 6.4 翻倍机制
+
+- 直接复制一份相同 effects 推入目标的 effects 列表
+- flat 累加自然翻倍（mod×2）
+- pct 通过 `pctMul = 1 + Σmod` 累加，等价线性翻倍（如 0.08 → 0.16，结果 ×1.16 vs ×1.08）
+- 不引入"翻倍专用 effect 表"，避免数据冗余
+
+### 6.5 UI 表达
+
+- PactScreen 预览：red→orange→gold 渐变胶囊 + `⛓✨ 枷锁加成·翻倍` 前缀 + ` ×2` 后缀
+- 战场顶栏徽记：同样三色渐变 + 红边 + `⛓✦XXX ×2` 标签
+- 普通模式保持金/橙双色渐变，无 ⛓ 与 ×2
+
+### 6.6 设计准则
+
+- 枷锁加成只允许"翻倍"这一个倍率，避免 ×3/×5 等离散档导致策划复杂度爆炸
+- 共鸣的 `shackledBoosts` 默认建议为 true（凡是允许枷锁的 pact 配对就允许加成）
+- 不要把 boost 与 boost 互相叠加（即使 2 个 require pact 都 shackled 也是 ×2 而非 ×3），保持逻辑一致
