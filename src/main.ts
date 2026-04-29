@@ -1,6 +1,6 @@
 import { GameEngine } from './core/GameEngine';
 import { Renderer } from './view/Renderer';
-import { CONFIG, OPERATOR_DB, selectRandomMap } from './config/gameData';
+import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps } from './config/gameData';
 import { Direction } from './types';
 
 // 开始界面控制（延迟获取，确保DOM已加载）
@@ -58,6 +58,15 @@ function initGame() {
   btnActionMain = document.getElementById('btn-action-main') as HTMLButtonElement;
   btnUpgrade = document.getElementById('btn-upgrade') as HTMLButtonElement;
   txtUpgradeCost = document.getElementById('txt-upgrade-cost')!;
+
+  // 启动期一次性校验所有地图（路径必须全在地面）
+  const mapCheck = validateMaps();
+  if (!mapCheck.ok) {
+    console.warn('[validateMaps] 发现违规地图：');
+    mapCheck.issues.forEach(s => console.warn('  - ' + s));
+  } else {
+    console.info('[validateMaps] 全部地图通过路径校验');
+  }
 
   // 随机选择地图
   selectRandomMap();
