@@ -1,4 +1,4 @@
-import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, RARITY_RATES } from '../config/gameData';
+import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, RARITY_RATES, resolveSkillForRank, applyTalentsToStats } from '../config/gameData';
 import { Enemy, Operator, Projectile, GamePhase, ShopItem, Direction } from '../types';
 import { getDistance, moveTowards, checkCollision, isInAttackRange } from './MathUtils';
 
@@ -503,7 +503,15 @@ export class GameEngine {
     // 从备战区移除
     this.bench.splice(benchIndex, 1);
 
-    // 部署角色
+    // 部署角色 — 使用 v1.2 体系：天赋叠加到属性，技能按 rank 解析
+    const finalStats = applyTalentsToStats(template.stats, template.talents, rank);
+    const skillInfo = resolveSkillForRank(template, rank);
+    // 天赋 sp_init 额外起手 SP
+    const extraSp = template.talents.reduce((sum, t) => {
+      if (t.effect !== 'sp_init') return sum;
+      return sum + (rank === 2 ? t.rankValues.rank2 : t.rankValues.rank1);
+    }, 0);
+
     this.operators.push({
       id: `op_${Date.now()}`,
       templateId: templateId,
@@ -511,7 +519,7 @@ export class GameEngine {
       gridPos: { x: gridX, y: gridY },
       radius: CONFIG.TILE_SIZE,
       color: template.color,
-      stats: { ...template.stats },
+      stats: finalStats,
       name: template.name,
       cooldown: 0,
       targetId: null,
@@ -521,8 +529,8 @@ export class GameEngine {
       markedForDeletion: false,
       blockingEnemyIds: [],
       isRetreated: false,
-      skill: { ...template.skill },
-      currentSp: template.skill.initialSp,
+      skill: skillInfo,
+      currentSp: skillInfo.initialSp + extraSp,
       skillActive: false,
       skillDuration: 0,
       rank: rank,

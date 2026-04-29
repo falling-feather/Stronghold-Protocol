@@ -1,4 +1,4 @@
-import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType } from '../types';
+import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType, OperatorClass, ClassTrait, SkillDefinition, BaseStats, Talent } from '../types';
 
 export const CONFIG = {
   TILE_SIZE: 64,
@@ -179,61 +179,178 @@ export const RARITY_RATES: number[][] = [
   [0.0, 0.1, 0.3, 0.4, 0.2],
 ];
 
-const defaultSkill = (name: string, desc: string, spRecovery: SpRecoveryType = 'auto'): SkillInfo => ({
-  name, desc, initialSp: 0, cost: 10, spRecovery
-});
+// 旧 defaultSkill helper 已废弃，迁移到 mkSkill。
+// === 职业特性表（v1.2 仅记录元数据，targetPriority 在敌人类型扩展后生效）===
+export const CLASS_TRAITS: Record<OperatorClass, ClassTrait> = {
+  guard:      { name: '近卫',  desc: '高攻近战，单段输出',           targetPriority: 'first' },
+  defender:   { name: '重装',  desc: '高血高防，多阻挡',             targetPriority: 'first' },
+  sniper:     { name: '狙击',  desc: '远程，优先攻击空中/高威胁单位', targetPriority: 'flying' },
+  caster:     { name: '术师',  desc: '法术伤害，无视防御',           targetPriority: 'first' },
+  medic:      { name: '医疗',  desc: '治疗友军',                    targetPriority: 'lowest_hp' },
+  vanguard:   { name: '先锋',  desc: '部署费用回流',                 targetPriority: 'first' },
+  specialist: { name: '特种',  desc: '特殊机制（位移、召唤等）',      targetPriority: 'first' },
+  supporter:  { name: '辅助',  desc: '减速/削弱敌人',                targetPriority: 'first' },
+};
 
-// 使用 OperatorTemplate 类型约束
+const mkSkill = (
+  id: string, name: string, desc: string,
+  spRecovery: SpRecoveryType,
+  effectType: SkillDefinition['effectType'],
+  rank1: { initialSp: number; cost: number; duration?: number; values: Record<string, number> },
+  rank2: { initialSp: number; cost: number; duration?: number; values: Record<string, number> },
+): SkillDefinition => ({ id, name, desc, spRecovery, effectType, levels: { rank1, rank2 } });
+
+const mkTalent = (name: string, desc: string, effect: Talent['effect'], r1: number, r2: number): Talent =>
+  ({ name, desc, effect, rankValues: { rank1: r1, rank2: r2 } });
+
+// 把模板按 rank 解析为运行时 SkillInfo（GameEngine deployment / 商店预览均使用）
+export function resolveSkillForRank(template: OperatorTemplate, rank: 1 | 2, skillIndex?: number): SkillInfo {
+  const idx = skillIndex ?? template.defaultSkillIndex;
+  const def = template.skills[idx];
+  const lvl = rank === 2 ? def.levels.rank2 : def.levels.rank1;
+  return {
+    name: def.name + (rank === 2 ? '·精炼' : ''),
+    desc: def.desc,
+    initialSp: lvl.initialSp,
+    cost: lvl.cost,
+    spRecovery: def.spRecovery,
+  };
+}
+
+// 把天赋叠加到基础属性（部署时调用一次）
+export function applyTalentsToStats(base: BaseStats, talents: Talent[], rank: 1 | 2): BaseStats {
+  const s: BaseStats = { ...base };
+  talents.forEach(t => {
+    const v = rank === 2 ? t.rankValues.rank2 : t.rankValues.rank1;
+    switch (t.effect) {
+      case 'atk_pct':    s.atk = Math.round(s.atk * (1 + v / 100)); break;
+      case 'hp_pct':     s.hp = Math.round(s.hp * (1 + v / 100)); s.maxHp = s.hp; break;
+      case 'def_pct':    s.def = Math.round(s.def * (1 + v / 100)); break;
+      case 'aspd_pct':   s.aspd = Math.max(0.3, s.aspd * (1 - v / 100)); break;
+      case 'block_plus': s.blockCount = s.blockCount + Math.floor(v); break;
+      case 'sp_init':    /* 处理在 deployment 端 */ break;
+    }
+  });
+  return s;
+}
+
+// === v1.2 干员模板库（职业 / 天赋 / 多技能 / 叠层数值）===
 export const OPERATOR_DB: Record<string, OperatorTemplate> = {
   'recruit_guard': {
-    name: '预备近卫', cost: 8, rarity: 1, color: '#95a5a6', placement: 'ground',
+    name: '预备近卫', cost: 8, rarity: 1, color: '#95a5a6', placement: 'ground', class: 'guard',
     stats: { hp: 1200, maxHp: 1200, atk: 200, def: 50, spd: 0, range: 1.1, aspd: 1.2, blockCount: 1 },
-    skill: defaultSkill('强力击·α', '下一次攻击力提升至150%', 'attack'),
-    saleValue: 1,
-    shopLevel: 0
+    talents: [],
+    skills: [
+      mkSkill('s_alpha_strike', '强力击·α', '下一次攻击力提升至 {atkMul}×', 'attack', 'attack_buff',
+        { initialSp: 0, cost: 10, values: { atkMul: 1.5 } },
+        { initialSp: 2, cost: 9,  values: { atkMul: 1.8 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 0,
   },
   'recruit_defender': {
-    name: '轻装盾兵', cost: 10, rarity: 2, color: '#7f8c8d', placement: 'ground',
+    name: '轻装盾兵', cost: 10, rarity: 2, color: '#7f8c8d', placement: 'ground', class: 'defender',
     stats: { hp: 2000, maxHp: 2000, atk: 120, def: 250, spd: 0, range: 1.0, aspd: 1.5, blockCount: 2 },
-    skill: defaultSkill('防御力强化·α', '防御力+10%，持续10秒', 'defense'),
-    saleValue: 1,
-    shopLevel: 0
+    talents: [
+      mkTalent('坚毅', '初始生命 +{r1}% / +{r2}%', 'hp_pct', 5, 10),
+    ],
+    skills: [
+      mkSkill('s_def_alpha', '防御力强化·α', '防御 +{defPct}% 持续 {duration}s', 'defense', 'defense_buff',
+        { initialSp: 0, cost: 12, duration: 10, values: { defPct: 10 } },
+        { initialSp: 3, cost: 10, duration: 12, values: { defPct: 18 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 0,
   },
   'guard_sword': {
-    name: '剑豪', cost: 15, rarity: 3, color: '#3498db', placement: 'ground',
+    name: '剑豪', cost: 15, rarity: 3, color: '#3498db', placement: 'ground', class: 'guard',
     stats: { hp: 1800, maxHp: 1800, atk: 450, def: 150, spd: 0, range: 1.2, aspd: 1.1, blockCount: 1 },
-    skill: defaultSkill('二连击', '下一次攻击造成两次伤害', 'attack'),
-    saleValue: 1,
-    shopLevel: 1
+    talents: [
+      mkTalent('双手剑技', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 8, 15),
+    ],
+    skills: [
+      mkSkill('s_double_strike', '二连击', '下一次攻击造成 {hits} 段伤害', 'attack', 'multistrike',
+        { initialSp: 0, cost: 8, values: { hits: 2 } },
+        { initialSp: 2, cost: 7, values: { hits: 3 } }),
+      mkSkill('s_swift_blade', '疾风斩', '攻速 +{aspdPct}% 持续 {duration}s', 'auto', 'attack_buff',
+        { initialSp: 0, cost: 25, duration: 15, values: { aspdPct: 30 } },
+        { initialSp: 5, cost: 22, duration: 18, values: { aspdPct: 45 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 1,
   },
   'defender_shield': {
-    name: '重盾卫', cost: 18, rarity: 3, color: '#2ecc71', placement: 'ground',
+    name: '重盾卫', cost: 18, rarity: 3, color: '#2ecc71', placement: 'ground', class: 'defender',
     stats: { hp: 3500, maxHp: 3500, atk: 200, def: 600, spd: 0, range: 1.0, aspd: 1.6, blockCount: 3 },
-    skill: defaultSkill('龟壳姿态', '停止攻击，防御力+50%，回血速度提升', 'defense'),
-    saleValue: 1,
-    shopLevel: 1
+    talents: [
+      mkTalent('盾阵', '防御 +{r1}% / +{r2}%', 'def_pct', 8, 15),
+    ],
+    skills: [
+      mkSkill('s_turtle_stance', '龟壳姿态', '停止攻击，防御 +{defPct}%，回血加速', 'defense', 'defense_buff',
+        { initialSp: 0, cost: 15, duration: 20, values: { defPct: 50 } },
+        { initialSp: 4, cost: 13, duration: 25, values: { defPct: 75 } }),
+      mkSkill('s_taunt', '挑衅', '阻挡数 +{blkPlus}，仇恨拉满', 'auto', 'passive',
+        { initialSp: 0, cost: 30, duration: 12, values: { blkPlus: 1 } },
+        { initialSp: 6, cost: 26, duration: 15, values: { blkPlus: 2 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 1,
   },
   'sniper_aa': {
-    name: '速射手', cost: 14, rarity: 3, color: '#e67e22', placement: 'high_ground',
+    name: '速射手', cost: 14, rarity: 3, color: '#e67e22', placement: 'high_ground', class: 'sniper',
     stats: { hp: 800, maxHp: 800, atk: 300, def: 50, spd: 0, range: 3.5, aspd: 1.0, blockCount: 0 },
-    skill: defaultSkill('射速爆发', '攻击速度+30，持续15秒', 'auto'),
-    saleValue: 1,
-    shopLevel: 1
+    talents: [
+      mkTalent('精确射击', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 5, 12),
+    ],
+    skills: [
+      mkSkill('s_rapid_fire', '射速爆发', '攻速 +{aspdPct}% 持续 {duration}s', 'auto', 'attack_buff',
+        { initialSp: 0, cost: 25, duration: 15, values: { aspdPct: 35 } },
+        { initialSp: 5, cost: 22, duration: 18, values: { aspdPct: 55 } }),
+      mkSkill('s_focus_fire', '集中火力', '攻击力 +{atkPct}% 持续 {duration}s', 'attack', 'attack_buff',
+        { initialSp: 0, cost: 18, duration: 10, values: { atkPct: 40 } },
+        { initialSp: 4, cost: 15, duration: 12, values: { atkPct: 60 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 1,
   },
   'sniper_boom': {
-    name: '炮击手', cost: 25, rarity: 4, color: '#d35400', placement: 'high_ground',
+    name: '炮击手', cost: 25, rarity: 4, color: '#d35400', placement: 'high_ground', class: 'sniper',
     stats: { hp: 1000, maxHp: 1000, atk: 600, def: 80, spd: 0, range: 4.5, aspd: 2.8, blockCount: 0 },
-    skill: defaultSkill('爆破弹', '下一次攻击造成范围爆炸伤害', 'attack'),
-    saleValue: 1,
-    shopLevel: 2
+    talents: [
+      mkTalent('爆破师', '范围攻击伤害 +{r1}% / +{r2}%', 'atk_pct', 10, 18),
+    ],
+    skills: [
+      mkSkill('s_blast_shell', '爆破弹', '下一发为范围爆炸，半径 {radius}', 'attack', 'aoe',
+        { initialSp: 0, cost: 12, values: { radius: 1.2, atkMul: 1.4 } },
+        { initialSp: 3, cost: 10, values: { radius: 1.5, atkMul: 1.7 } }),
+      mkSkill('s_barrage', '弹幕轰炸', '持续 {duration}s 内每发都为爆炸', 'auto', 'aoe',
+        { initialSp: 0, cost: 35, duration: 12, values: { radius: 1.0, atkMul: 1.2 } },
+        { initialSp: 6, cost: 30, duration: 15, values: { radius: 1.2, atkMul: 1.4 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 2,
   },
   'caster_volcano': {
-    name: '天灾术师', cost: 35, rarity: 5, color: '#9b59b6', placement: 'high_ground',
+    name: '天灾术师', cost: 35, rarity: 5, color: '#9b59b6', placement: 'high_ground', class: 'caster',
     stats: { hp: 1500, maxHp: 1500, atk: 750, def: 100, spd: 0, range: 3.5, aspd: 1.5, blockCount: 0 },
-    skill: defaultSkill('火山', '攻击范围大幅扩大，同时攻击6个目标', 'auto'),
-    saleValue: 1,
-    shopLevel: 3
-  }
+    talents: [
+      mkTalent('魔力涌动', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 12, 20),
+      mkTalent('火属性精通', '起手 SP +{r1} / +{r2}', 'sp_init', 5, 10),
+    ],
+    skills: [
+      mkSkill('s_volcano', '火山', '范围扩大，同时攻击 {targets} 个目标', 'auto', 'aoe',
+        { initialSp: 5,  cost: 40, duration: 20, values: { targets: 6, radius: 1.5 } },
+        { initialSp: 10, cost: 36, duration: 25, values: { targets: 8, radius: 1.8 } }),
+      mkSkill('s_meteor', '流星雨', '召唤陨石，对范围内敌人造成 {atkMul}× 伤害', 'attack', 'aoe',
+        { initialSp: 0, cost: 28, values: { atkMul: 2.5, radius: 2.0 } },
+        { initialSp: 5, cost: 25, values: { atkMul: 3.2, radius: 2.5 } }),
+      mkSkill('s_burning', '持续灼烧', '攻击附带燃烧 {duration}s 每秒 {dotPct}% atk', 'auto', 'passive',
+        { initialSp: 0, cost: 30, duration: 15, values: { dotPct: 25 } },
+        { initialSp: 5, cost: 27, duration: 18, values: { dotPct: 40 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 3,
+  },
 };
 
 export const ENEMY_DB = {

@@ -1,6 +1,8 @@
 import { GameEngine } from './core/GameEngine';
 import { Renderer } from './view/Renderer';
 import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps } from './config/gameData';
+import { resolveSkillForRank } from './config/gameData';
+import { CLASS_TRAITS } from './config/gameData';
 import { Direction } from './types';
 
 // 开始界面控制（延迟获取，确保DOM已加载）
@@ -620,9 +622,26 @@ function updateDetailPanel() {
   const hp = currentData ? Math.floor(currentData.stats.hp) : template.stats.hp;
   const maxHp = template.stats.maxHp;
 
+  // v1.2 详情：显示职业 / 天赋 / 当前 rank 的技能
+  const rank: 1 | 2 = ((currentData && currentData.rank) || (selectedType === 'bench'
+    ? (engine.bench.find(b => b.uid === selectedId)?.rank ?? 1)
+    : 1)) as 1 | 2;
+  const trait = CLASS_TRAITS[template.class as keyof typeof CLASS_TRAITS];
+  const skillInfo = resolveSkillForRank(template, rank);
+
+  const talentsHtml = template.talents.length === 0
+    ? '<div style="color:#7f8c8d;font-size:12px;">— 无天赋 —</div>'
+    : template.talents.map((t: any) => {
+        const v = rank === 2 ? t.rankValues.rank2 : t.rankValues.rank1;
+        const desc = t.desc.replace(/\{r1\}/g, t.rankValues.rank1.toString()).replace(/\{r2\}/g, t.rankValues.rank2.toString());
+        return `<div style="background:rgba(241,196,15,0.12);padding:4px 6px;margin:3px 0;border-left:3px solid #f1c40f;border-radius:2px;font-size:12px;">
+          <b>${t.name}</b>（当前: ${v}）<br><span style="color:#bdc3c7">${desc}</span>
+        </div>`;
+      }).join('');
+
   detailContent.innerHTML = `
     <div class="detail-header">${template.name}</div>
-    <div class="detail-sub">${'★'.repeat(template.rarity)} / ${template.placement === 'ground' ? '地面' : '高台'}</div>
+    <div class="detail-sub">${'★'.repeat(template.rarity)} · ${trait.name} · ${template.placement === 'ground' ? '地面' : '高台'} · ${rank === 2 ? '精英Ⅱ' : '精英Ⅰ'}</div>
     
     <div class="detail-stats">
       <div class="stat-row">生命: ${hp} / ${maxHp}</div>
@@ -634,10 +653,14 @@ function updateDetailPanel() {
     </div>
 
     <div class="skill-section">
-      <div class="skill-name">技能: ${template.skill.name}</div>
-      <div class="skill-desc">${template.skill.desc}</div>
+      <div style="font-size:12px;color:#7f8c8d;margin-bottom:6px;">职业特性 · ${trait.desc}</div>
+      <div style="font-weight:bold;color:#f39c12;margin-bottom:6px;">天赋（${template.talents.length}/2）</div>
+      ${talentsHtml}
+      <div style="font-weight:bold;color:#3498db;margin:10px 0 6px 0;">技能（携带 ${template.defaultSkillIndex + 1} / ${template.skills.length}）</div>
+      <div class="skill-name">${skillInfo.name}</div>
+      <div class="skill-desc">${skillInfo.desc}</div>
       <div style="margin-top:5px; font-size:12px; color:#bdc3c7;">
-        消耗: ${template.skill.cost} / 初始: ${template.skill.initialSp}
+        消耗: ${skillInfo.cost} / 初始: ${skillInfo.initialSp} / 回复: ${skillInfo.spRecovery}
       </div>
     </div>
   `;
