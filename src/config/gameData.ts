@@ -214,6 +214,9 @@ export function resolveSkillForRank(template: OperatorTemplate, rank: 1 | 2, ski
     initialSp: lvl.initialSp,
     cost: lvl.cost,
     spRecovery: def.spRecovery,
+    duration: lvl.duration ?? 0,
+    effectType: def.effectType,
+    values: lvl.values ?? {},
   };
 }
 

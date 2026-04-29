@@ -247,6 +247,10 @@ function gameLoop(timestamp: number): void {
   }
 
   renderer.render(engine, highlightTemplateId, previewDirection);
+
+  // v2.0.0：场上单位被选中时实时刷新 SP 进度
+  if (selectedType === 'map' && selectedId) updateDetailPanel();
+
   requestAnimationFrame(gameLoop);
 }
 
@@ -519,6 +523,26 @@ function updateDetailPanel(): void {
         </div>`;
       }).join('');
 
+  // v2.0.0：场上单位显示 SP 条 + 手动激活按钮
+  let spBlockHtml = '';
+  if (selectedType === 'map' && currentData) {
+    const op = currentData;
+    const pct = Math.min(100, Math.floor((op.currentSp / op.skill.cost) * 100));
+    const isReady = op.currentSp >= op.skill.cost && !op.skillActive && op.skill.duration > 0;
+    const stateLabel = op.skillActive
+      ? `<span style="color:#f1c40f;">激活中 ${op.skillDuration.toFixed(1)}s</span>`
+      : (op.skill.duration > 0 ? '待充能' : '瞬发型（暂未支持手动）');
+    spBlockHtml = `
+      <div style="margin:8px 0 6px 0;">
+        <div style="font-size:12px;color:#bdc3c7;margin-bottom:4px;">SP: ${op.currentSp.toFixed(1)} / ${op.skill.cost} · ${stateLabel}</div>
+        <div style="background:#1f2937;height:8px;border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${op.skillActive ? '#f1c40f' : '#3498db'};"></div>
+        </div>
+        ${isReady && engine!.phase === 'COMBAT' ? `<button id="btn-activate-skill" style="margin-top:6px;width:100%;padding:6px;background:#f39c12;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:bold;">释放技能</button>` : ''}
+      </div>
+    `;
+  }
+
   detailContent.innerHTML = `
     <div class="detail-header">${template.name}</div>
     <div class="detail-sub">${'★'.repeat(template.rarity)} · ${trait.name} · ${template.placement === 'ground' ? '地面' : '高台'} · ${rank === 2 ? '精英Ⅱ' : '精英Ⅰ'}</div>
@@ -542,8 +566,20 @@ function updateDetailPanel(): void {
       <div style="margin-top:5px; font-size:12px; color:#bdc3c7;">
         消耗: ${skillInfo.cost} / 初始: ${skillInfo.initialSp} / 回复: ${skillInfo.spRecovery}
       </div>
+      ${spBlockHtml}
     </div>
   `;
+
+  // 绑定释放技能按钮（每次重渲染后重新查找）
+  if (selectedType === 'map' && currentData) {
+    const btn = document.getElementById('btn-activate-skill') as HTMLButtonElement | null;
+    if (btn) {
+      btn.onclick = (ev) => {
+        ev.stopPropagation();
+        engine!.tryActivateSkill(currentData.id);
+      };
+    }
+  }
 }
 
 function startDrag(e: MouseEvent, benchUid: string, name: string, color: string): void {

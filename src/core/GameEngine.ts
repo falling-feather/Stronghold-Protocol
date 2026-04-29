@@ -431,11 +431,21 @@ export class GameEngine {
     this.operators.forEach(op => {
       if (op.isRetreated) return;
       op.cooldown = Math.max(0, op.cooldown - dt);
-      
+
+      // v2.0.0：技能持续时间倒计时；归零后取消激活并清空 SP
+      if (op.skillActive) {
+        op.skillDuration = Math.max(0, op.skillDuration - dt);
+        if (op.skillDuration <= 0) {
+          op.skillActive = false;
+          op.currentSp = 0;
+        }
+      }
+
       // 技力回复：根据spRecovery类型进行自然回复（每秒1点）
+      // 激活期间不再回复
       const recoveryType = op.skill.spRecovery;
-      if (recoveryType === 'auto' || recoveryType === 'auto_attack' || 
-          recoveryType === 'auto_defense' || recoveryType === 'all') {
+      if (!op.skillActive && (recoveryType === 'auto' || recoveryType === 'auto_attack' ||
+          recoveryType === 'auto_defense' || recoveryType === 'all')) {
         op.currentSp = Math.min(op.skill.cost, op.currentSp + dt);
       }
 
@@ -460,7 +470,13 @@ export class GameEngine {
         }
         if (target) {
           this.fireProjectile(op, target as Enemy);
-          op.cooldown = op.stats.aspd;
+          // 攻速：技能激活时若提供 aspdPct，则按百分比缩短攻击间隔
+          let aspd = op.stats.aspd;
+          if (op.skillActive && op.skill.effectType === 'attack_buff') {
+            const aspdPct = op.skill.values.aspdPct;
+            if (aspdPct) aspd = Math.max(0.2, aspd * (1 - aspdPct / 100));
+          }
+          op.cooldown = aspd;
         }
       }
     });
@@ -468,22 +484,47 @@ export class GameEngine {
 
   private fireProjectile(source: Operator, target: Enemy) {
     const startPos = { x: source.pos.x + CONFIG.TILE_SIZE / 2, y: source.pos.y + CONFIG.TILE_SIZE / 2 };
+
+    // 技能激活期间的伤害倍率（attack_buff 类）
+    let damage = source.stats.atk;
+    if (source.skillActive && source.skill.effectType === 'attack_buff') {
+      const atkMul = source.skill.values.atkMul;
+      if (atkMul) damage = Math.round(damage * atkMul);
+    }
+
     this.projectiles.push({
       id: `proj_${Date.now()}_${Math.random()}`,
       pos: startPos,
       targetId: target.id,
       speed: 600,
-      damage: source.stats.atk,
-      color: '#fff',
+      damage,
+      color: source.skillActive ? '#f1c40f' : '#fff',
       markedForDeletion: false
     });
-    
-    // 攻击回复技力（每次攻击+1点）
+
+    // 攻击回复技力（每次攻击+1点）；激活期间不再累计
     const recoveryType = source.skill.spRecovery;
-    if (recoveryType === 'attack' || recoveryType === 'auto_attack' || 
-        recoveryType === 'attack_defense' || recoveryType === 'all') {
+    if (!source.skillActive && (recoveryType === 'attack' || recoveryType === 'auto_attack' ||
+        recoveryType === 'attack_defense' || recoveryType === 'all')) {
       source.currentSp = Math.min(source.skill.cost, source.currentSp + 1);
     }
+  }
+
+  // v2.0.0：手动激活技能。返回是否成功激活。
+  tryActivateSkill(operatorId: string): boolean {
+    const op = this.operators.find(o => o.id === operatorId);
+    if (!op || op.isRetreated) return false;
+    if (op.skillActive) return false;
+    if (op.currentSp < op.skill.cost) return false;
+    if (op.skill.duration <= 0) {
+      // 当前版本仅支持持续型技能；瞬发型在 v2.x 后续迭代支持
+      alert('该技能为瞬发型，暂未实现手动激活，敬请期待。');
+      return false;
+    }
+    op.skillActive = true;
+    op.skillDuration = op.skill.duration;
+    this.notifyUpdate();
+    return true;
   }
 
   private updateProjectiles(dt: number) {

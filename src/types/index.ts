@@ -30,6 +30,10 @@ export interface SkillInfo {
   // 技力回复方式：'auto'自然回复, 'attack'攻击回复, 'defense'受击回复
   // 可以组合：'auto_attack', 'auto_defense', 'attack_defense', 'all'
   spRecovery: SpRecoveryType;
+  // v2.0.0：技能手动激活所需的运行时资源
+  duration: number;                // 持续时间，<=0 表示瞬发（版本限制：当前仅支持持续型）
+  effectType: SkillEffectType;
+  values: Record<string, number>;  // 如 atkMul / aspdPct / defPct / blkPlus / hits
 }
 
 // 角色等阶
