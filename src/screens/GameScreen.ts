@@ -40,7 +40,7 @@ let pendingDragStartGrid: { x: number, y: number } | null = null;
 let resizeListenersBound = false;
 let interactionEventsBound = false;
 
-export function startGame(factionId: FactionId, roster: Roster): void {
+export function startGame(factionId: FactionId, roster: Roster, activePactIds: string[] | null = null): void {
   appRoot = document.getElementById('app-root');
   showOnly('app-root');
 
@@ -72,7 +72,7 @@ export function startGame(factionId: FactionId, roster: Roster): void {
   selectRandomMap();
 
   const allowed = rosterToAllowedSet(roster);
-  engine = new GameEngine(factionId, allowed);
+  engine = new GameEngine(factionId, allowed, activePactIds);
   renderer = new Renderer(canvas);
   // v2.3.0：开发期暴露 engine，便于 devtools 中验证 buff 框架（如：engine.applyEffectToOperator('op_xxx', {id:'t',name:'测试',kind:'buff',stat:'atk',mod:0.5,modType:'pct',duration:10,remaining:10})）
   (window as any).engine = engine;

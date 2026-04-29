@@ -1,4 +1,4 @@
-import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, PACT_DB, ACTIVE_PACTS, resolveSkillForRank, applyTalentsToStats, buildTalentEffects } from '../config/gameData';
+import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, PACT_DB, DEFAULT_ACTIVE_PACTS, resolveSkillForRank, applyTalentsToStats, buildTalentEffects } from '../config/gameData';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
 import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource } from '../types';
@@ -65,7 +65,7 @@ export class GameEngine {
   // v3.0.0：盟约叠层运行时
   pacts: PactRuntime[] = [];
 
-  constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null) {
+  constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null, activePactIds: string[] | null = null) {
     this.factionId = factionId;
     this.allowedTemplateIds = allowedTemplateIds;
     const eff = FACTION_DB[factionId].effect;
@@ -73,8 +73,9 @@ export class GameEngine {
     this.money = eff.initialMoney ?? CONFIG.BASE_MONEY;
     this.shop = new ShopSystem(this);
     this.shop.refreshShop(true);
-    // v3.0.0：初始化盟约运行时
-    this.pacts = ACTIVE_PACTS.filter(id => PACT_DB[id]).map(id => ({ defId: id, stack: 0, appliedTier: -1, decayAccum: 0 }));
+    // v3.0.0/v3.1.0：初始化盟约运行时（外部传入；缺省走 DEFAULT_ACTIVE_PACTS）
+    const ids = (activePactIds && activePactIds.length > 0) ? activePactIds : DEFAULT_ACTIVE_PACTS;
+    this.pacts = ids.filter(id => PACT_DB[id]).map(id => ({ defId: id, stack: 0, appliedTier: -1, decayAccum: 0 }));
   }
 
   // 公开给 ShopSystem 调用

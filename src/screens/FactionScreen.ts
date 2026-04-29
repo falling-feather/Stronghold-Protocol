@@ -3,7 +3,7 @@ import { FACTION_DB, saveFactionId, listFactions } from '../config/factions';
 import { validateRoster } from '../config/roster';
 import { screenState, showOnly } from './shared';
 import { showRosterScreen, initRosterScreen } from './RosterScreen';
-import { startGame } from './GameScreen';
+import { showPactScreen, initPactScreen } from './PactScreen';
 
 export function showFactionScreen(): void {
   showOnly('faction-screen');
@@ -26,10 +26,12 @@ export function initFactionScreen(): void {
       return;
     }
     saveFactionId(screenState.currentFactionId);
-    startGame(screenState.currentFactionId, screenState.currentRoster);
+    // v3.1.0：阵营确认 → 跳到盟约选择页
+    showPactScreen();
   });
   document.getElementById('btn-open-roster')?.addEventListener('click', showRosterScreen);
   initRosterScreen();
+  initPactScreen();
 }
 
 export function renderFactionScreen(): void {

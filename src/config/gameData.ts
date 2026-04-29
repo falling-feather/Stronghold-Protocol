@@ -484,7 +484,48 @@ export const PACT_DB: Record<string, PactDefinition> = {
       { threshold: 15, description: 'tier3：干员攻击力 +30%', effects: [mkPactEffect('pact_broken_spring_t2_atk', '[盟约·碎铳之簧] 怒火 III', 'atk', 0.30, 'pct')] },
     ],
   },
+  // v3.1.0：高翔之狩 — 击杀飞行单位累积，干员攻击力分级提升
+  'pact_aerial_hunter': {
+    id: 'pact_aerial_hunter',
+    name: '高翔之狩',
+    desc: '每次击杀飞行单位累积猎心；分级提升全体干员攻击力',
+    scope: 'all_operators',
+    sources: [{ source: 'kill_flying', perEvent: 1 }],
+    cap: 12,
+    tiers: [
+      { threshold: 2, description: 'tier1：攻击力 +5%', effects: [mkPactEffect('pact_aerial_hunter_t0_atk', '[盟约·高翔之狩] 猎心 I', 'atk', 0.05, 'pct')] },
+      { threshold: 5, description: 'tier2：攻击力 +12%', effects: [mkPactEffect('pact_aerial_hunter_t1_atk', '[盟约·高翔之狩] 猎心 II', 'atk', 0.12, 'pct')] },
+      { threshold: 10, description: 'tier3：攻击力 +20%', effects: [mkPactEffect('pact_aerial_hunter_t2_atk', '[盟约·高翔之狩] 猎心 III', 'atk', 0.20, 'pct')] },
+    ],
+  },
+  // v3.1.0：钢铁誓约 — 部署任意干员累积，分级提升全体防御（flat）
+  'pact_iron_resolve': {
+    id: 'pact_iron_resolve',
+    name: '钢铁誓约',
+    desc: '每次部署干员累积誓言；分级提升全体干员防御力（固定值）',
+    scope: 'all_operators',
+    sources: [{ source: 'deploy_any', perEvent: 1 }],
+    cap: 8,
+    tiers: [
+      { threshold: 2, description: 'tier1：防御 +5', effects: [mkPactEffect('pact_iron_resolve_t0_def', '[盟约·钢铁誓约] 誓言 I', 'def', 5, 'flat')] },
+      { threshold: 4, description: 'tier2：防御 +12', effects: [mkPactEffect('pact_iron_resolve_t1_def', '[盟约·钢铁誓约] 誓言 II', 'def', 12, 'flat')] },
+      { threshold: 8, description: 'tier3：防御 +25', effects: [mkPactEffect('pact_iron_resolve_t2_def', '[盟约·钢铁誓约] 誓言 III', 'def', 25, 'flat')] },
+    ],
+  },
 };
 
-// v3.0.0：本局激活的盟约（v3.1.0 将改为开局选择 UI 提供）
-export const ACTIVE_PACTS: string[] = ['pact_flame_blessing', 'pact_lingering_echo', 'pact_broken_spring'];
+// v3.1.0：默认激活盟约（开发期 fallback；正式开局走 PactScreen 选择 → 透传至 GameEngine）
+export const DEFAULT_ACTIVE_PACTS: string[] = ['pact_flame_blessing', 'pact_lingering_echo', 'pact_broken_spring'];
+
+// v3.1.0：开局可选盟约清单（PactScreen 渲染来源，可与 PACT_DB 不完全一致 — 例如保留某些隐藏/事件盟约）
+export const SELECTABLE_PACTS: string[] = [
+  'pact_flame_blessing',
+  'pact_lingering_echo',
+  'pact_broken_spring',
+  'pact_aerial_hunter',
+  'pact_iron_resolve',
+];
+
+// v3.1.0：开局选择盟约的数量上下限
+export const PACT_PICK_MIN = 1;
+export const PACT_PICK_MAX = 2;

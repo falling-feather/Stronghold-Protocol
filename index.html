@@ -573,6 +573,16 @@
       </div>
     </div>
 
+    <!-- 盟约选择界面（v3.1.0） -->
+    <div id="pact-screen" style="display:none;flex-direction:column;">
+      <div class="faction-header">
+        <button class="faction-back" id="btn-pact-back">← 返回阵营</button>
+        <h2>选择盟约 <span id="pact-counter" style="font-size:14px;color:#bdc3c7;font-weight:normal;margin-left:12px;"></span></h2>
+        <button class="faction-confirm" id="btn-pact-confirm">出战 →</button>
+      </div>
+      <div id="pact-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:16px 24px;overflow-y:auto;flex:1;"></div>
+    </div>
+
     <div id="app-root">
       <div id="top-bar">
         <!-- 左上角：暂停、设置、退出 -->
