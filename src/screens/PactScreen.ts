@@ -53,7 +53,16 @@ function renderPactScreen(): void {
         const d = PACT_DB[req.defId];
         return d ? `${d.name} 达 tier${req.minTier + 1}` : req.defId;
       }).join(' + ');
-      return `<div title="需满足：${tip}" style="padding:4px 12px;border-radius:14px;background:linear-gradient(90deg,#f1c40f,#e67e22);color:#000;font-size:12px;font-weight:bold;border:1px solid #fff;">✨ 潜在共鸣：${r.name} — ${r.desc.split('：').pop()}</div>`;
+      // v3.3.3：检测当前选择中是否至少 1 个 require pact 是 shackled → 提示翻倍
+      const willBoost = !!r.shackledBoosts && r.requires.some(req => {
+        const sel = selections.find(s => s.defId === req.defId);
+        return !!sel && sel.shackled;
+      });
+      const bg = willBoost ? 'linear-gradient(90deg,#c0392b,#e67e22,#f1c40f)' : 'linear-gradient(90deg,#f1c40f,#e67e22)';
+      const border = willBoost ? '#c0392b' : '#fff';
+      const prefix = willBoost ? '⛓✨ 枷锁加成·翻倍' : '✨ 潜在共鸣';
+      const suffix = willBoost ? ' ×2' : '';
+      return `<div title="需满足：${tip}${willBoost ? '\n枷锁加成生效中：效果翻倍' : ''}" style="padding:4px 12px;border-radius:14px;background:${bg};color:#000;font-size:12px;font-weight:bold;border:1px solid ${border};">${prefix}：${r.name} — ${r.desc.split('：').pop()}${suffix}</div>`;
     }).join('');
   }
 

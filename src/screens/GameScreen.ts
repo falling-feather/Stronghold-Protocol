@@ -242,16 +242,19 @@ function renderPactBadges(): void {
     else if (rt.lastStackChangeAt && now - rt.lastStackChangeAt < 280) cls.push('stack-bump');
     return `<div class="${cls.join(' ')}" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:bold;margin-left:6px;border:2px solid ${borderColor};">${rt.stack}${rt.shackled ? '⛓' : ''}</div>`;
   }).join('');
-  // v3.3.0：盟约共鸣徽记（金色 ✦）
+  // v3.3.0：盟约共鸣徽记（金色 ✦）；v3.3.3：枷锁加成版加 ⛓ + 红边
   if (engine && engine.activeResonances.size > 0) {
     const eng = engine;
-    const resoHtml = Array.from(eng.activeResonances).map(rid => {
+    const resoHtml = Array.from(eng.activeResonances.entries()).map(([rid, boost]) => {
       const reso = RESONANCE_DB[rid];
       if (!reso) return '';
       const activatedAt = eng.resonanceActivatedAt[rid] || 0;
       const flashCls = (now - activatedAt < 1200) ? ' tier-up' : '';
-      const title = `${reso.name}\n${reso.desc}（生效中）`;
-      return `<div class="pact-badge${flashCls}" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 8px;border-radius:16px;background:linear-gradient(90deg,#f1c40f,#e67e22);color:#000;font-size:11px;font-weight:bold;margin-left:8px;border:2px solid #fff;">✦${reso.name}</div>`;
+      const title = `${reso.name}${boost ? '（⛓ 枷锁加成 翻倍）' : ''}\n${reso.desc}（生效中${boost ? '·翻倍' : ''}）`;
+      const bg = boost ? 'linear-gradient(90deg,#c0392b,#e67e22,#f1c40f)' : 'linear-gradient(90deg,#f1c40f,#e67e22)';
+      const border = boost ? '#c0392b' : '#fff';
+      const label = `${boost ? '⛓✦' : '✦'}${reso.name}${boost ? ' ×2' : ''}`;
+      return `<div class="pact-badge${flashCls}" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 8px;border-radius:16px;background:${bg};color:#000;font-size:11px;font-weight:bold;margin-left:8px;border:2px solid ${border};">${label}</div>`;
     }).join('');
     container.innerHTML += resoHtml;
   }

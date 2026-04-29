@@ -41,6 +41,7 @@
 - [x] v3.3.0 盟约共鸣：RESONANCE_DB（reso_flame_storm 炎佑+空中猎手→atk +8% / reso_iron_echo 钢铁誓约+余音回响→magicResist +8）；GameEngine.activeResonances 集合 + reconcileResonances 差量应用；getActivePactEffectsForOperator 叠加；UI 顶栏激活时显示金色 ✦ 徽记（含闪光）
 - [x] v3.3.1 共鸣扩展 + 设计文档：新增 reso_wind_blade（碎铳+空中猎手→aspd -8%）/ reso_oath_flame（炎佑+钢铁誓约→def +3）；docs/PACT_DESIGN.md 追加第 5 章「盟约共鸣」
 - [x] v3.3.2 PactScreen 共鸣预览：选择阶段扫描 RESONANCE_DB，列出当前 selections 可能触发的共鸣（金色胶囊条 + tooltip 显示 tier 要求）
+- [x] v3.3.3 共鸣枷锁加成：PactResonance.shackledBoosts；4 个共鸣均开启；engine activeResonances 改为 Map<id,boost>，boost=true 时 effects 复制一份（翻倍）；getActivePactEffectsForOperator 同步翻倍；UI 翻倍版徽记/预览胶囊改红金渐变 + ⛓×2 标记
 
 ## v4.x — 联机
 

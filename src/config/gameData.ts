@@ -564,6 +564,7 @@ export const RESONANCE_DB: Record<string, PactResonance> = {
     ],
     scope: 'all_operators',
     effects: [mkResoEffect('resonance_reso_flame_storm_atk', '[共鸣·烈风] 炽烈之心', 'atk', 0.08, 'pct')],
+    shackledBoosts: true,
   },
   reso_iron_echo: {
     id: 'reso_iron_echo',
@@ -575,6 +576,7 @@ export const RESONANCE_DB: Record<string, PactResonance> = {
     ],
     scope: 'all_operators',
     effects: [mkResoEffect('resonance_reso_iron_echo_mr', '[共鸣·坚壁] 不动之余', 'magicResist', 8, 'flat')],
+    shackledBoosts: true,
   },
   reso_wind_blade: {
     id: 'reso_wind_blade',
@@ -586,6 +588,7 @@ export const RESONANCE_DB: Record<string, PactResonance> = {
     ],
     scope: 'all_operators',
     effects: [mkResoEffect('resonance_reso_wind_blade_aspd', '[共鸣·风刃] 疾风之刃', 'aspd', -0.08, 'pct')],
+    shackledBoosts: true,
   },
   reso_oath_flame: {
     id: 'reso_oath_flame',
@@ -597,5 +600,6 @@ export const RESONANCE_DB: Record<string, PactResonance> = {
     ],
     scope: 'all_operators',
     effects: [mkResoEffect('resonance_reso_oath_flame_def', '[共鸣·誓火] 焰中铁誓', 'def', 3, 'flat')],
+    shackledBoosts: true,
   },
 };

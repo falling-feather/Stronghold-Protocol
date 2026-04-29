@@ -65,7 +65,8 @@ export class GameEngine {
   // v3.0.0：盟约叠层运行时
   pacts: PactRuntime[] = [];
   // v3.3.0：当前激活的共鸣 id 集合 + 最近激活时间戳（UI 闪光用）
-  activeResonances: Set<string> = new Set();
+  // v3.3.3：值改为 boolean 表示是否处于「枷锁加成」翻倍状态
+  activeResonances: Map<string, boolean> = new Map();
   resonanceActivatedAt: Record<string, number> = {};
 
   constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null, activePactSelections: PactSelection[] | null = null) {
@@ -724,6 +725,7 @@ export class GameEngine {
   }
 
   // v3.3.0：扫描 RESONANCE_DB，激活/失活差量应用到全体单位
+  // v3.3.3：支持「枷锁加成」 — 若 requires 中至少 1 个 pact 是 shackled 且 reso.shackledBoosts，effects 翻倍
   private reconcileResonances(): void {
     const now = performance.now();
     for (const reso of Object.values(RESONANCE_DB)) {
@@ -731,34 +733,54 @@ export class GameEngine {
         const rt = this.pacts.find(p => p.defId === req.defId);
         return !!rt && rt.appliedTier >= req.minTier;
       });
+      const boost = !!reso.shackledBoosts && reso.requires.some(req => {
+        const rt = this.pacts.find(p => p.defId === req.defId);
+        return !!rt && rt.shackled === true;
+      });
       const wasActive = this.activeResonances.has(reso.id);
-      if (allMet && !wasActive) {
-        this.activeResonances.add(reso.id);
-        this.resonanceActivatedAt[reso.id] = now;
+      const wasBoost = this.activeResonances.get(reso.id) === true;
+
+      const applyOnce = (multiplier: number) => {
         if (reso.scope === 'all_operators') {
           for (const op of this.operators) {
             if (op.isRetreated) continue;
-            for (const eff of reso.effects) op.effects.push({ ...eff, remaining: eff.duration });
+            for (let k = 0; k < multiplier; k++) {
+              for (const eff of reso.effects) op.effects.push({ ...eff, remaining: eff.duration });
+            }
           }
         } else if (reso.scope === 'all_enemies') {
           for (const en of this.enemies) {
             if (en.markedForDeletion) continue;
-            for (const eff of reso.effects) en.effects.push({ ...eff, remaining: eff.duration });
+            for (let k = 0; k < multiplier; k++) {
+              for (const eff of reso.effects) en.effects.push({ ...eff, remaining: eff.duration });
+            }
           }
         }
-      } else if (!allMet && wasActive) {
-        this.activeResonances.delete(reso.id);
-        // 撤效果：通过 sourceId 前缀 'resonance_<id>_' 过滤
+      };
+      const removeAll = () => {
         const prefix = `resonance_${reso.id}_`;
         if (reso.scope === 'all_operators') {
-          for (const op of this.operators) {
-            op.effects = op.effects.filter(e => !e.id.startsWith(prefix));
-          }
+          for (const op of this.operators) op.effects = op.effects.filter(e => !e.id.startsWith(prefix));
         } else if (reso.scope === 'all_enemies') {
-          for (const en of this.enemies) {
-            en.effects = en.effects.filter(e => !e.id.startsWith(prefix));
-          }
+          for (const en of this.enemies) en.effects = en.effects.filter(e => !e.id.startsWith(prefix));
         }
+      };
+
+      if (allMet) {
+        if (!wasActive) {
+          applyOnce(boost ? 2 : 1);
+          this.activeResonances.set(reso.id, boost);
+          this.resonanceActivatedAt[reso.id] = now;
+        } else if (wasBoost !== boost) {
+          // boost 状态切换：先全撤再重挂新倍数
+          removeAll();
+          applyOnce(boost ? 2 : 1);
+          this.activeResonances.set(reso.id, boost);
+          this.resonanceActivatedAt[reso.id] = now;
+        }
+      } else if (wasActive) {
+        removeAll();
+        this.activeResonances.delete(reso.id);
       }
     }
   }
@@ -779,10 +801,14 @@ export class GameEngine {
       for (const eff of def.tiers[rt.appliedTier].effects) out.push({ ...eff, remaining: eff.duration });
     }
     // v3.3.0：当前激活的盟约共鸣（仅 all_operators 范围）也叠加
-    for (const resoId of this.activeResonances) {
+    // v3.3.3：枷锁加成激活时复制一份 effects（翻倍）
+    for (const [resoId, boost] of this.activeResonances) {
       const reso = RESONANCE_DB[resoId];
       if (!reso || reso.scope !== 'all_operators') continue;
-      for (const eff of reso.effects) out.push({ ...eff, remaining: eff.duration });
+      const times = boost ? 2 : 1;
+      for (let k = 0; k < times; k++) {
+        for (const eff of reso.effects) out.push({ ...eff, remaining: eff.duration });
+      }
     }
     return out;
   }

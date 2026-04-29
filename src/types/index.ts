@@ -127,8 +127,8 @@ export interface PactResonance {
   desc: string;
   requires: { defId: string; minTier: number }[]; // 全部满足才激活
   scope: 'all_operators' | 'all_enemies';
-  effects: StatusEffect[]; // 激活期间挂载到 scope 内全体单位
-}
+  effects: StatusEffect[]; // 激活期间挂载到 scope 内全体单位  // v3.3.3：枷锁升阶 — 若 requires 中至少 1 个 pact 是 shackled，效果加成翻倍（复制一份 effects）
+  shackledBoosts?: boolean;}
 
 export interface Enemy extends Entity {
   waypointIndex: number;
