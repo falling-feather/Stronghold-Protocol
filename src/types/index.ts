@@ -23,6 +23,21 @@ export interface BaseStats {
 // v2.1.0：攻击类型（决定伤害结算公式）
 export type AttackType = 'physical' | 'magic' | 'true' | 'heal';
 
+// v2.3.0：Buff/Debuff 框架
+export type StatusEffectKind = 'buff' | 'debuff';
+export type StatusStat = 'atk' | 'def' | 'aspd' | 'spd' | 'magicResist' | 'blockCount';
+export interface StatusEffect {
+  id: string;          // 唯一实例 id
+  name: string;        // 展示名称
+  kind: StatusEffectKind;
+  stat: StatusStat;
+  mod: number;         // 数值；flat 则直接加减，pct 则按乘法修正（1 + mod）
+  modType: 'flat' | 'pct';
+  duration: number;    // 总时长（仅展示）
+  remaining: number;   // 剩余时长，<=0 即过期
+  sourceId?: string;   // 可选：赋予者 id
+}
+
 // 技力回复方式
 export type SpRecoveryType = 'auto' | 'attack' | 'defense' | 'auto_attack' | 'auto_defense' | 'attack_defense' | 'all';
 
@@ -57,6 +72,7 @@ export interface Enemy extends Entity {
   waypointIndex: number;
   isBlockedBy: string | null;
   attackCooldown: number;
+  effects: StatusEffect[]; // v2.3.0
 }
 
 export interface Operator extends Entity {
@@ -84,6 +100,9 @@ export interface Operator extends Entity {
   // v2.2.0：部署计时与费用回流（先锋职业）
   deployTime: number;     // 部署后累计存活时间（秒）
   costRefunded: boolean;  // 是否已回流过部署费用
+
+  // v2.3.0：状态效果列表
+  effects: StatusEffect[];
   
   // 朝向系统
   direction: Direction; // 角色朝向

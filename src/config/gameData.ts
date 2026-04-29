@@ -1,4 +1,4 @@
-import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType, OperatorClass, ClassTrait, SkillDefinition, BaseStats, Talent } from '../types';
+import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType, OperatorClass, ClassTrait, SkillDefinition, BaseStats, Talent, StatusEffect } from '../types';
 
 export const CONFIG = {
   TILE_SIZE: 64,
@@ -224,20 +224,42 @@ export function resolveSkillForRank(template: OperatorTemplate, rank: 1 | 2, ski
 }
 
 // 把天赋叠加到基础属性（部署时调用一次）
+// v2.3.2：仅正变 hp/maxHp 仍在本函数烘烤（变更 量需重生成 max 上限），
+//          atk/def/aspd/blockCount 改为通过 buildTalentEffects 以 effects 形式运行期生效。
 export function applyTalentsToStats(base: BaseStats, talents: Talent[], rank: 1 | 2): BaseStats {
   const s: BaseStats = { ...base };
   talents.forEach(t => {
     const v = rank === 2 ? t.rankValues.rank2 : t.rankValues.rank1;
-    switch (t.effect) {
-      case 'atk_pct':    s.atk = Math.round(s.atk * (1 + v / 100)); break;
-      case 'hp_pct':     s.hp = Math.round(s.hp * (1 + v / 100)); s.maxHp = s.hp; break;
-      case 'def_pct':    s.def = Math.round(s.def * (1 + v / 100)); break;
-      case 'aspd_pct':   s.aspd = Math.max(0.3, s.aspd * (1 - v / 100)); break;
-      case 'block_plus': s.blockCount = s.blockCount + Math.floor(v); break;
-      case 'sp_init':    /* 处理在 deployment 端 */ break;
+    if (t.effect === 'hp_pct') {
+      s.hp = Math.round(s.hp * (1 + v / 100));
+      s.maxHp = s.hp;
     }
   });
   return s;
+}
+
+// v2.3.2：生成天赋对应的永久 StatusEffect 列表（duration=-1 不过期）
+export function buildTalentEffects(talents: Talent[], rank: 1 | 2, ownerId: string): StatusEffect[] {
+  const out: StatusEffect[] = [];
+  talents.forEach(t => {
+    const v = rank === 2 ? t.rankValues.rank2 : t.rankValues.rank1;
+    switch (t.effect) {
+      case 'atk_pct':
+        out.push({ id: `talent_${ownerId}_atk`, name: `天赋·${t.name}`, kind: 'buff', stat: 'atk', mod: v / 100, modType: 'pct', duration: -1, remaining: -1, sourceId: ownerId });
+        break;
+      case 'def_pct':
+        out.push({ id: `talent_${ownerId}_def`, name: `天赋·${t.name}`, kind: 'buff', stat: 'def', mod: v / 100, modType: 'pct', duration: -1, remaining: -1, sourceId: ownerId });
+        break;
+      case 'aspd_pct':
+        out.push({ id: `talent_${ownerId}_aspd`, name: `天赋·${t.name}`, kind: 'buff', stat: 'aspd', mod: -(v / 100), modType: 'pct', duration: -1, remaining: -1, sourceId: ownerId });
+        break;
+      case 'block_plus':
+        out.push({ id: `talent_${ownerId}_blk`, name: `天赋·${t.name}`, kind: 'buff', stat: 'blockCount', mod: Math.floor(v), modType: 'flat', duration: -1, remaining: -1, sourceId: ownerId });
+        break;
+      // hp_pct 在 applyTalentsToStats 中烘烤；sp_init 在部署点处理
+    }
+  });
+  return out;
 }
 
 // === v1.2 干员模板库（职业 / 天赋 / 多技能 / 叠层数值）===

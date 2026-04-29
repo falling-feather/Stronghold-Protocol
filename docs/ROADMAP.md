@@ -22,7 +22,9 @@
 - [x] v2.1.0 攻击类型：物理（atk-def，最低 5%）/ 法术（atk*(1-MR%)，最低 5%）/ 真伤（穿透）/ 治疗（v2.1.1 接入友军选择）；BaseStats.magicResist + OperatorTemplate.atkType + Projectile.atkType
 - [x] v2.1.1 敌人 magicResist 配平：源石虫 0 / 步兵 30 / 大盾兵 60
 - [x] v2.2.0 部署费用回流机制（先锋职业）：部署 30 秒后返还 cost 的 50%；详情面板倒计时显示
-- [ ] 增益/减益效果框架（Buff/Debuff）
+- [x] v2.3.0 增益/减益效果框架（Buff/Debuff）：StatusEffect{stat,mod,modType:flat|pct,duration,remaining,kind}，Operator/Enemy.effects 列表；GameEngine.applyEffectToOperator/applyEffectToEnemy + 内部 tickEffects/modifyStat；详情面板列出激活效果；开发期 window.engine 暴露便于验证
+- [x] v2.3.1 skill atkMul/aspdPct 改造接入 effects：tryActivateSkill 时直接 push 到 op.effects，由 modifyStat 统一计算；fireProjectile/updateOperators 移除内联分支
+- [x] v2.3.2 天赋接入 effects：atk_pct/def_pct/aspd_pct/block_plus 在部署时 push 为 duration=-1 的永久 effects；hp_pct 仍在 applyTalentsToStats 烘焙；新增 buildTalentEffects；StatusStat 扩展 'blockCount'；tickEffects 跳过永久效果；blockCount 走 modifyStat
 - [ ] 敌人特性：飞行 / 隐身 / 召唤 / Boss 阶段
 
 ## v3.x — 盟约叠层

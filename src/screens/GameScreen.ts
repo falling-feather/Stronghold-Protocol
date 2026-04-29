@@ -74,6 +74,8 @@ export function startGame(factionId: FactionId, roster: Roster): void {
   const allowed = rosterToAllowedSet(roster);
   engine = new GameEngine(factionId, allowed);
   renderer = new Renderer(canvas);
+  // v2.3.0：开发期暴露 engine，便于 devtools 中验证 buff 框架（如：engine.applyEffectToOperator('op_xxx', {id:'t',name:'测试',kind:'buff',stat:'atk',mod:0.5,modType:'pct',duration:10,remaining:10})）
+  (window as any).engine = engine;
 
   engine.onStateUpdated = () => renderUI();
 
@@ -544,6 +546,21 @@ function updateDetailPanel(): void {
       }
     }
 
+    // v2.3.0：状态效果列表
+    let effectsHtml = '';
+    if (op.effects && op.effects.length > 0) {
+      effectsHtml = '<div style="margin-top:8px;font-size:12px;color:#bdc3c7;">状态效果：</div>' +
+        op.effects.map((e: any) => {
+          const sign = e.mod >= 0 ? '+' : '';
+          const value = e.modType === 'pct' ? `${sign}${(e.mod * 100).toFixed(0)}%` : `${sign}${e.mod}`;
+          const color = e.kind === 'buff' ? '#2ecc71' : '#e67e22';
+          const timeText = e.duration < 0 ? '永久' : `剩余 ${e.remaining.toFixed(1)}s`;
+          return `<div style="background:rgba(${e.kind === 'buff' ? '46,204,113' : '230,126,34'},0.15);padding:3px 6px;margin:2px 0;border-left:3px solid ${color};font-size:12px;">
+            ${e.name}（${e.stat} ${value}） · ${timeText}
+          </div>`;
+        }).join('');
+    }
+
     spBlockHtml = `
       <div style="margin:8px 0 6px 0;">
         <div style="font-size:12px;color:#bdc3c7;margin-bottom:4px;">SP: ${op.currentSp.toFixed(1)} / ${op.skill.cost} · ${stateLabel}</div>
@@ -552,6 +569,7 @@ function updateDetailPanel(): void {
         </div>
         ${isReady && engine!.phase === 'COMBAT' ? `<button id="btn-activate-skill" style="margin-top:6px;width:100%;padding:6px;background:#f39c12;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:bold;">释放技能</button>` : ''}
         ${refundHtml}
+        ${effectsHtml}
       </div>
     `;
   }

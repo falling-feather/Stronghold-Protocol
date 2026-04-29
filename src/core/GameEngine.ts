@@ -1,7 +1,7 @@
-import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, resolveSkillForRank, applyTalentsToStats } from '../config/gameData';
+import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, resolveSkillForRank, applyTalentsToStats, buildTalentEffects } from '../config/gameData';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
-import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType } from '../types';
+import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat } from '../types';
 import { getDistance, moveTowards, checkCollision, isInAttackRange } from './MathUtils';
 
 export interface BenchOperator {
@@ -312,7 +312,8 @@ export class GameEngine {
       rank: rank,
       direction: direction,
       deployTime: 0,
-      costRefunded: false
+      costRefunded: false,
+      effects: buildTalentEffects(template.talents, rank, templateId) // sourceId 用 templateId 更稳定
     });
 
     // 清除待部署状态
@@ -342,7 +343,7 @@ export class GameEngine {
       const validBlockers = this.operators.filter(op => 
         !op.isRetreated &&
         op.placement === 'ground' &&
-        op.blockingEnemyIds.length < op.stats.blockCount &&
+        op.blockingEnemyIds.length < this.modifyStat(op.effects, op.stats.blockCount, 'blockCount') &&
         checkCollision(enemy.pos, enemy.radius, op.pos, CONFIG.TILE_SIZE)
       );
       if (validBlockers.length > 0) {
@@ -377,18 +378,24 @@ export class GameEngine {
       waypointIndex: 0,
       markedForDeletion: false,
       isBlockedBy: null,
-      attackCooldown: 0
+      attackCooldown: 0,
+      effects: []
     });
   }
 
   private updateEnemies(dt: number) {
     this.enemies.forEach(enemy => {
+      // v2.3.0：状态效果倒计时
+      this.tickEffects(enemy.effects, dt);
       if (enemy.isBlockedBy) {
         const blocker = this.operators.find(op => op.id === enemy.isBlockedBy);
         if (blocker && !blocker.isRetreated) {
           enemy.attackCooldown -= dt;
           if (enemy.attackCooldown <= 0) {
-            const damage = Math.max(10, enemy.stats.atk - blocker.stats.def);
+            // v2.3.0：敌人攻击受 buff/debuff 影响
+            const enemyAtk = this.modifyStat(enemy.effects, enemy.stats.atk, 'atk');
+            const blockerDef = this.modifyStat(blocker.effects, blocker.stats.def, 'def');
+            const damage = Math.max(10, enemyAtk - blockerDef);
             blocker.stats.hp -= damage;
             
             // 受击回复技力（每次受击+1点）
@@ -398,7 +405,7 @@ export class GameEngine {
               blocker.currentSp = Math.min(blocker.skill.cost, blocker.currentSp + 1);
             }
             
-            enemy.attackCooldown = enemy.stats.aspd;
+            enemy.attackCooldown = this.modifyStat(enemy.effects, enemy.stats.aspd, 'aspd');
             if (blocker.stats.hp <= 0) this.handleOperatorRetreat(blocker);
           }
         }
@@ -414,7 +421,7 @@ export class GameEngine {
         x: targetGrid.x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2,
         y: targetGrid.y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2
       };
-      enemy.pos = moveTowards(enemy.pos, targetWorld, enemy.stats.spd * 60 * dt);
+      enemy.pos = moveTowards(enemy.pos, targetWorld, this.modifyStat(enemy.effects, enemy.stats.spd, 'spd') * 60 * dt);
       if (getDistance(enemy.pos, targetWorld) < 5) enemy.waypointIndex++;
     });
   }
@@ -433,6 +440,9 @@ export class GameEngine {
     this.operators.forEach(op => {
       if (op.isRetreated) return;
       op.cooldown = Math.max(0, op.cooldown - dt);
+
+      // v2.3.0：状态效果倒计时
+      this.tickEffects(op.effects, dt);
 
       // v2.2.0：先锋部署费用回流
       op.deployTime += dt;
@@ -486,12 +496,8 @@ export class GameEngine {
         }
         if (target) {
           this.fireProjectile(op, target as Enemy);
-          // 攻速：技能激活时若提供 aspdPct，则按百分比缩短攻击间隔
-          let aspd = op.stats.aspd;
-          if (op.skillActive && op.skill.effectType === 'attack_buff') {
-            const aspdPct = op.skill.values.aspdPct;
-            if (aspdPct) aspd = Math.max(0.2, aspd * (1 - aspdPct / 100));
-          }
+          // v2.3.1：skill 的攻速加成已通过 effects 框架统一处理；这里只取 base aspd 走 modifyStat
+          const aspd = Math.max(0.2, this.modifyStat(op.effects, op.stats.aspd, 'aspd'));
           op.cooldown = aspd;
         }
       }
@@ -502,12 +508,10 @@ export class GameEngine {
     const startPos = { x: source.pos.x + CONFIG.TILE_SIZE / 2, y: source.pos.y + CONFIG.TILE_SIZE / 2 };
     const sourceTemplate = OPERATOR_DB[source.templateId];
 
-    // 技能激活期间的伤害倍率（attack_buff 类）
+    // v2.3.1：skill 的攻击加成已通过 effects 框架统一处理（见 tryActivateSkill）
     let damage = source.stats.atk;
-    if (source.skillActive && source.skill.effectType === 'attack_buff') {
-      const atkMul = source.skill.values.atkMul;
-      if (atkMul) damage = Math.round(damage * atkMul);
-    }
+    // v2.3.0：状态效果对攻击力的修正
+    damage = Math.round(this.modifyStat(source.effects, damage, 'atk'));
 
     // v2.1.0：解析攻击类型（template.atkType 优先；其次按职业推断）
     const atkType: AttackType = sourceTemplate?.atkType
@@ -553,8 +557,80 @@ export class GameEngine {
     }
     op.skillActive = true;
     op.skillDuration = op.skill.duration;
+    // v2.3.1：把 skill 的属性加成转写为 effects（让 modifyStat 统一处理）
+    if (op.skill.effectType === 'attack_buff') {
+      const atkMul = op.skill.values.atkMul;
+      if (atkMul) {
+        op.effects.push({
+          id: `skill_${op.id}_atk`,
+          name: `${op.skill.name} · 攻击`,
+          kind: 'buff',
+          stat: 'atk',
+          mod: atkMul - 1,
+          modType: 'pct',
+          duration: op.skill.duration,
+          remaining: op.skill.duration,
+          sourceId: op.id
+        });
+      }
+      const aspdPct = op.skill.values.aspdPct;
+      if (aspdPct) {
+        op.effects.push({
+          id: `skill_${op.id}_aspd`,
+          name: `${op.skill.name} · 攻速`,
+          kind: 'buff',
+          stat: 'aspd',
+          mod: -(aspdPct / 100), // aspd 是冷却秒数，越小越快
+          modType: 'pct',
+          duration: op.skill.duration,
+          remaining: op.skill.duration,
+          sourceId: op.id
+        });
+      }
+    }
     this.notifyUpdate();
     return true;
+  }
+
+  // v2.3.0：Buff/Debuff 框架 — 公开 API
+  applyEffectToOperator(operatorId: string, effect: StatusEffect): boolean {
+    const op = this.operators.find(o => o.id === operatorId);
+    if (!op || op.isRetreated) return false;
+    op.effects.push({ ...effect, remaining: effect.duration });
+    this.notifyUpdate();
+    return true;
+  }
+
+  applyEffectToEnemy(enemyId: string, effect: StatusEffect): boolean {
+    const enemy = this.enemies.find(e => e.id === enemyId);
+    if (!enemy || enemy.markedForDeletion) return false;
+    enemy.effects.push({ ...effect, remaining: effect.duration });
+    return true;
+  }
+
+  // 内部：倒计时 + 清理过期效果。duration<0 视为永久，不递减。
+  private tickEffects(effects: StatusEffect[], dt: number) {
+    for (let i = effects.length - 1; i >= 0; i--) {
+      if (effects[i].duration < 0) continue;
+      effects[i].remaining -= dt;
+      if (effects[i].remaining <= 0) effects.splice(i, 1);
+    }
+  }
+
+  // 内部：把所有匹配 stat 的效果应用到 base 值上
+  // 顺序：先 flat 加减，再 pct 乘法（按习惯叠加方式，便于直觉）
+  private modifyStat(effects: StatusEffect[], base: number, stat: StatusStat): number {
+    let val = base;
+    for (const e of effects) {
+      if (e.stat !== stat) continue;
+      if (e.modType === 'flat') val += e.mod;
+    }
+    let pctMul = 1;
+    for (const e of effects) {
+      if (e.stat !== stat) continue;
+      if (e.modType === 'pct') pctMul += e.mod;
+    }
+    return val * pctMul;
   }
 
   private updateProjectiles(dt: number) {
@@ -569,14 +645,17 @@ export class GameEngine {
         // v2.1.0：按攻击类型结算最终伤害
         let finalDamage = proj.damage;
         if (proj.atkType === 'physical') {
-          finalDamage = Math.max(proj.damage * 0.05, proj.damage - target.stats.def);
+          // v2.3.0：状态效果对防御的修正
+          const def = this.modifyStat(target.effects, target.stats.def, 'def');
+          finalDamage = Math.max(proj.damage * 0.05, proj.damage - def);
         } else if (proj.atkType === 'magic') {
-          const mr = target.stats.magicResist ?? 0;
+          const baseMr = target.stats.magicResist ?? 0;
+          const mr = this.modifyStat(target.effects, baseMr, 'magicResist');
           finalDamage = Math.max(proj.damage * 0.05, proj.damage * (1 - mr / 100));
         } else if (proj.atkType === 'true') {
           finalDamage = proj.damage;
         } else if (proj.atkType === 'heal') {
-          // v2.1.0：治疗型暂不对敌人生效（v2.1.1 接入友军选择）
+          // v2.1.0：治疗型暂不对敌人生效（v2.1.x 接入友军选择再做）
           finalDamage = 0;
         }
         target.stats.hp -= finalDamage;
