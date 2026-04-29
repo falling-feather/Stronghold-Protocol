@@ -603,4 +603,53 @@ export const RESONANCE_DB: Record<string, PactResonance> = {
     effects: [mkResoEffect('resonance_reso_oath_flame_def', '[共鸣·誓火] 焰中铁誓', 'def', 3, 'flat')],
     shackledBoosts: true,
   },
+  // v3.4.1：补齐共鸣覆盖（除 (炎佑,余音) 与 (钢铁,碎铳) 外全 8 对均有共鸣 → 任何 3 选必触发 ≥2 共鸣）
+  reso_phoenix_blade: {
+    id: 'reso_phoenix_blade',
+    name: '共鸣·凤刃',
+    desc: '炎佑 + 碎铳之簧 同时达 tier1：全体攻击 +6',
+    requires: [
+      { defId: 'pact_flame_blessing', minTier: 0 },
+      { defId: 'pact_broken_spring', minTier: 0 },
+    ],
+    scope: 'all_operators',
+    effects: [mkResoEffect('resonance_reso_phoenix_blade_atk', '[共鸣·凤刃] 凤翎之刃', 'atk', 6, 'flat')],
+    shackledBoosts: true,
+  },
+  reso_iron_sky: {
+    id: 'reso_iron_sky',
+    name: '共鸣·铁穹',
+    desc: '钢铁誓约 + 空中猎手 同时达 tier1：全体防御 +4',
+    requires: [
+      { defId: 'pact_iron_resolve', minTier: 0 },
+      { defId: 'pact_aerial_hunter', minTier: 0 },
+    ],
+    scope: 'all_operators',
+    effects: [mkResoEffect('resonance_reso_iron_sky_def', '[共鸣·铁穹] 苍穹之盾', 'def', 4, 'flat')],
+    shackledBoosts: true,
+  },
+  reso_echo_wind: {
+    id: 'reso_echo_wind',
+    name: '共鸣·余风',
+    desc: '余音回响 + 空中猎手 同时达 tier1：全体攻击 +5%',
+    requires: [
+      { defId: 'pact_lingering_echo', minTier: 0 },
+      { defId: 'pact_aerial_hunter', minTier: 0 },
+    ],
+    scope: 'all_operators',
+    effects: [mkResoEffect('resonance_reso_echo_wind_atk', '[共鸣·余风] 余响清风', 'atk', 0.05, 'pct')],
+    shackledBoosts: true,
+  },
+  reso_echo_spring: {
+    id: 'reso_echo_spring',
+    name: '共鸣·余簧',
+    desc: '余音回响 + 碎铳之簧 同时达 tier1：全体攻速 +5%',
+    requires: [
+      { defId: 'pact_lingering_echo', minTier: 0 },
+      { defId: 'pact_broken_spring', minTier: 0 },
+    ],
+    scope: 'all_operators',
+    effects: [mkResoEffect('resonance_reso_echo_spring_aspd', '[共鸣·余簧] 余簧鸣震', 'aspd', -0.05, 'pct')],
+    shackledBoosts: true,
+  },
 };
