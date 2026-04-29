@@ -59,6 +59,7 @@
 - [x] v3.9.0 BGM/SFX 接入：WebAudio 合成骨架（无外部资源），8 个 SFX（部署/射击/受击/波清/失败/点击/事件/成就）+ 3 路混音器（master/sfx/bgm）；主菜单「⚙ 设置」入口含音量滑块 + 试音按钮；BGM 在开战时启动、设置面板可单独试听；GameEngine 在部署/受击/波次清理/事件/成就解锁等节点联动播音
 - [x] v3.10.0 敌人扩充（护盾 / 被击狂怒 / 碎尸召唤）：EnemyTraits 新增 shield + enrageOnHit；新增 3 敌人 — 装甲斥候 (bulwark, 600 护盾，护盾耗尽前不扣 hp)、狂战 (berserker, 命中后 2.5s 内 aspd-15%/spd+25%)、碎晶兽 (splitter, 死亡分裂为 3 只源石虫)；WAVES 追加 3 波 (bulwark/berserker/splitter)；GameEngine.updateProjectiles 加护盾分流 + enrage status 注入；getStateSnapshot 同步 shield/maxShield；Renderer 在 hp 条上方画蓝色护盾条
 - [x] v3.11.0 盟约扩充（搭配 v3.10 新机制）：PactSource 新增 kill_shielded / kill_in_enrage；GameEngine 击杀分支按 traits.shield/effects.id=='enrage_on_hit' 派发；新增 2 盟约 — 破甲誓约 (pact_shield_breaker, kill_shielded → atk +5/10/18%, 枷锁 aspd +5%) 与 狩猎之心 (pact_hunt_enrage, kill_in_enrage perEvent=2 → spd +5/10/15%, 枷锁 mr -3)；SELECTABLE_PACTS 扩至 7；新增 2 共鸣 reso_break_iron (破甲+钢铁→def +5) / reso_hunt_storm (狩猎+高翔→aspd -5%)
+- [x] v3.12.0 共鸣全覆盖（7C2=21）：补齐剩余 9 对 — reso_break_flame/echo/spring/aerial/hunt + reso_hunt_flame/echo/spring/iron；任意 3 选必触发 3 共鸣的全覆盖性恢复
 
 ## v4.x — 联机
 
