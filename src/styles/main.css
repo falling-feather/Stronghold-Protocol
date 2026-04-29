@@ -194,3 +194,92 @@
   line-height: 1.5;
 }
 
+/* === 阵容编排界面（v1.3.0） === */
+#roster-screen {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #0f1722 0%, #1f2d3d 100%);
+  z-index: 9999;
+  color: #ecf0f1;
+  display: flex;
+  flex-direction: column;
+}
+#roster-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 30px;
+}
+.roster-rarity-block {
+  margin-bottom: 22px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 3px solid #f1c40f;
+  border-radius: 3px;
+}
+.roster-rarity-block.invalid {
+  border-left-color: #e74c3c;
+  background: rgba(231, 76, 60, 0.08);
+}
+.roster-rarity-title {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.roster-rarity-title .stars { color: #f1c40f; }
+.roster-rarity-title .slot-info {
+  font-size: 12px;
+  color: #bdc3c7;
+  font-weight: normal;
+}
+.roster-rarity-title .slot-info.warn {
+  color: #e74c3c;
+  font-weight: bold;
+}
+.roster-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
+.roster-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid #34495e;
+  border-radius: 4px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s, background 0.12s;
+  position: relative;
+}
+.roster-card:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.08);
+}
+.roster-card.selected {
+  border-color: #2ecc71;
+  background: rgba(46, 204, 113, 0.12);
+  box-shadow: 0 0 8px rgba(46, 204, 113, 0.4);
+}
+.roster-card.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.roster-card .rc-name {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.roster-card .rc-meta {
+  font-size: 11px;
+  color: #bdc3c7;
+}
+.roster-card .rc-check {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 14px;
+  color: #2ecc71;
+  font-weight: bold;
+}
+

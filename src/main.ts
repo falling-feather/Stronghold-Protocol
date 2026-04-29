@@ -4,6 +4,7 @@ import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps } from './config/gam
 import { resolveSkillForRank } from './config/gameData';
 import { CLASS_TRAITS } from './config/gameData';
 import { FACTION_DB, FactionId, getSavedFactionId, saveFactionId, listFactions } from './config/factions';
+import { ROSTER_SLOTS, Roster, getCandidatesByRarity, loadRoster, saveRoster, validateRoster, rosterToAllowedSet } from './config/roster';
 import { Direction } from './types';
 
 // 开始界面控制（延迟获取，确保DOM已加载）
@@ -75,7 +76,8 @@ function initGame() {
   selectRandomMap();
 
   // 初始化引擎和渲染器
-  engine = new GameEngine(currentFactionId);
+  const allowed = rosterToAllowedSet(currentRoster);
+  engine = new GameEngine(currentFactionId, allowed);
   renderer = new Renderer(canvas);
 
   // 设置事件监听
@@ -844,6 +846,7 @@ function initStartScreen() {
 
 // === 阵营选择页（v1.3.0）===
 let currentFactionId: FactionId = getSavedFactionId();
+let currentRoster: Roster = loadRoster();
 
 function showFactionScreen() {
   if (startScreen) startScreen.style.display = 'none';
@@ -863,10 +866,19 @@ function initFactionScreen() {
   if (!fs) return;
   document.getElementById('btn-faction-back')?.addEventListener('click', hideFactionScreen);
   document.getElementById('btn-faction-confirm')?.addEventListener('click', () => {
+    // 出战前不重复校验阵容（默认 / 完整阵容均合法）；这里只告警但不阻止
+    const v = validateRoster(currentRoster);
+    if (!v.ok) {
+      alert('当前阵容未填满稀有度：' + v.missing.join('、') + '，请先完成阵容编排。');
+      showRosterScreen();
+      return;
+    }
     saveFactionId(currentFactionId);
     fs.style.display = 'none';
     initGame();
   });
+  document.getElementById('btn-open-roster')?.addEventListener('click', showRosterScreen);
+  initRosterScreen();
 }
 
 function renderFactionScreen() {
@@ -906,4 +918,95 @@ function renderFactionScreen() {
       ${f.perks.map(p => `<li>${p}</li>`).join('')}
     </ul>
   `;
+}
+
+// === 阵容编排页（v1.3.0）===
+function showRosterScreen() {
+  const fs = document.getElementById('faction-screen')!;
+  const rs = document.getElementById('roster-screen')!;
+  fs.style.display = 'none';
+  rs.style.display = 'flex';
+  renderRosterScreen();
+}
+
+function hideRosterScreen() {
+  const rs = document.getElementById('roster-screen')!;
+  const fs = document.getElementById('faction-screen')!;
+  rs.style.display = 'none';
+  fs.style.display = 'flex';
+  renderFactionScreen();
+}
+
+function initRosterScreen() {
+  document.getElementById('btn-roster-back')?.addEventListener('click', hideRosterScreen);
+  document.getElementById('btn-roster-save')?.addEventListener('click', () => {
+    const v = validateRoster(currentRoster);
+    if (!v.ok) {
+      alert('阵容未填满！以下稀有度需补选：' + v.missing.map(r => '★'.repeat(r)).join(' / '));
+      return;
+    }
+    saveRoster(currentRoster);
+    hideRosterScreen();
+  });
+}
+
+function renderRosterScreen() {
+  const body = document.getElementById('roster-body')!;
+  const cands = getCandidatesByRarity();
+  const rarities = Object.keys(cands).map(Number).sort((a, b) => a - b);
+  const v = validateRoster(currentRoster);
+  const missingSet = new Set(v.missing);
+
+  body.innerHTML = '';
+  rarities.forEach(rarity => {
+    const slots = ROSTER_SLOTS[rarity] ?? 1;
+    const candIds = cands[rarity];
+    const required = Math.min(slots, candIds.length);
+    const picked = currentRoster[rarity] || [];
+    const isInvalid = missingSet.has(rarity);
+
+    const block = document.createElement('div');
+    block.className = 'roster-rarity-block' + (isInvalid ? ' invalid' : '');
+    const slotInfoCls = picked.length < required ? 'slot-info warn' : 'slot-info';
+    block.innerHTML = `
+      <div class="roster-rarity-title">
+        <span class="stars">${'★'.repeat(rarity)}</span>
+        <span>稀有度 ${rarity}</span>
+        <span class="${slotInfoCls}">已选 ${picked.length} / 需要 ${required}（候选 ${candIds.length}）</span>
+      </div>
+      <div class="roster-cards" data-rarity="${rarity}"></div>
+    `;
+    const cardsContainer = block.querySelector('.roster-cards') as HTMLElement;
+
+    candIds.forEach(id => {
+      const tpl = OPERATOR_DB[id];
+      const isPicked = picked.includes(id);
+      const isFull = picked.length >= required && !isPicked;
+      const card = document.createElement('div');
+      card.className = 'roster-card' + (isPicked ? ' selected' : '') + (isFull ? ' disabled' : '');
+      card.style.borderLeft = `4px solid ${tpl.color}`;
+      card.innerHTML = `
+        ${isPicked ? '<div class="rc-check">✓</div>' : ''}
+        <div class="rc-name">${tpl.name}</div>
+        <div class="rc-meta">${tpl.placement === 'ground' ? '地面' : '高台'} · 费用 ${tpl.cost}</div>
+      `;
+      card.addEventListener('click', () => toggleRosterPick(rarity, id, required));
+      cardsContainer.appendChild(card);
+    });
+
+    body.appendChild(block);
+  });
+}
+
+function toggleRosterPick(rarity: number, id: string, required: number) {
+  const picked = currentRoster[rarity] || [];
+  const idx = picked.indexOf(id);
+  if (idx >= 0) {
+    picked.splice(idx, 1);
+  } else {
+    if (picked.length >= required) return; // 已满
+    picked.push(id);
+  }
+  currentRoster[rarity] = picked;
+  renderRosterScreen();
 }

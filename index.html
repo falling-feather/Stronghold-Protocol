@@ -502,7 +502,10 @@
       <div class="faction-header">
         <button class="faction-back" id="btn-faction-back">← 返回</button>
         <h2>阵营选择</h2>
-        <button class="faction-confirm" id="btn-faction-confirm">确认出战 →</button>
+        <div style="display:flex;gap:10px;">
+          <button class="faction-back" id="btn-open-roster">阵容编排</button>
+          <button class="faction-confirm" id="btn-faction-confirm">确认出战 →</button>
+        </div>
       </div>
       <div class="faction-body">
         <!-- 左 2/5：选中阵营详情 -->
@@ -513,6 +516,18 @@
         <div class="faction-grid" id="faction-grid">
           <!-- JS 渲染 -->
         </div>
+      </div>
+    </div>
+
+    <!-- 阵容编排界面（v1.3.0） -->
+    <div id="roster-screen" style="display:none;">
+      <div class="faction-header">
+        <button class="faction-back" id="btn-roster-back">← 返回阵营</button>
+        <h2>阵容编排</h2>
+        <button class="faction-confirm" id="btn-roster-save">保存 ✓</button>
+      </div>
+      <div id="roster-body">
+        <!-- JS 渲染：按稀有度分组的干员卡片 -->
       </div>
     </div>
 

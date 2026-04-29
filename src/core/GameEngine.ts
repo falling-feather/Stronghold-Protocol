@@ -33,6 +33,8 @@ export class GameEngine {
   
   phase: GamePhase = 'PREP';
   factionId: FactionId;
+  // 阵容编排：只有这些 templateId 会进入商店抽取池；null = 不过滤
+  allowedTemplateIds: Set<string> | null = null;
   money: number;
   lives: number;
   waveIndex: number = 0;
@@ -62,8 +64,9 @@ export class GameEngine {
   private totalEnemiesInWave: number = 0; // 当前波次的总怪物数
   private killedEnemiesInWave: number = 0; // 当前波次已击杀的怪物数
 
-  constructor(factionId: FactionId = 'command') {
+  constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null) {
     this.factionId = factionId;
+    this.allowedTemplateIds = allowedTemplateIds;
     const eff = FACTION_DB[factionId].effect;
     this.lives = eff.initialLives ?? CONFIG.BASE_LIVES;
     this.money = eff.initialMoney ?? CONFIG.BASE_MONEY;
@@ -232,10 +235,17 @@ export class GameEngine {
       }
     }
     const candidates = Object.entries(OPERATOR_DB)
-      .filter(([_, op]) => op.rarity === targetRarity)
+      .filter(([id, op]) => op.rarity === targetRarity && (this.allowedTemplateIds === null || this.allowedTemplateIds.has(id)))
       .map(([id, _]) => id);
 
-    if (candidates.length === 0) return Object.keys(OPERATOR_DB)[0];
+    if (candidates.length === 0) {
+      // 当前稀有度在 roster 里为空，退回全部允许同稀有度
+      const fallback = Object.entries(OPERATOR_DB)
+        .filter(([_, op]) => op.rarity === targetRarity)
+        .map(([id, _]) => id);
+      if (fallback.length === 0) return Object.keys(OPERATOR_DB)[0];
+      return fallback[Math.floor(Math.random() * fallback.length)];
+    }
     return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
