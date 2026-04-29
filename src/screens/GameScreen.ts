@@ -224,6 +224,7 @@ function renderPactBadges(): void {
     return;
   }
   const tierColors = ['#7f8c8d', '#3498db', '#9b59b6', '#f1c40f'];
+  const now = performance.now();
   container.innerHTML = engine.pacts.map(rt => {
     const def = PACT_DB[rt.defId];
     if (!def) return '';
@@ -235,7 +236,11 @@ function renderPactBadges(): void {
     const nextDesc = nextTier ? `\n下一档 @ ${nextTier.threshold}：${nextTier.description}` : '\n已达最高档';
     const title = `${def.name}${rt.shackled ? ' ⛓枷锁' : ''}（${rt.stack}/${def.cap}）\n${def.desc}\n当前：${tierDesc}${nextDesc}${(def.penaltyDesc && rt.shackled) ? '\n' + def.penaltyDesc + '（生效中）' : ''}`;
     const borderColor = rt.shackled ? '#c0392b' : 'rgba(255,255,255,0.4)';
-    return `<div class="pact-badge" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:bold;margin-left:6px;border:2px solid ${borderColor};">${rt.stack}${rt.shackled ? '⛓' : ''}</div>`;
+    // v3.2.2：根据时间戳决定动画 class
+    const cls: string[] = ['pact-badge'];
+    if (rt.lastTierUpAt && now - rt.lastTierUpAt < 1000) cls.push('tier-up');
+    else if (rt.lastStackChangeAt && now - rt.lastStackChangeAt < 280) cls.push('stack-bump');
+    return `<div class="${cls.join(' ')}" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:bold;margin-left:6px;border:2px solid ${borderColor};">${rt.stack}${rt.shackled ? '⛓' : ''}</div>`;
   }).join('');
 }
 

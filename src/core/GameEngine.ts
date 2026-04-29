@@ -656,6 +656,7 @@ export class GameEngine {
   onPactEvent(source: PactSource) {
     if (this.pacts.length === 0) return;
     let dirty = false;
+    const now = performance.now();
     for (const rt of this.pacts) {
       const def = PACT_DB[rt.defId];
       if (!def) continue;
@@ -663,7 +664,11 @@ export class GameEngine {
       if (!matched) continue;
       const before = rt.stack;
       rt.stack = Math.max(0, Math.min(def.cap, rt.stack + matched.perEvent));
-      if (rt.stack !== before) dirty = this.reconcilePactTier(rt) || dirty;
+      if (rt.stack !== before) {
+        rt.lastStackChangeAt = now; // v3.2.2：触发徽记 stack-bump 动画
+        this.reconcilePactTier(rt);
+        dirty = true;
+      }
     }
     if (dirty) this.notifyUpdate();
   }
@@ -680,6 +685,8 @@ export class GameEngine {
       if (rt.stack >= thr(def.tiers[i].threshold)) newTier = i; else break;
     }
     if (newTier === rt.appliedTier) return false;
+    // v3.2.2：tier 升阶动画时间戳（仅升阶不下降）
+    if (newTier > rt.appliedTier) rt.lastTierUpAt = performance.now();
     // 撤掉旧 tier 的 effects（按 id 前缀匹配）
     const idPrefix = `pact_${def.id.replace(/^pact_/, '')}_`;
     if (def.scope === 'all_operators') {
@@ -741,7 +748,9 @@ export class GameEngine {
       while (rt.decayAccum >= def.decay.interval && rt.stack > 0) {
         rt.decayAccum -= def.decay.interval;
         rt.stack = Math.max(0, rt.stack - def.decay.perTick);
+        rt.lastStackChangeAt = performance.now(); // v3.2.2
         dirty = this.reconcilePactTier(rt) || dirty;
+        dirty = true;
       }
       if (rt.stack === 0) rt.decayAccum = 0;
     }

@@ -37,6 +37,7 @@
 - [x] v3.1.0 开局盟约选择 UI + 5 个盟约：新增 PactScreen（阵营确认 → 选 1-2 个盟约 → 出战）；GameEngine 构造器接受 activePactIds；新增「高翔之狩」(kill_flying → atk +5%/12%/20%) 与「钢铁誓约」(deploy_any → def +5/12/25 flat)
 - [x] v3.2.0 誓约枷锁（负面盟约）：PactDefinition 新增 penalty/penaltyDesc；getActivePactEffectsForOperator 部署时无视 tier 附加 penalty 至干员；PactScreen 卡片显示 ⛓ 红色枷锁段；5 盟约各配代价（炎佑 def-3 / 余音 mr-5 / 碎铳之簧 def-5 / 高翔之狩 mr-3 / 钢铁誓约 atk-8%）
 - [x] v3.2.1 枷锁可选开关：每个盟约可在 PactScreen 切换「普通/枷锁」模式（默认普通）；枷锁模式 = 阈值 ×0.7 上取整 + penalty 生效；PactRuntime.shackled / PactSelection 类型；GameEngine 构造器接受 PactSelection[]；徽记加 ⛓ 标记 + 红边
+- [x] v3.2.2 视觉反馈：PactRuntime.lastTierUpAt / lastStackChangeAt 时间戳；CSS @keyframes pact-tier-up（升阶金光脉冲）+ pact-stack-bump（叠层小弹跳）；renderPactBadges 按时间戳挂 class
 
 ## v4.x — 联机
 

@@ -109,6 +109,9 @@ export interface PactRuntime {
   appliedTier: number; // -1 表示未达任何阈值
   decayAccum: number;
   shackled?: boolean; // v3.2.1：枷锁模式（true=承受 penalty，但阈值降低）
+  // v3.2.2：UI 动画用时间戳（ms，performance.now()）
+  lastTierUpAt?: number;
+  lastStackChangeAt?: number;
 }
 
 // v3.2.1：玩家选盟约时携带的元信息

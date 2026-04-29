@@ -293,3 +293,18 @@
   font-weight: bold;
 }
 
+
+/* v3.2.2: pact badge animations */
+@keyframes pact-tier-up {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,215,0,0.95); }
+  40% { transform: scale(1.45); box-shadow: 0 0 12px 6px rgba(255,215,0,0.7); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,215,0,0); }
+}
+@keyframes pact-stack-bump {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.pact-badge.tier-up { animation: pact-tier-up 1.0s ease-out; }
+.pact-badge.stack-bump { animation: pact-stack-bump 0.28s ease-out; }
+.pact-badge.shackled-pulse { animation: pact-tier-up 0.8s ease-out; filter: hue-rotate(-40deg); }
