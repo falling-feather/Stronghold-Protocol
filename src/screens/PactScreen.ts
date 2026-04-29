@@ -1,5 +1,5 @@
-// 盟约选择页（v3.1.0；v3.2.1：每个盟约可切换 普通/枷锁 模式）
-import { PACT_DB, SELECTABLE_PACTS, PACT_PICK_MIN, PACT_PICK_MAX } from '../config/gameData';
+// 盟约选择页（v3.1.0；v3.2.1：每个盟约可切换 普通/枷锁 模式；v3.3.2：预览潜在共鸣）
+import { PACT_DB, SELECTABLE_PACTS, PACT_PICK_MIN, PACT_PICK_MAX, RESONANCE_DB } from '../config/gameData';
 import { PactSelection } from '../types';
 import { screenState, showOnly } from './shared';
 import { startGame } from './GameScreen';
@@ -34,6 +34,28 @@ function renderPactScreen(): void {
   if (!grid || !counter) return;
 
   counter.textContent = `已选 ${selections.length} / ${PACT_PICK_MAX}（至少 ${PACT_PICK_MIN}）`;
+
+  // v3.3.2：共鸣预览 — 扫描 RESONANCE_DB，列出当前选择可能触发的共鸣
+  let preview = document.getElementById('pact-resonance-preview') as HTMLDivElement | null;
+  if (!preview) {
+    preview = document.createElement('div');
+    preview.id = 'pact-resonance-preview';
+    preview.style.cssText = 'margin:10px 0 4px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;';
+    counter.parentElement?.insertBefore(preview, counter.nextSibling);
+  }
+  const selIds = new Set(selections.map(s => s.defId));
+  const matched = Object.values(RESONANCE_DB).filter(r => r.requires.every(req => selIds.has(req.defId)));
+  if (matched.length === 0) {
+    preview.innerHTML = '';
+  } else {
+    preview.innerHTML = matched.map(r => {
+      const tip = r.requires.map(req => {
+        const d = PACT_DB[req.defId];
+        return d ? `${d.name} 达 tier${req.minTier + 1}` : req.defId;
+      }).join(' + ');
+      return `<div title="需满足：${tip}" style="padding:4px 12px;border-radius:14px;background:linear-gradient(90deg,#f1c40f,#e67e22);color:#000;font-size:12px;font-weight:bold;border:1px solid #fff;">✨ 潜在共鸣：${r.name} — ${r.desc.split('：').pop()}</div>`;
+    }).join('');
+  }
 
   grid.innerHTML = '';
   for (const id of SELECTABLE_PACTS) {
