@@ -3,6 +3,7 @@ import { showFactionScreen, initFactionScreen } from './FactionScreen';
 import { showMultiplayerScreen, initMultiplayerScreen } from './MultiplayerScreen';
 import { showMetaScreen, initMetaScreen } from './MetaScreen';
 import { showAchievementScreen, initAchievementScreen } from './AchievementScreen';
+import { showDailyScreen, initDailyScreen } from './DailyScreen';
 
 export function initStartScreen(): void {
   const startScreen = document.getElementById('start-screen');
@@ -18,9 +19,11 @@ export function initStartScreen(): void {
   document.getElementById('btn-multiplayer')?.addEventListener('click', () => showMultiplayerScreen());
   document.getElementById('btn-meta-tree')?.addEventListener('click', () => showMetaScreen());
   document.getElementById('btn-achievements')?.addEventListener('click', () => showAchievementScreen());
+  document.getElementById('btn-daily')?.addEventListener('click', () => showDailyScreen());
 
   initFactionScreen();
   initMultiplayerScreen();
   initMetaScreen();
   initAchievementScreen();
+  initDailyScreen();
 }

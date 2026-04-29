@@ -11,7 +11,7 @@ export const screenState = {
 
 // 通用：在多个全屏页之间切换显示（只支持 'start-screen' / 'faction-screen' / 'roster-screen' / 'mp-screen' / 'app-root' 等已知 id）
 export function showOnly(targetId: string, displayMode: string = 'flex'): void {
-  const ids = ['start-screen', 'faction-screen', 'roster-screen', 'mp-screen', 'pact-screen', 'meta-screen', 'boon-screen', 'achievement-screen', 'app-root'];
+  const ids = ['start-screen', 'faction-screen', 'roster-screen', 'mp-screen', 'pact-screen', 'meta-screen', 'boon-screen', 'achievement-screen', 'daily-screen', 'app-root'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;

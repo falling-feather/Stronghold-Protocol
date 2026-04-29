@@ -14,12 +14,18 @@ export interface MetaStats {
   shackledRunsWon: number;
 }
 
+export interface DailyState {
+  lastCompletedDate: string; // YYYY-MM-DD；空串表示从未完成
+}
+
 export interface MetaSave {
   shards: number;
   upgrades: Record<string, number>;
   // v3.7.0
   stats: MetaStats;
   achievements: string[]; // 已解锁成就 id
+  // v3.8.0
+  daily: DailyState;
 }
 
 const DEFAULT_STATS: MetaStats = {
@@ -32,7 +38,9 @@ const DEFAULT_STATS: MetaStats = {
   shackledRunsWon: 0,
 };
 
-const DEFAULT_META: MetaSave = { shards: 0, upgrades: {}, stats: { ...DEFAULT_STATS }, achievements: [] };
+const DEFAULT_DAILY: DailyState = { lastCompletedDate: '' };
+
+const DEFAULT_META: MetaSave = { shards: 0, upgrades: {}, stats: { ...DEFAULT_STATS }, achievements: [], daily: { ...DEFAULT_DAILY } };
 
 let cache: MetaSave | null = null;
 
@@ -50,6 +58,7 @@ export function loadMeta(): MetaSave {
       upgrades: parsed.upgrades && typeof parsed.upgrades === 'object' ? parsed.upgrades : {},
       stats: { ...DEFAULT_STATS, ...(parsed.stats ?? {}) },
       achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
+      daily: { ...DEFAULT_DAILY, ...(parsed.daily ?? {}) },
     };
     return cache;
   } catch {
@@ -92,7 +101,7 @@ export function resetMeta(): void {
 // v3.6.3：重置并按比例返还已花费碎片（pct 默认 0.8）
 export function resetMetaWithRefund(totalSpent: number, pct: number = 0.8): number {
   const refund = Math.floor(totalSpent * pct);
-  cache = { shards: refund, upgrades: {}, stats: loadMeta().stats, achievements: loadMeta().achievements };
+  cache = { shards: refund, upgrades: {}, stats: loadMeta().stats, achievements: loadMeta().achievements, daily: loadMeta().daily };
   saveMeta(cache);
   return refund;
 }
@@ -138,4 +147,15 @@ export function unlockAchievement(id: string): boolean {
   m.achievements.push(id);
   saveMeta(m);
   return true;
+}
+
+// v3.8.0：每日挑战
+export function getDailyState(): DailyState {
+  return loadMeta().daily;
+}
+
+export function setDailyCompleted(date: string): void {
+  const m = loadMeta();
+  m.daily.lastCompletedDate = date;
+  saveMeta(m);
 }

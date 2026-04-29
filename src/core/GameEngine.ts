@@ -2,8 +2,9 @@ import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, PACT_
 import { rollEvent, EVENT_TRIGGER_CHANCE } from '../config/eventData';
 import { BoonId, BOON_DB } from '../config/boonData';
 import { getStartingMoneyBonus, getPactExtraStack, getEventChanceBonus, getStartingSpBonus, getStartingLivesBonus, getDecayMultiplier, calcShardsForRun } from '../config/metaData';
-import { addShards, bumpStat, setStatMax, recordBoonUsed, getStats, unlockAchievement, isAchievementUnlocked } from './MetaSave';
+import { addShards, bumpStat, setStatMax, recordBoonUsed, getStats, unlockAchievement, isAchievementUnlocked, getDailyState, setDailyCompleted } from './MetaSave';
 import { ACHIEVEMENTS, checkAchievements } from '../config/achievements';
+import { getDailyChallenge, getTodayDate } from '../config/dailyData';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
 import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection, EventCard, EventEngineHandle } from '../types';
@@ -79,8 +80,10 @@ export class GameEngine {
   eventHistory: { eventId: string; eventName: string; rarity: 'common'|'rare'|'epic'; optionIdx: number; optionLabel: string; afterWave: number }[] = [];
   // v3.6.2：本局开局福利（boon）
   activeBoonId: BoonId | null = null;
+  // v3.8.0是否为每日挑战局
+  isDailyMode: boolean = false;
 
-  constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null, activePactSelections: PactSelection[] | null = null, activeBoonId: BoonId | null = null) {
+  constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null, activePactSelections: PactSelection[] | null = null, activeBoonId: BoonId | null = null, isDailyMode: boolean = false) {
     this.factionId = factionId;
     this.allowedTemplateIds = allowedTemplateIds;
     this.activeBoonId = activeBoonId;
@@ -109,6 +112,8 @@ export class GameEngine {
     // v3.7.0：开局统计
     bumpStat('totalRunsAttempted', 1);
     if (activeBoonId) recordBoonUsed(activeBoonId);
+    // v3.8.0
+    this.isDailyMode = isDailyMode;
   }
 
   // 公开给 ShopSystem 调用
@@ -196,7 +201,20 @@ export class GameEngine {
       bumpStat('totalRunsWon', 1);
       if (this.pacts.some(p => p.shackled)) bumpStat('shackledRunsWon', 1);
       this.checkAndAnnounceAchievements();
-      alert(`全域威胁已清除！\n获得碎片：+${earned}（含通关奖励 50 + 每史诗事件 +15）`);
+      // v3.8.0：每日挑战奖励（每日仅 1 次）
+      let dailyMsg = '';
+      if (this.isDailyMode) {
+        const today = getTodayDate();
+        if (getDailyState().lastCompletedDate !== today) {
+          const daily = getDailyChallenge(today);
+          setDailyCompleted(today);
+          addShards(daily.rewardShards);
+          dailyMsg = `\n★ 每日挑战完成 +${daily.rewardShards} 碎片`;
+        } else {
+          dailyMsg = '\n（今日挑战已结算，不重复发奖）';
+        }
+      }
+      alert(`全域威胁已清除！\n获得碎片：+${earned}（含通关奖励 50 + 每史诗事件 +15）${dailyMsg}`);
       return false;
     }
   }
