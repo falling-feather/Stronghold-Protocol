@@ -79,6 +79,12 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
 
   engine.onStateUpdated = () => renderUI();
 
+  // v3.5.3：事件日志按钮（点击弹出已触发事件历史）
+  const btnEventLog = document.getElementById('btn-event-log');
+  if (btnEventLog) {
+    btnEventLog.onclick = () => showEventLogModal();
+  }
+
   renderUI();
 
   lastTime = performance.now();
@@ -202,6 +208,13 @@ function renderUI(): void {
   renderShop();
   renderBench();
   updateDetailPanel();
+  renderEventModal();
+  // v3.5.3：根据是否有事件历史显示日志按钮
+  const btnEventLog = document.getElementById('btn-event-log');
+  if (btnEventLog) {
+    btnEventLog.style.display = engine.eventHistory.length > 0 ? '' : 'none';
+    btnEventLog.textContent = `📜 ${engine.eventHistory.length}`;
+  }
 
   const upgradeCost = engine.coreLevel * 10;
   if (engine.coreLevel >= 5) {
@@ -213,6 +226,90 @@ function renderUI(): void {
   }
 
   setTimeout(() => calculateLayout(), 50);
+}
+
+// v3.5.0：事件卡 modal 渲染（基于 engine.pendingEvent 状态）
+function renderEventModal(): void {
+  if (!engine) return;
+  let overlay = document.getElementById('event-overlay');
+  if (!engine.pendingEvent) {
+    if (overlay) overlay.remove();
+    return;
+  }
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'event-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:9999;';
+    document.body.appendChild(overlay);
+  }
+  const ev = engine.pendingEvent;
+  // v3.5.2：按 rarity 着色（边框 + 标签）
+  const rarity = ev.rarity ?? 'common';
+  const rarityStyle = {
+    common: { color: '#bdc3c7', label: '常见', glow: 'rgba(189,195,199,0.4)' },
+    rare:   { color: '#3498db', label: '稀有', glow: 'rgba(52,152,219,0.55)' },
+    epic:   { color: '#9b59b6', label: '史诗', glow: 'rgba(155,89,182,0.65)' },
+  }[rarity];
+  const optsHtml = ev.options.map((o, i) => `
+    <button class="event-opt-btn" data-idx="${i}" style="display:block;width:100%;margin:8px 0;padding:12px 14px;background:linear-gradient(135deg,#3a3f4b,#2c3038);color:${rarityStyle.color};border:1px solid ${rarityStyle.color};border-radius:6px;cursor:pointer;text-align:left;font-size:14px;">
+      <div style="font-weight:700;color:#fff;">${o.label}</div>
+      <div style="font-size:12px;color:#bdc3c7;margin-top:3px;">${o.desc}</div>
+    </button>
+  `).join('');
+  overlay.innerHTML = `
+    <div style="max-width:520px;width:90%;background:linear-gradient(180deg,#1f2530,#161a22);border:2px solid ${rarityStyle.color};border-radius:10px;padding:22px;box-shadow:0 0 32px ${rarityStyle.glow}, 0 10px 40px rgba(0,0,0,0.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:${rarityStyle.color};letter-spacing:2px;">
+        <span>⚑ 战场事件</span>
+        <span style="background:${rarityStyle.color};color:#161a22;padding:2px 8px;border-radius:4px;font-weight:700;letter-spacing:1px;">${rarityStyle.label}</span>
+      </div>
+      <div style="font-size:22px;font-weight:700;color:#fff;margin:6px 0 10px;">${ev.name}</div>
+      <div style="font-size:13px;color:#ecf0f1;line-height:1.6;margin-bottom:12px;">${ev.desc}</div>
+      ${optsHtml}
+    </div>
+  `;
+  overlay.querySelectorAll<HTMLButtonElement>('.event-opt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx || '0', 10);
+      engine!.resolveEvent(idx);
+    });
+  });
+}
+
+// v3.5.3：事件日志 modal（顶栏按钮触发）
+function showEventLogModal(): void {
+  if (!engine) return;
+  let overlay = document.getElementById('event-log-overlay');
+  if (overlay) { overlay.remove(); return; }
+  overlay = document.createElement('div');
+  overlay.id = 'event-log-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9998;';
+  const rarityColor: Record<'common'|'rare'|'epic', string> = {
+    common: '#bdc3c7', rare: '#3498db', epic: '#9b59b6',
+  };
+  const items = engine.eventHistory.length === 0
+    ? '<div style="color:#7f8c8d;text-align:center;padding:24px;">本局尚未触发任何事件</div>'
+    : engine.eventHistory.map((h, i) => `
+      <div style="border-left:3px solid ${rarityColor[h.rarity]};padding:10px 12px;margin:8px 0;background:rgba(255,255,255,0.04);border-radius:4px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:${rarityColor[h.rarity]};">
+          <span>第 ${h.afterWave} 波后 · ${h.rarity === 'common' ? '常见' : h.rarity === 'rare' ? '稀有' : '史诗'}</span>
+          <span>#${i + 1}</span>
+        </div>
+        <div style="font-size:15px;font-weight:700;color:#fff;margin:4px 0 2px;">${h.eventName}</div>
+        <div style="font-size:13px;color:#ecf0f1;">→ ${h.optionLabel}</div>
+      </div>
+    `).join('');
+  overlay.innerHTML = `
+    <div style="max-width:560px;width:92%;max-height:80vh;overflow-y:auto;background:linear-gradient(180deg,#1f2530,#161a22);border:2px solid #f1c40f;border-radius:10px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,0.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:18px;font-weight:700;color:#f1c40f;">📜 事件日志（共 ${engine.eventHistory.length} 条）</div>
+        <button id="event-log-close" style="background:transparent;color:#fff;border:1px solid #7f8c8d;border-radius:4px;padding:4px 10px;cursor:pointer;">关闭</button>
+      </div>
+      ${items}
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#event-log-close')?.addEventListener('click', () => overlay!.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay!.remove(); });
 }
 
 // v3.0.0：盟约徽记渲染

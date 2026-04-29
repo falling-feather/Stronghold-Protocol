@@ -120,7 +120,7 @@ export interface PactSelection {
   shackled: boolean;
 }
 
-// v3.3.0：盟约共鸣 — 当多个盟约同时达到 minTier 时激活的额外加成
+// v3.3.0：盟约共鸣 — 当多个盟约同时达 minTier 时激活的额外加成
 export interface PactResonance {
   id: string; // 例如 'reso_flame_storm'，运行时 sourceId 形如 'resonance_<id>_<n>'
   name: string;
@@ -129,6 +129,33 @@ export interface PactResonance {
   scope: 'all_operators' | 'all_enemies';
   effects: StatusEffect[]; // 激活期间挂载到 scope 内全体单位  // v3.3.3：枷锁升阶 — 若 requires 中至少 1 个 pact 是 shackled，效果加成翻倍（复制一份 effects）
   shackledBoosts?: boolean;}
+
+// v3.5.0：事件卡（波之间随机弹出，玩家选 1 选项触发效果）
+export interface EventEngineHandle {
+  money: number;
+  addPactStack(defId: string, n: number): void;
+  addAllOperatorsSp(amount: number): void;
+  notifyUpdate(): void;
+}
+export interface EventOption {
+  label: string;
+  desc: string;
+  apply: (e: EventEngineHandle) => void;
+}
+export interface EventCard {
+  id: string;
+  name: string;
+  desc: string;
+  options: EventOption[];
+  // v3.5.2：品质与权重 — 抽卡按 weight 加权；rarity 仅 UI 配色用
+  rarity?: 'common' | 'rare' | 'epic';
+  weight?: number;
+  // v3.5.4：波次联动
+  minWave?: number;   // 仅 currentWave >= minWave 时可抽（含等于）
+  maxWave?: number;   // 仅 currentWave <= maxWave 时可抽
+  once?: boolean;     // 整局仅可触发 1 次
+  cooldown?: number;  // 触发后 cooldown 波内不再抽到（不与 once 同用）
+}
 
 export interface Enemy extends Entity {
   waypointIndex: number;

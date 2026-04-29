@@ -1,7 +1,8 @@
 import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, PACT_DB, DEFAULT_ACTIVE_PACTS, RESONANCE_DB, resolveSkillForRank, applyTalentsToStats, buildTalentEffects } from '../config/gameData';
+import { rollEvent } from '../config/eventData';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
-import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection } from '../types';
+import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection, EventCard, EventEngineHandle } from '../types';
 import { getDistance, moveTowards, checkCollision, isInAttackRange } from './MathUtils';
 
 export interface BenchOperator {
@@ -68,6 +69,10 @@ export class GameEngine {
   // v3.3.3：值改为 boolean 表示是否处于「枷锁加成」翻倍状态
   activeResonances: Map<string, boolean> = new Map();
   resonanceActivatedAt: Record<string, number> = {};
+  // v3.5.0：待解决事件卡（波之间随机触发，玩家选一项后调 resolveEvent 清空）
+  pendingEvent: EventCard | null = null;
+  // v3.5.3：本局事件日志
+  eventHistory: { eventId: string; eventName: string; rarity: 'common'|'rare'|'epic'; optionIdx: number; optionLabel: string; afterWave: number }[] = [];
 
   constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null, activePactSelections: PactSelection[] | null = null) {
     this.factionId = factionId;
@@ -196,7 +201,68 @@ export class GameEngine {
         alert(`=== 第 ${this.waveIndex} 波次完成 ===\n获得资金: ${this.currentWaveReward}`);
         this.refreshShop(true);
         this.notifyUpdate(); // 触发UI弹出底部
+        // v3.5.0：尝试触发事件卡（不与 alert 冲突，alert 关闭后立即弹出 modal）
+        if (!this.pendingEvent) {
+          // v3.5.4：传入 currentWave + history 以支持 minWave/once/cooldown 过滤
+          const ev = rollEvent(this.waveIndex, this.eventHistory);
+          if (ev) {
+            this.pendingEvent = ev;
+            this.notifyUpdate();
+          }
+        }
     }, 100);
+  }
+
+  // v3.5.0：事件卡 — 玩家选择某选项后调用
+  resolveEvent(optionIndex: number) {
+    if (!this.pendingEvent) return;
+    const opt = this.pendingEvent.options[optionIndex];
+    if (!opt) return;
+    const ev = this.pendingEvent;
+    const handle = this.asEventHandle();
+    opt.apply(handle);
+    // v3.5.3：写入事件日志
+    this.eventHistory.push({
+      eventId: ev.id,
+      eventName: ev.name,
+      rarity: ev.rarity ?? 'common',
+      optionIdx: optionIndex,
+      optionLabel: opt.label,
+      afterWave: this.waveIndex,
+    });
+    this.pendingEvent = null;
+    this.notifyUpdate();
+  }
+
+  // v3.5.0：暴露给事件卡 apply 的最小 API
+  private asEventHandle(): EventEngineHandle {
+    const self = this;
+    return {
+      get money() { return self.money; },
+      set money(v: number) { self.money = v; },
+      addPactStack: (defId: string, n: number) => {
+        const rt = self.pacts.find(p => p.defId === defId);
+        if (!rt) return;
+        const def = PACT_DB[defId];
+        if (!def) return;
+        const before = rt.stack;
+        rt.stack = Math.max(0, Math.min(def.cap, rt.stack + n));
+        if (rt.stack !== before) {
+          rt.lastStackChangeAt = performance.now();
+          // 复用 reconcilePactTier（私有方法，类内可调）
+          (self as any).reconcilePactTier(rt);
+          self.notifyUpdate();
+        }
+      },
+      addAllOperatorsSp: (amount: number) => {
+        for (const op of self.operators) {
+          if (op.isRetreated) continue;
+          op.currentSp = Math.min(op.skill.cost, op.currentSp + amount);
+        }
+        self.notifyUpdate();
+      },
+      notifyUpdate: () => self.notifyUpdate(),
+    };
   }
 
   // === 商店与经济（v1.5.0：实现迁至 ShopSystem，此处保留 thin proxy）===
