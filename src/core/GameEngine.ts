@@ -706,11 +706,18 @@ export class GameEngine {
   }
 
   // v3.0.0：返回当前已激活 tier 的所有 effects（用于干员部署时叠加）
+  // v3.2.0：同时附加每个激活盟约的 penalty（枷锁），无视 tier
   getActivePactEffectsForOperator(): StatusEffect[] {
     const out: StatusEffect[] = [];
     for (const rt of this.pacts) {
       const def = PACT_DB[rt.defId];
-      if (!def || def.scope !== 'all_operators' || rt.appliedTier < 0) continue;
+      if (!def || def.scope !== 'all_operators') continue;
+      // 枷锁：选择即背负，与 tier 无关
+      if (def.penalty) {
+        for (const eff of def.penalty) out.push({ ...eff, remaining: eff.duration });
+      }
+      // tier 加成：仅当 stack 达阈值
+      if (rt.appliedTier < 0) continue;
       for (const eff of def.tiers[rt.appliedTier].effects) out.push({ ...eff, remaining: eff.duration });
     }
     return out;

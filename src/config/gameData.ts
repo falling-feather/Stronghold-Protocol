@@ -443,6 +443,11 @@ const mkPactEffect = (id: string, name: string, stat: 'atk' | 'def' | 'aspd' | '
   id, name, kind: 'buff', stat, mod, modType, duration: -1, remaining: -1,
 });
 
+// v3.2.0：誓约枷锁负面 effect 构造器（kind: 'debuff'，永久）
+const mkPactPenalty = (id: string, name: string, stat: 'atk' | 'def' | 'aspd' | 'spd' | 'magicResist' | 'blockCount', mod: number, modType: 'flat' | 'pct'): StatusEffect => ({
+  id, name, kind: 'debuff', stat, mod, modType, duration: -1, remaining: -1,
+});
+
 export const PACT_DB: Record<string, PactDefinition> = {
   'pact_flame_blessing': {
     id: 'pact_flame_blessing',
@@ -455,8 +460,9 @@ export const PACT_DB: Record<string, PactDefinition> = {
       { threshold: 10, description: 'tier1：干员攻击力 +5%', effects: [mkPactEffect('pact_flame_blessing_t0_atk', '[盟约·炎佑] 灼热 I', 'atk', 0.05, 'pct')] },
       { threshold: 25, description: 'tier2：干员攻击力 +10%', effects: [mkPactEffect('pact_flame_blessing_t1_atk', '[盟约·炎佑] 灼热 II', 'atk', 0.10, 'pct')] },
       { threshold: 45, description: 'tier3：干员攻击力 +15%', effects: [mkPactEffect('pact_flame_blessing_t2_atk', '[盟约·炎佑] 灼热 III', 'atk', 0.15, 'pct')] },
-    ],
-  },
+    ],    // v3.2.0：枷锁 — 热冲代价，防御 -3 flat
+    penalty: [mkPactPenalty('pact_flame_blessing_penalty_def', '[枷锁·炎佑] 焦身', 'def', -3, 'flat')],
+    penaltyDesc: '枷锁：干员防御 -3',  },
   'pact_lingering_echo': {
     id: 'pact_lingering_echo',
     name: '余音',
@@ -469,6 +475,9 @@ export const PACT_DB: Record<string, PactDefinition> = {
       { threshold: 3, description: 'tier2：攻速 +10%', effects: [mkPactEffect('pact_lingering_echo_t1_aspd', '[盟约·余音] 回响 II', 'aspd', -0.10, 'pct')] },
       { threshold: 6, description: 'tier3：攻速 +15%', effects: [mkPactEffect('pact_lingering_echo_t2_aspd', '[盟约·余音] 回响 III', 'aspd', -0.15, 'pct')] },
     ],
+    // v3.2.0：枷锁 — 魔抗 -5 flat
+    penalty: [mkPactPenalty('pact_lingering_echo_penalty_mr', '[枷锁·余音] 魂悗', 'magicResist', -5, 'flat')],
+    penaltyDesc: '枷锁：干员魔抗 -5',
   },
   'pact_broken_spring': {
     id: 'pact_broken_spring',
@@ -483,6 +492,9 @@ export const PACT_DB: Record<string, PactDefinition> = {
       { threshold: 9, description: 'tier2：干员攻击力 +20%', effects: [mkPactEffect('pact_broken_spring_t1_atk', '[盟约·碎铳之簧] 怒火 II', 'atk', 0.20, 'pct')] },
       { threshold: 15, description: 'tier3：干员攻击力 +30%', effects: [mkPactEffect('pact_broken_spring_t2_atk', '[盟约·碎铳之簧] 怒火 III', 'atk', 0.30, 'pct')] },
     ],
+    // v3.2.0：枷锁 — 防御 -5 flat
+    penalty: [mkPactPenalty('pact_broken_spring_penalty_def', '[枷锁·碎铳之簧] 狂恍', 'def', -5, 'flat')],
+    penaltyDesc: '枷锁：干员防御 -5',
   },
   // v3.1.0：高翔之狩 — 击杀飞行单位累积，干员攻击力分级提升
   'pact_aerial_hunter': {
@@ -497,6 +509,9 @@ export const PACT_DB: Record<string, PactDefinition> = {
       { threshold: 5, description: 'tier2：攻击力 +12%', effects: [mkPactEffect('pact_aerial_hunter_t1_atk', '[盟约·高翔之狩] 猎心 II', 'atk', 0.12, 'pct')] },
       { threshold: 10, description: 'tier3：攻击力 +20%', effects: [mkPactEffect('pact_aerial_hunter_t2_atk', '[盟约·高翔之狩] 猎心 III', 'atk', 0.20, 'pct')] },
     ],
+    // v3.2.0：枷锁 — 魔抗 -3 flat
+    penalty: [mkPactPenalty('pact_aerial_hunter_penalty_mr', '[枷锁·高翔之狩] 高处不胜寒', 'magicResist', -3, 'flat')],
+    penaltyDesc: '枷锁：干员魔抗 -3',
   },
   // v3.1.0：钢铁誓约 — 部署任意干员累积，分级提升全体防御（flat）
   'pact_iron_resolve': {
@@ -511,6 +526,9 @@ export const PACT_DB: Record<string, PactDefinition> = {
       { threshold: 4, description: 'tier2：防御 +12', effects: [mkPactEffect('pact_iron_resolve_t1_def', '[盟约·钢铁誓约] 誓言 II', 'def', 12, 'flat')] },
       { threshold: 8, description: 'tier3：防御 +25', effects: [mkPactEffect('pact_iron_resolve_t2_def', '[盟约·钢铁誓约] 誓言 III', 'def', 25, 'flat')] },
     ],
+    // v3.2.0：枷锁 — 攻击力 -8%
+    penalty: [mkPactPenalty('pact_iron_resolve_penalty_atk', '[枷锁·钢铁誓约] 笨重', 'atk', -0.08, 'pct')],
+    penaltyDesc: '枷锁：干员攻击 -8%',
   },
 };
 

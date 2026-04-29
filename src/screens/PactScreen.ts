@@ -55,6 +55,10 @@ function renderPactScreen(): void {
     const sources = def.sources.map(s => `${s.source}(+${s.perEvent})`).join('，');
     const decayTxt = def.decay ? `<div style="color:#e67e22;font-size:12px;">衰减：每 ${def.decay.interval}s 掉 ${def.decay.perTick} 层</div>` : '';
     const tiersHtml = def.tiers.map((t, i) => `<li style="margin:2px 0;color:${['#7f8c8d','#3498db','#9b59b6','#f1c40f'][Math.min(i+1,3)]};">阈值 ${t.threshold}：${t.description}</li>`).join('');
+    // v3.2.0：枷锁段
+    const penaltyTxt = def.penaltyDesc
+      ? `<div style="margin-top:8px;padding:6px 8px;border-left:3px solid #c0392b;background:rgba(192,57,43,0.12);color:#e74c3c;font-size:12px;">⛓ ${def.penaltyDesc}</div>`
+      : '';
 
     card.innerHTML = `
       <div style="font-size:18px;font-weight:bold;margin-bottom:6px;color:#f1c40f;">${def.name}</div>
@@ -62,6 +66,7 @@ function renderPactScreen(): void {
       <div style="font-size:12px;color:#95a5a6;">来源：${sources}　上限：${def.cap}</div>
       ${decayTxt}
       <ul style="margin:6px 0 0;padding-left:18px;font-size:12px;">${tiersHtml}</ul>
+      ${penaltyTxt}
     `;
 
     card.addEventListener('click', () => {

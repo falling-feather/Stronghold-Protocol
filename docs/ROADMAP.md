@@ -35,6 +35,7 @@
 - [x] v3.0.0-design 盟约叠层设计文档：PactDefinition/PactRuntime/onPactEvent/reconcile/tick decay 框架；事件源映射（kill/deploy/retreat/wave_clear）；与 v2.3.0 effects 复用约定
 - [x] v3.0.0 框架落地 + 三盟约（含 v3.0.1 余音、v3.0.2 碎铳之簧）：炎佑(kill_any → atk +5%/10%/15%)、余音(wave_perfect → aspd -5%/10%/15%)、碎铳之簧(retreat_any 累积 + 5s/层衰减 → atk +10%/20%/30%)；tickPactDecay 接入 update；顶栏徽记 UI
 - [x] v3.1.0 开局盟约选择 UI + 5 个盟约：新增 PactScreen（阵营确认 → 选 1-2 个盟约 → 出战）；GameEngine 构造器接受 activePactIds；新增「高翔之狩」(kill_flying → atk +5%/12%/20%) 与「钢铁誓约」(deploy_any → def +5/12/25 flat)
+- [x] v3.2.0 誓约枷锁（负面盟约）：PactDefinition 新增 penalty/penaltyDesc；getActivePactEffectsForOperator 部署时无视 tier 附加 penalty 至干员；PactScreen 卡片显示 ⛓ 红色枷锁段；5 盟约各配代价（炎佑 def-3 / 余音 mr-5 / 碎铳之簧 def-5 / 高翔之狩 mr-3 / 钢铁誓约 atk-8%）
 
 ## v4.x — 联机
 

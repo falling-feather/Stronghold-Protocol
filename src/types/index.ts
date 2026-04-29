@@ -98,6 +98,9 @@ export interface PactDefinition {
   decay?: { interval: number; perTick: number };
   cap: number;
   tiers: PactTier[];
+  // v3.2.0：誓约枷锁 — 选择此盟约即背负的代价 effects（无视 tier，部署时立即附加）
+  penalty?: StatusEffect[];
+  penaltyDesc?: string;
 }
 
 export interface PactRuntime {

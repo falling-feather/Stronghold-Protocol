@@ -233,7 +233,7 @@ function renderPactBadges(): void {
     const nextTier = def.tiers[tierIdx + 1];
     const tierDesc = tierIdx >= 0 ? def.tiers[tierIdx].description : '未激活';
     const nextDesc = nextTier ? `\n下一档 @ ${nextTier.threshold}：${nextTier.description}` : '\n已达最高档';
-    const title = `${def.name}（${rt.stack}/${def.cap}）\n${def.desc}\n当前：${tierDesc}${nextDesc}`;
+    const title = `${def.name}（${rt.stack}/${def.cap}）\n${def.desc}\n当前：${tierDesc}${nextDesc}${def.penaltyDesc ? '\n' + def.penaltyDesc : ''}`;
     return `<div class="pact-badge" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:bold;margin-left:6px;border:2px solid rgba(255,255,255,0.4);">${rt.stack}</div>`;
   }).join('');
 }
