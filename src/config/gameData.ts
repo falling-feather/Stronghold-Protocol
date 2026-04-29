@@ -1,4 +1,4 @@
-import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType, OperatorClass, ClassTrait, SkillDefinition, BaseStats, Talent, StatusEffect } from '../types';
+import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType, OperatorClass, ClassTrait, SkillDefinition, BaseStats, Talent, StatusEffect, EnemyTraits } from '../types';
 
 export const CONFIG = {
   TILE_SIZE: 64,
@@ -381,7 +381,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
   },
 };
 
-export const ENEMY_DB = {
+export const ENEMY_DB: Record<string, { name: string; color: string; radius: number; stats: BaseStats; traits?: EnemyTraits }> = {
   'slug': {
     name: '源石虫', color: '#e74c3c', radius: 15,
     stats: { hp: 350, maxHp: 350, atk: 150, def: 0, spd: 2.2, range: 0, aspd: 1.0, blockCount: 0, magicResist: 0 }
@@ -392,7 +392,18 @@ export const ENEMY_DB = {
   },
   'heavy': {
     name: '大盾兵', color: '#8e44ad', radius: 22,
-    stats: { hp: 4500, maxHp: 4500, atk: 500, def: 400, spd: 0.8, range: 0, aspd: 2.5, blockCount: 0, magicResist: 60 }
+    stats: { hp: 4500, maxHp: 4500, atk: 500, def: 400, spd: 0.8, range: 0, aspd: 2.5, blockCount: 0, magicResist: 60 },
+    // v2.4.0：Boss 阶段（血量<50% 时附加永久 +50% 攻） + 死亡召唤 2 只源石虫
+    traits: {
+      bossPhase: { atHpPct: 0.5, effect: { id: 'boss_heavy_atk', name: 'Boss 狂怒', kind: 'buff', stat: 'atk', mod: 0.5, modType: 'pct', duration: -1, remaining: -1 } },
+      summon: { childId: 'slug', count: 2, on: 'death' },
+    }
+  },
+  'flyer': {
+    name: '飞虫', color: '#16a085', radius: 13,
+    stats: { hp: 600, maxHp: 600, atk: 250, def: 20, spd: 2.6, range: 0, aspd: 1.0, blockCount: 0, magicResist: 20 },
+    // v2.4.0：飞行—仅可被高地干员攻击
+    traits: { flying: true }
   }
 };
 
@@ -400,6 +411,7 @@ export const WAVES = [
   { count: 6, interval: 1.5, enemyId: 'slug', reward: 15 },
   { count: 10, interval: 1.2, enemyId: 'slug', reward: 20 },
   { count: 6, interval: 2.5, enemyId: 'soldier', reward: 30 },
+  { count: 5, interval: 1.4, enemyId: 'flyer', reward: 25 },
   { count: 12, interval: 2.0, enemyId: 'soldier', reward: 40 },
   { count: 4, interval: 4.0, enemyId: 'heavy', reward: 60 },
 ];

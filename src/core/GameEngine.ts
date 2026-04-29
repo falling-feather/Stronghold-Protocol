@@ -365,21 +365,30 @@ export class GameEngine {
     }
   }
 
-  private spawnEnemy() {
-    const template = ENEMY_DB[this.currentEnemyId as keyof typeof ENEMY_DB];
+  private spawnEnemy(enemyId?: string, atPos?: { x: number; y: number; gridX: number; gridY: number; waypointIndex: number }) {
+    const id = enemyId ?? this.currentEnemyId;
+    const template = ENEMY_DB[id as keyof typeof ENEMY_DB];
+    if (!template) return;
     const startNode = PATH_WAYPOINTS[0];
+    const px = atPos?.x ?? (startNode.x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE/2);
+    const py = atPos?.y ?? (startNode.y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE/2);
+    const gx = atPos?.gridX ?? startNode.x;
+    const gy = atPos?.gridY ?? startNode.y;
+    const wpi = atPos?.waypointIndex ?? 0;
     this.enemies.push({
-      id: `en_${Date.now()}`,
-      pos: { x: startNode.x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE/2, y: startNode.y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE/2 },
-      gridPos: { x: startNode.x, y: startNode.y },
+      id: `en_${Date.now()}_${Math.floor(Math.random()*1000)}`,
+      pos: { x: px, y: py },
+      gridPos: { x: gx, y: gy },
       radius: template.radius,
       color: template.color,
       stats: { ...template.stats },
-      waypointIndex: 0,
+      waypointIndex: wpi,
       markedForDeletion: false,
       isBlockedBy: null,
       attackCooldown: 0,
-      effects: []
+      effects: [],
+      traits: template.traits,
+      bossPhaseTriggered: false,
     });
   }
 
@@ -387,6 +396,13 @@ export class GameEngine {
     this.enemies.forEach(enemy => {
       // v2.3.0：状态效果倒计时
       this.tickEffects(enemy.effects, dt);
+      // v2.4.0：Boss 阶段触发
+      if (enemy.traits?.bossPhase && !enemy.bossPhaseTriggered &&
+          enemy.stats.hp > 0 && enemy.stats.hp <= enemy.stats.maxHp * enemy.traits.bossPhase.atHpPct) {
+        enemy.bossPhaseTriggered = true;
+        const eff = enemy.traits.bossPhase.effect;
+        enemy.effects.push({ ...eff, remaining: eff.duration });
+      }
       if (enemy.isBlockedBy) {
         const blocker = this.operators.find(op => op.id === enemy.isBlockedBy);
         if (blocker && !blocker.isRetreated) {
@@ -482,8 +498,14 @@ export class GameEngine {
         }
         if (!target) {
           // 使用基于朝向的攻击范围系统
+          // v2.4.0：隐身/飞行过滤
+          const opTemplate = OPERATOR_DB[op.templateId];
+          const canHitFlying = op.placement === 'high_ground';
+          const canHitStealth = opTemplate?.class === 'specialist';
           let minDist = Infinity;
           this.enemies.forEach(enemy => {
+            if (enemy.traits?.flying && !canHitFlying) return;
+            if (enemy.traits?.stealth && !canHitStealth) return;
             if (isInAttackRange(op.gridPos, op.direction, op.placement, op.stats.range, enemy.pos, CONFIG.TILE_SIZE)) {
               const opCenter = { x: op.pos.x + CONFIG.TILE_SIZE/2, y: op.pos.y + CONFIG.TILE_SIZE/2 };
               const dist = getDistance(opCenter, enemy.pos);
@@ -666,6 +688,19 @@ export class GameEngine {
           if (target.isBlockedBy) {
             const blocker = this.operators.find(op => op.id === target.isBlockedBy);
             if (blocker) blocker.blockingEnemyIds = blocker.blockingEnemyIds.filter(id => id !== target.id);
+          }
+          // v2.4.0：死亡召唤
+          if (target.traits?.summon && target.traits.summon.on === 'death') {
+            const sm = target.traits.summon;
+            for (let i = 0; i < sm.count; i++) {
+              this.spawnEnemy(sm.childId, {
+                x: target.pos.x + (Math.random() - 0.5) * 20,
+                y: target.pos.y + (Math.random() - 0.5) * 20,
+                gridX: target.gridPos.x,
+                gridY: target.gridPos.y,
+                waypointIndex: target.waypointIndex,
+              });
+            }
           }
         }
       }

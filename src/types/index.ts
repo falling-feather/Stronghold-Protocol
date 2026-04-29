@@ -68,11 +68,21 @@ export interface Entity {
   markedForDeletion: boolean;
 }
 
+// v2.4.0：敌人特性
+export interface EnemyTraits {
+  flying?: boolean;
+  stealth?: boolean;
+  summon?: { childId: string; count: number; on: 'death' };
+  bossPhase?: { atHpPct: number; effect: StatusEffect };
+}
+
 export interface Enemy extends Entity {
   waypointIndex: number;
   isBlockedBy: string | null;
   attackCooldown: number;
   effects: StatusEffect[]; // v2.3.0
+  traits?: EnemyTraits;       // v2.4.0
+  bossPhaseTriggered?: boolean; // v2.4.0
 }
 
 export interface Operator extends Entity {

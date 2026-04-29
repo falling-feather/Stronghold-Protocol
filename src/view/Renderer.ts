@@ -211,11 +211,32 @@ export class Renderer {
   private drawEnemy(enemy: any) {
     this.ctx.save();
     this.ctx.translate(enemy.pos.x, enemy.pos.y);
-    
+
+    // v2.4.0：飞行投影
+    if (enemy.traits?.flying) {
+      this.ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      this.ctx.beginPath();
+      this.ctx.ellipse(0, enemy.radius + 6, enemy.radius * 0.7, enemy.radius * 0.25, 0, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.translate(0, -8); // 抬起本体表示飞行
+    }
+
+    // v2.4.0：Boss 阶段红色光环
+    if (enemy.bossPhaseTriggered) {
+      this.ctx.strokeStyle = 'rgba(255,80,80,0.85)';
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.arc(0, 0, enemy.radius + 4, 0, Math.PI * 2);
+      this.ctx.stroke();
+    }
+
+    // v2.4.0：隐身半透明
+    this.ctx.globalAlpha = enemy.traits?.stealth ? 0.45 : 1;
     this.ctx.fillStyle = enemy.color;
     this.ctx.beginPath();
     this.ctx.arc(0, 0, enemy.radius, 0, Math.PI * 2);
     this.ctx.fill();
+    this.ctx.globalAlpha = 1;
 
     if(enemy.isBlockedBy) {
         this.ctx.strokeStyle = '#fff';
