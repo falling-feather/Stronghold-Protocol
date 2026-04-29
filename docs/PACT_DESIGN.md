@@ -124,3 +124,53 @@ GameEngine 持有 `pacts: PactRuntime[]`。波次开始或战局开始时按 `AC
 - 单元（手动）：在 dev console `engine.pacts[0].stack += N; engine.reconcilePactTiers(engine.pacts[0])` → 干员 effects 列表与 modifyStat 输出预期。
 - 烟雾：连续清几波怪 → 顶栏徽记 stack 增长 → 跨过阈值时干员 atk 数值跃升。
 
+
+
+---
+
+## 5. 盟约共鸣（v3.3.0+）
+
+### 5.1 概念
+
+当玩家选中的 ≥2 个盟约同时达到指定 tier 时，自动激活一个全局额外加成（通常是小幅 buff），让玩家在搭配选择阶段就能预见协同。
+
+### 5.2 数据结构
+
+```ts
+interface PactResonance {
+  id: string;             // sourceId 前缀 'resonance_<id>_'
+  name: string;
+  desc: string;
+  requires: { defId: string; minTier: number }[]; // 全部满足才激活
+  scope: 'all_operators' | 'all_enemies';
+  effects: StatusEffect[];
+}
+```
+
+### 5.3 已实装
+
+| id | 触发 | 加成 |
+| --- | --- | --- |
+| reso_flame_storm | 炎佑 + 空中猎手 同时 tier1 | 全员 atk +8% |
+| reso_iron_echo | 钢铁誓约 + 余音回响 同时 tier1 | 全员 magicResist +8 |
+| reso_wind_blade | 碎铳之簧 + 空中猎手 同时 tier1 | 全员 aspd -8%（即更快 8%） |
+| reso_oath_flame | 炎佑 + 钢铁誓约 同时 tier1 | 全员 def +3 |
+
+### 5.4 运行时
+
+- `engine.activeResonances: Set<string>` 跟踪当前激活集合
+- `reconcileResonances()` 在 `reconcilePactTier` 末尾调用，差量应用/撤销 effects
+- 撤销通过 sourceId 前缀 `resonance_<id>_` 过滤实现
+- `getActivePactEffectsForOperator()` 把激活共鸣加入新部署初始 effects
+
+### 5.5 UI
+
+- 顶栏 `pact-badges` 区，pact 圆形徽记之后追加金色胶囊形 ✦徽记
+- 激活瞬间复用 `pact-tier-up` 动画（1.0s 金光脉冲）
+- 失活直接消失（无淡出动画）
+
+### 5.6 设计准则
+
+- 每个共鸣只挑两个 pact 配对，避免组合爆炸
+- 加成幅度建议 ≤ pact tier1 的一半（小幅协同奖励，不喧宾夺主）
+- 与枷锁解耦：是否枷锁不影响共鸣触发，只看 appliedTier
