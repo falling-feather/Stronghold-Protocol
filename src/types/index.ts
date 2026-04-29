@@ -80,6 +80,10 @@ export interface Operator extends Entity {
   
   // 角色等阶
   rank: OperatorRank; // 1阶或2阶
+
+  // v2.2.0：部署计时与费用回流（先锋职业）
+  deployTime: number;     // 部署后累计存活时间（秒）
+  costRefunded: boolean;  // 是否已回流过部署费用
   
   // 朝向系统
   direction: Direction; // 角色朝向

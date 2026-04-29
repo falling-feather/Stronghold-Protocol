@@ -532,6 +532,18 @@ function updateDetailPanel(): void {
     const stateLabel = op.skillActive
       ? `<span style="color:#f1c40f;">激活中 ${op.skillDuration.toFixed(1)}s</span>`
       : (op.skill.duration > 0 ? '待充能' : '瞬发型（暂未支持手动）');
+
+    // v2.2.0：先锋费用回流提示
+    let refundHtml = '';
+    if (template.class === 'vanguard') {
+      if (op.costRefunded) {
+        refundHtml = `<div style="margin-top:6px;font-size:12px;color:#2ecc71;">✓ 部署费用已回流 +${Math.round(template.cost * CONFIG.VANGUARD_REFUND_RATE)}</div>`;
+      } else {
+        const remain = Math.max(0, CONFIG.VANGUARD_REFUND_DELAY - op.deployTime);
+        refundHtml = `<div style="margin-top:6px;font-size:12px;color:#bdc3c7;">先锋回流：${remain.toFixed(1)}s 后 +${Math.round(template.cost * CONFIG.VANGUARD_REFUND_RATE)}</div>`;
+      }
+    }
+
     spBlockHtml = `
       <div style="margin:8px 0 6px 0;">
         <div style="font-size:12px;color:#bdc3c7;margin-bottom:4px;">SP: ${op.currentSp.toFixed(1)} / ${op.skill.cost} · ${stateLabel}</div>
@@ -539,6 +551,7 @@ function updateDetailPanel(): void {
           <div style="height:100%;width:${pct}%;background:${op.skillActive ? '#f1c40f' : '#3498db'};"></div>
         </div>
         ${isReady && engine!.phase === 'COMBAT' ? `<button id="btn-activate-skill" style="margin-top:6px;width:100%;padding:6px;background:#f39c12;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:bold;">释放技能</button>` : ''}
+        ${refundHtml}
       </div>
     `;
   }

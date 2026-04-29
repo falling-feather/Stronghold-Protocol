@@ -7,6 +7,9 @@ export const CONFIG = {
   BASE_LIVES: 10,
   BASE_MONEY: 15, // 减少初始资金，只能购买1-2个角色
   MAX_BENCH_SIZE: 10,
+  // v2.2.0：先锋部署费用回流
+  VANGUARD_REFUND_DELAY: 30, // 秒
+  VANGUARD_REFUND_RATE: 0.5,  // 50% 回流
 };
 
 // 地图库：包含多个不同的地图配置

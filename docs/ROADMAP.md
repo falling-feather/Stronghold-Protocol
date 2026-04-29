@@ -20,7 +20,8 @@
 
 - [x] v2.0.0 技能主动释放（手动点按）：详情面板显示 SP 条与"释放技能"按钮，持续型技能在 duration 期间生效（atkMul / aspdPct）；瞬发型暂未支持
 - [x] v2.1.0 攻击类型：物理（atk-def，最低 5%）/ 法术（atk*(1-MR%)，最低 5%）/ 真伤（穿透）/ 治疗（v2.1.1 接入友军选择）；BaseStats.magicResist + OperatorTemplate.atkType + Projectile.atkType
-- [ ] 部署费用回流机制（先锋职业）
+- [x] v2.1.1 敌人 magicResist 配平：源石虫 0 / 步兵 30 / 大盾兵 60
+- [x] v2.2.0 部署费用回流机制（先锋职业）：部署 30 秒后返还 cost 的 50%；详情面板倒计时显示
 - [ ] 增益/减益效果框架（Buff/Debuff）
 - [ ] 敌人特性：飞行 / 隐身 / 召唤 / Boss 阶段
 

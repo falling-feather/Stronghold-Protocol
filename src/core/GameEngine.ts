@@ -310,7 +310,9 @@ export class GameEngine {
       skillActive: false,
       skillDuration: 0,
       rank: rank,
-      direction: direction
+      direction: direction,
+      deployTime: 0,
+      costRefunded: false
     });
 
     // 清除待部署状态
@@ -431,6 +433,20 @@ export class GameEngine {
     this.operators.forEach(op => {
       if (op.isRetreated) return;
       op.cooldown = Math.max(0, op.cooldown - dt);
+
+      // v2.2.0：先锋部署费用回流
+      op.deployTime += dt;
+      if (!op.costRefunded && op.deployTime >= CONFIG.VANGUARD_REFUND_DELAY) {
+        const tpl = OPERATOR_DB[op.templateId];
+        if (tpl?.class === 'vanguard') {
+          this.money += Math.round(tpl.cost * CONFIG.VANGUARD_REFUND_RATE);
+          op.costRefunded = true;
+          this.notifyUpdate();
+        } else {
+          // 非先锋直接标记，避免重复进入分支
+          op.costRefunded = true;
+        }
+      }
 
       // v2.0.0：技能持续时间倒计时；归零后取消激活并清空 SP
       if (op.skillActive) {
