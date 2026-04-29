@@ -114,7 +114,7 @@ export class WsAdapter implements INetworkAdapter {
   sendChat(text: string): void { this._send({ type: 'chat', text }); }
   sendGame(payload: any): void { this._send({ type: 'game', payload }); }
   sendMarker(x: number, y: number, label?: string): void { this._send({ type: 'marker', x, y, label: label || '' }); }
-  sendEvent(kind: string, text: string, level: 'info' | 'warn' | 'success' | 'danger' = 'info'): void { this._send({ type: 'event', kind, text, level }); }
+  sendEvent(kind: string, text: string, level: 'info' | 'warn' | 'success' | 'danger' = 'info', extra: any = null): void { this._send({ type: 'event', kind, text, level, extra }); }
 
   on(type: string, handler: NetworkEventHandler): void {
     if (!this.handlers.has(type)) this.handlers.set(type, new Set());

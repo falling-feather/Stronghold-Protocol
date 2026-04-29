@@ -137,7 +137,8 @@ wss.on('connection', (ws) => {
       }
       case 'event': {
         // v4.1.0：host→guest 事件 toast 推送（kind/text/level）
-        if (c.roomId) broadcast(c.roomId, { type: 'event', from: c.name, kind: String(m.kind || ''), text: String(m.text || '').slice(0, 200), level: String(m.level || 'info') }, ws);
+        // v4.1.0(后提)：附加 extra 字段依附任意负载（转发使用者约定结构）
+        if (c.roomId) broadcast(c.roomId, { type: 'event', from: c.name, kind: String(m.kind || ''), text: String(m.text || '').slice(0, 200), level: String(m.level || 'info'), extra: (m.extra ?? null) }, ws);
         break;
       }
     }

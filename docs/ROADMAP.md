@@ -69,6 +69,14 @@
 - [x] v4.2.2 host→guest 事件 toast 推送：服务端新增 event 类型转发；WsAdapter.sendEvent(kind,text,level)；host 在波次开始/进入备战/生命≤3/失败 节点自动 sendEvent；guest 观战界面右上角弹出彩色 toast（info/warn/success/danger），3.5s 后自动淡出
 - [x] v4.2.3 guest 部署提议：guest 观战面板新增「🎯 提议部署」toggle，开启后下次点击解析为格坐标，sendEvent(kind=deploy_request)；host 顶部弹出提示条 + 接受/拒绝按钮，10s 自动关闭；选择后通过 deploy_response 事件回送 toast 给 guest
 - [x] v4.2.4 联机音效反馈：复用 v3.9.0 SFX 系统，guest 点击画布/按钮播 click，发部署提议播 event；host 收到 marker 播 click、收到 deploy_request 播 event、接受播 wave_clear、拒绝播 click；guest 端 event toast 按 level 联动音效（danger/warn→event, success→wave_clear, info→click）
+- [x] v4.3.0 提议关注干员：WsAdapter.sendEvent 增加 extra 字段；guest 观战面板新增「⭐ 提议关注」toggle，开启后下次点击解析为最近干员，发 focus_request(extra.operatorId)；host 顶部弹出提示条 + 查看/忽略按钮（紫色边框），查看时调 selectItem('map', operatorId) 高亮该干员并打开 detailPanel；通过 focus_response 回送 toast
+- [x] v4.3.1 游戏内实时聊天：host 主画面右下角注入可折叠聊天面板（标题栏点击折叠/展开，140px 日志 + 输入框，Enter 发送）；guest 观战面板底部内嵌聊天框（100px 日志 + 输入）；自己消息蓝色立即追加，对端消息橙色 + event sfx；复用现有 mpAdapter.sendChat / on('chat')
+- [x] v4.3.2 guest 提议标记敌人：guest 观战面板新增「⚠ 标记敌人」toggle（与部署/关注互斥），开启后下次点击解析为最近敌人，发 enemy_intel(extra.enemyId/x/y)；host 在敌人位置叠加 ⚠敌情 marker（复用 mpMarkers 池）+ 顶部短暂橙色 banner（3s 自动消失）+ event sfx；guest 端本地立即 marker 反馈
+- [x] v4.3.3 波次预告增强：host 在 wave 事件附下一波预告 extra（count/enemyId/enemyName/label/isBoss/isFlying/isStealth/nextWaveNo），事件文本拼接「（下一波：6×源石虫 [Boss]）」；guest 收到 kind=wave 事件时，若下一波包含 Boss/飞行/隐身则提升 toast 级别为 danger 并附 ⚠；buildWavePreview 抽离 ENEMY_DB.traits 推断
+- [x] v4.3.4 聊天面板快捷预设：host 与 guest 聊天面板均在输入栏上方插入 5 个快捷按钮（好/不好/等一下/GG/GL），点击立即 sendChat + 本地立即追加；CHAT_QUICK_PRESETS 常量统一管理
+- [x] v4.3.5 host 提议历史面板：联机时 host 主画面右上 (top:130px) 注入可折叠迷你面板「📜 提议历史 (近 5)」，记录最近 5 条 marker / deploy_request / focus_request / enemy_intel；带 icon (📍/🎯/⭐/⚠) + from + 摘要 + 相对时间 (Ns前/Nm前)；focus_request 行可点击 → selectItem('map', operatorId) 跳转高亮干员；每 5s 自动刷新时间
+- [x] v4.3.6 预告后 guest 快反馈：showEventToast 扩展 actions/stayMs 选项；guest 收到 wave 事件 toast 上附「✅ 可以」「🆘 需援」按钮（停留 8s），点击发 intel_response 事件（extra.ack=ready/help）；host 收到 intel_response → showHostBriefBanner + push history (✅/🆘) + 对应 sfx (wave_clear/event)
+- [x] v4.3.7 v4 阶段总结 + README/MULTIPLAYER 增补：新增 docs/V4_SUMMARY.md 收束 v4.0~v4.3.6 全量功能、协议、关键文件、设计决策、未完成项；README 加联机协作小节 + 快速启动段；MULTIPLAYER 顶部说明改写、协议表加 game/marker/event、新增 event.kind 一览（10 种）、新增"v4.3.x 协作 UI 概览"小节
 - [ ] 状态同步策略：增量帧 + 操作包
 - [ ] 双人共享地图、独立资源 / 独立队列
 - [ ] 断线重连 + 延迟补偿

@@ -58,6 +58,26 @@ StrongholdProtocol/
 - **技力系统**：自然/攻击/受击三种回复方式，技力条显示
 - **交互体验**：拖拽部署与出售、详情面板、备战区管理
 - **移动端适配**：自动横屏布局、Canvas 响应式缩放
+- **联机协作（v4.x）**：host 单人战斗 + guest 协作观战；详见 [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) 与 [docs/V4_SUMMARY.md](docs/V4_SUMMARY.md)
+  - host→guest：全量快照 120ms 节流广播 + 波次/阶段/生命/失败事件 + 下一波预告（含 Boss/飞行/隐身 flag）
+  - guest→host：画布标记点、6 种快捷预设 marker、🎯 部署提议、⭐ 关注干员、⚠ 标记敌人、✅/🆘 wave 反馈
+  - 双向：游戏内可折叠聊天面板（含 5 快捷预设：好/不好/等一下/GG/GL）
+  - host UI：右上「📜 提议历史 (近 5)」面板，focus 行可点击跳转干员
+
+## 联机模式快速启动
+
+需要 2 个浏览器窗口（同一台机或局域网）。
+
+```powershell
+# 终端 1：启动 WebSocket 服务（端口 8787）
+npm run mp-server
+
+# 终端 2：启动开发服务器
+npm run dev
+```
+
+两个浏览器窗口分别打开 `http://localhost:5173` → 主菜单 → 联机模式 → 填昵称 → 一方创建房间，另一方加入 → 双方点准备 → 自动进入「host 主战 + guest 观战」模式。
+
 
 ## 待实现功能
 

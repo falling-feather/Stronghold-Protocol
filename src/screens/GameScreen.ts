@@ -1,7 +1,7 @@
 // 游戏对局屏幕：包含初始化、UI 渲染循环、交互事件、详情面板、拖拽（v1.5.x）
 import { GameEngine } from '../core/GameEngine';
 import { Renderer } from '../view/Renderer';
-import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps, resolveSkillForRank, CLASS_TRAITS, PACT_DB, RESONANCE_DB } from '../config/gameData';
+import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps, resolveSkillForRank, CLASS_TRAITS, PACT_DB, RESONANCE_DB, WAVES, ENEMY_DB } from '../config/gameData';
 import { FactionId } from '../config/factions';
 import { Roster, rosterToAllowedSet } from '../config/roster';
 import { Direction, PactSelection } from '../types';
@@ -9,7 +9,7 @@ import { showOnly } from './shared';
 import { startBgm } from '../core/AudioSystem';
 import type { BoonId } from '../config/boonData';
 import { mpAdapter, isMpHost } from '../network/mpBridge';
-import { installMarkerListener, drawMarkers } from '../network/mpMarkers';
+import { installMarkerListener, drawMarkers, pushLocalMarker } from '../network/mpMarkers';
 import { playSfx } from '../core/AudioSystem';
 
 let canvas: HTMLCanvasElement | null = null;
@@ -104,6 +104,12 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
 
   // v4.2.3：host 监听 guest 部署提议
   if (isMpHost()) installGuestEventListener();
+
+  // v4.3.1：联机时 host 在游戏内显示可折叠聊天面板
+  if (isMpHost()) ensureMpHostChatPanel();
+
+  // v4.3.5：联机时 host 在游戏内显示提议历史面板
+  if (isMpHost()) ensureMpHostHistoryPanel();
 
   // v3.5.3：事件日志按钮（点击弹出已触发事件历史）
   const btnEventLog = document.getElementById('btn-event-log');
@@ -965,7 +971,10 @@ function hostMaybeEmitEvents(): void {
   // 波次开始
   if (snap.waveIndex !== lastEvtWave) {
     if (lastEvtWave >= 0 && snap.waveIndex > lastEvtWave) {
-      mpAdapter.sendEvent('wave', `第 ${snap.waveIndex + 1} 波开始`, 'warn');
+      // v4.3.3：附下一波预告 extra
+      const preview = buildWavePreview(snap.waveIndex);
+      const previewText = preview ? `（下一波：${preview.label}）` : '';
+      mpAdapter.sendEvent('wave', `第 ${snap.waveIndex + 1} 波开始${previewText}`, 'warn', preview);
     }
     lastEvtWave = snap.waveIndex;
   }
@@ -988,6 +997,35 @@ function hostMaybeEmitEvents(): void {
   }
 }
 
+// v4.3.3：构造下一波预告 extra
+function buildWavePreview(currentIdx: number): { count: number; enemyId: string; enemyName: string; label: string; isBoss: boolean; isFlying: boolean; isStealth: boolean; nextWaveNo: number } | null {
+  const nextIdx = currentIdx + 1;
+  if (nextIdx >= WAVES.length) return null;
+  const w = WAVES[nextIdx];
+  const def = ENEMY_DB[w.enemyId];
+  if (!def) return null;
+  const traits = def.traits || {};
+  const isBoss = !!traits.bossPhase;
+  const isFlying = !!traits.flying;
+  const isStealth = !!traits.stealth;
+  const tags: string[] = [];
+  if (isBoss) tags.push('Boss');
+  if (isFlying) tags.push('飞行');
+  if (isStealth) tags.push('隐身');
+  const tagStr = tags.length > 0 ? ` [${tags.join('/')}]` : '';
+  const label = `${w.count}×${def.name}${tagStr}`;
+  return {
+    count: w.count,
+    enemyId: w.enemyId,
+    enemyName: def.name,
+    label,
+    isBoss,
+    isFlying,
+    isStealth,
+    nextWaveNo: nextIdx + 1,
+  };
+}
+
 // v4.2.3：host 监听 guest 部署提议
 let guestEventListenerInstalled = false;
 function installGuestEventListener(): void {
@@ -995,16 +1033,87 @@ function installGuestEventListener(): void {
   guestEventListenerInstalled = true;
   mpAdapter.on('event', (msg) => {
     const p = msg.payload as any;
-    if (!p || p.kind !== 'deploy_request') return;
+    if (!p) return;
     const from = String(p.from || '观战者');
-    const text = String(p.text || '部署提议');
-    showDeployRequestPrompt(from, text);
-    playSfx('event'); // v4.2.4：host 收到提议提示音
+    const text = String(p.text || '');
+    if (p.kind === 'deploy_request') {
+      showDeployRequestPrompt(from, text);
+      playSfx('event');
+      pushMpHostHistory({ icon: '🎯', from, text, ts: performance.now() });
+    } else if (p.kind === 'focus_request') {
+      const opId = (p.extra && p.extra.operatorId) ? String(p.extra.operatorId) : '';
+      showFocusRequestPrompt(from, text, opId);
+      playSfx('event');
+      pushMpHostHistory({
+        icon: '⭐', from, text, ts: performance.now(),
+        onClick: opId ? () => {
+          const op = engine?.operators.find(o => o.id === opId);
+          if (op) selectItem('map', opId);
+        } : undefined,
+      });
+    } else if (p.kind === 'enemy_intel') {
+      // v4.3.2：guest 标记敌人 — 在敌人位置叠加标记 + 顶部短暂提示
+      const ex = Number((p.extra && p.extra.x) ?? 0);
+      const ey = Number((p.extra && p.extra.y) ?? 0);
+      pushLocalMarker(ex, ey, from, '⚠敌情');
+      showHostBriefBanner(`⚠ ${from} 标记了敌情`);
+      playSfx('event');
+      pushMpHostHistory({ icon: '⚠', from, text, ts: performance.now() });
+    } else if (p.kind === 'intel_response') {
+      // v4.3.6：guest 对 wave 预告的快速反馈
+      const ack = (p.extra && p.extra.ack) ? String(p.extra.ack) : '';
+      const icon = ack === 'help' ? '🆘' : '✅';
+      showHostBriefBanner(`${icon} ${from}：${text}`);
+      playSfx(ack === 'help' ? 'event' : 'wave_clear');
+      pushMpHostHistory({ icon, from, text, ts: performance.now() });
+    }
   });
   // v4.2.4：host 收到 guest 标记点也响一下
-  mpAdapter.on('marker', () => {
+  mpAdapter.on('marker', (msg) => {
     playSfx('click');
+    // v4.3.5：marker 也进入提议历史
+    const m = msg.payload as any;
+    if (!m) return;
+    pushMpHostHistory({
+      icon: '📍',
+      from: String(m.from || '对端'),
+      text: m.label ? String(m.label) : `(${Math.round(m.x)},${Math.round(m.y)})`,
+      ts: performance.now(),
+    });
   });
+}
+
+function showFocusRequestPrompt(from: string, text: string, operatorId: string): void {
+  const id = 'mp-host-focus-prompt';
+  let bar = document.getElementById(id);
+  if (bar) bar.remove();
+  bar = document.createElement('div');
+  bar.id = id;
+  bar.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#2c3e50;color:#fff;padding:10px 14px;border-radius:6px;font-family:monospace;font-size:13px;z-index:9999;display:flex;gap:10px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,0.4);border:1px solid #8e44ad;';
+  bar.innerHTML = `
+    <span>⭐ <b>${from}</b>：${text}</span>
+    <button id="btn-focus-accept" style="padding:4px 10px;background:#27ae60;border:none;color:#fff;border-radius:3px;cursor:pointer;">查看</button>
+    <button id="btn-focus-reject" style="padding:4px 10px;background:#7f8c8d;border:none;color:#fff;border-radius:3px;cursor:pointer;">忽略</button>
+  `;
+  document.body.appendChild(bar);
+  const cleanup = () => bar?.remove();
+  document.getElementById('btn-focus-accept')?.addEventListener('click', () => {
+    if (operatorId && engine?.operators.find(o => o.id === operatorId)) {
+      selectItem('map', operatorId);
+      mpAdapter.sendEvent('focus_response', `host 已查看你提议的干员`, 'success');
+      playSfx('wave_clear');
+    } else {
+      mpAdapter.sendEvent('focus_response', `host 未找到该干员（可能已撤离）`, 'info');
+      playSfx('click');
+    }
+    cleanup();
+  });
+  document.getElementById('btn-focus-reject')?.addEventListener('click', () => {
+    mpAdapter.sendEvent('focus_response', `host 忽略了你的提议`, 'info');
+    playSfx('click');
+    cleanup();
+  });
+  setTimeout(cleanup, 10000);
 }
 
 function showDeployRequestPrompt(from: string, text: string): void {
@@ -1034,4 +1143,200 @@ function showDeployRequestPrompt(from: string, text: string): void {
   });
   // 10s 自动关闭
   setTimeout(cleanup, 10000);
+}
+
+// v4.3.2：host 顶部短暂提示横幅（3s 自动消失）
+function showHostBriefBanner(text: string): void {
+  const id = 'mp-host-brief-banner';
+  let bar = document.getElementById(id);
+  if (bar) bar.remove();
+  bar = document.createElement('div');
+  bar.id = id;
+  bar.style.cssText = 'position:fixed;top:36px;right:12px;background:#d35400;color:#fff;padding:8px 14px;border-radius:6px;font-family:monospace;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.4);transition:opacity 0.3s;opacity:1;';
+  bar.textContent = text;
+  document.body.appendChild(bar);
+  setTimeout(() => { if (bar) bar.style.opacity = '0'; }, 2700);
+  setTimeout(() => bar?.remove(), 3000);
+}
+
+// v4.3.1：联机时 host 在游戏内显示可折叠聊天面板（右下角 fixed）
+// v4.3.4：聊天快捷预设
+const CHAT_QUICK_PRESETS = ['好', '不好', '等一下', 'GG', 'GL'];
+let mpHostChatInstalled = false;
+function ensureMpHostChatPanel(): void {
+  if (!isMpHost()) return;
+  if (mpHostChatInstalled) {
+    const panel = document.getElementById('mp-host-chat');
+    if (panel) panel.style.display = 'flex';
+    return;
+  }
+  mpHostChatInstalled = true;
+  const wrap = document.createElement('div');
+  wrap.id = 'mp-host-chat';
+  wrap.style.cssText = 'position:fixed;right:12px;bottom:12px;width:280px;background:rgba(26,29,36,0.95);color:#ecf0f1;border:1px solid #34495e;border-radius:6px;font-family:monospace;font-size:12px;z-index:9998;display:flex;flex-direction:column;box-shadow:0 4px 12px rgba(0,0,0,0.5);';
+  wrap.innerHTML = `
+    <div id="mp-host-chat-head" style="padding:6px 10px;background:#2c3e50;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-radius:6px 6px 0 0;">
+      <span>💬 联机聊天</span>
+      <span id="mp-host-chat-toggle" style="font-size:14px;">▾</span>
+    </div>
+    <div id="mp-host-chat-body" style="display:flex;flex-direction:column;">
+      <div id="mp-host-chat-log" style="height:140px;overflow-y:auto;padding:6px 10px;background:#1a1d24;font-size:11px;line-height:1.5;"></div>
+      <div id="mp-host-chat-quick" style="display:flex;flex-wrap:wrap;gap:3px;padding:4px 6px;background:#1a1d24;border-top:1px solid #2c3e50;"></div>
+      <div style="display:flex;gap:4px;padding:6px;background:#1a1d24;border-radius:0 0 6px 6px;">
+        <input id="mp-host-chat-input" type="text" maxlength="200" placeholder="输入消息..." style="flex:1;padding:4px 6px;background:#0e1116;border:1px solid #34495e;color:#ecf0f1;border-radius:3px;font-family:inherit;font-size:11px;" />
+        <button id="mp-host-chat-send" style="padding:4px 10px;background:#3498db;border:none;color:#fff;border-radius:3px;cursor:pointer;font-size:11px;">发送</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+
+  const log = document.getElementById('mp-host-chat-log')!;
+  const input = document.getElementById('mp-host-chat-input') as HTMLInputElement;
+  const head = document.getElementById('mp-host-chat-head')!;
+  const body = document.getElementById('mp-host-chat-body')!;
+  const toggle = document.getElementById('mp-host-chat-toggle')!;
+  let collapsed = false;
+  head.addEventListener('click', () => {
+    collapsed = !collapsed;
+    body.style.display = collapsed ? 'none' : 'flex';
+    toggle.textContent = collapsed ? '▸' : '▾';
+  });
+
+  function appendLog(from: string, text: string, color: string): void {
+    const line = document.createElement('div');
+    line.innerHTML = `<span style="color:${color};">[${from}]</span> ${text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] || c))}`;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function send(): void {
+    const t = input.value.trim();
+    if (!t) return;
+    mpAdapter.sendChat(t);
+    appendLog(mpAdapter.localPeer?.name ?? '我', t, '#3498db');
+    input.value = '';
+    playSfx('click');
+  }
+  document.getElementById('mp-host-chat-send')?.addEventListener('click', send);
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); send(); }
+  });
+
+  // v4.3.4：快捷预设按钮
+  const quickWrap = document.getElementById('mp-host-chat-quick');
+  if (quickWrap) {
+    for (const preset of CHAT_QUICK_PRESETS) {
+      const btn = document.createElement('button');
+      btn.textContent = preset;
+      btn.style.cssText = 'padding:2px 6px;background:#34495e;border:none;color:#ecf0f1;border-radius:3px;cursor:pointer;font-size:10px;font-family:inherit;';
+      btn.addEventListener('click', () => {
+        mpAdapter.sendChat(preset);
+        appendLog(mpAdapter.localPeer?.name ?? '我', preset, '#3498db');
+        playSfx('click');
+      });
+      quickWrap.appendChild(btn);
+    }
+  }
+
+  mpAdapter.on('chat', (msg) => {
+    const p = msg.payload as any;
+    if (!p) return;
+    const from = String(p.from || '?');
+    const text = String(p.text || '');
+    if (from === (mpAdapter.localPeer?.name ?? '我')) return; // 自己已本地追加
+    appendLog(from, text, '#e67e22');
+    playSfx('event');
+  });
+}
+
+// v4.3.5：联机时 host 在游戏内显示提议历史面板（最近 5 条 marker / deploy / focus / intel）
+interface MpHostHistoryItem {
+  icon: string;
+  from: string;
+  text: string;
+  ts: number; // performance.now()
+  onClick?: () => void;
+}
+const mpHostHistory: MpHostHistoryItem[] = [];
+const MP_HOST_HISTORY_MAX = 5;
+let mpHostHistoryInstalled = false;
+
+function escapeHostHistory(s: string): string {
+  return s.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] || c));
+}
+
+function pushMpHostHistory(item: MpHostHistoryItem): void {
+  mpHostHistory.unshift(item);
+  if (mpHostHistory.length > MP_HOST_HISTORY_MAX) mpHostHistory.length = MP_HOST_HISTORY_MAX;
+  renderMpHostHistory();
+}
+
+function renderMpHostHistory(): void {
+  const list = document.getElementById('mp-host-history-list');
+  if (!list) return;
+  if (mpHostHistory.length === 0) {
+    list.innerHTML = '<div style="color:#7f8c8d;padding:6px 10px;">暂无提议</div>';
+    return;
+  }
+  const now = performance.now();
+  list.innerHTML = '';
+  for (let i = 0; i < mpHostHistory.length; i++) {
+    const it = mpHostHistory[i];
+    const ageSec = Math.max(0, Math.floor((now - it.ts) / 1000));
+    const ageStr = ageSec < 60 ? `${ageSec}s前` : `${Math.floor(ageSec / 60)}m前`;
+    const row = document.createElement('div');
+    row.style.cssText = 'padding:4px 10px;border-bottom:1px solid #2c3e50;font-size:11px;line-height:1.4;' + (it.onClick ? 'cursor:pointer;' : '');
+    row.innerHTML = `<span style="margin-right:4px;">${it.icon}</span><span style="color:#3498db;">[${escapeHostHistory(it.from)}]</span> ${escapeHostHistory(it.text)} <span style="color:#7f8c8d;font-size:10px;">· ${ageStr}</span>`;
+    if (it.onClick) {
+      row.addEventListener('click', () => {
+        it.onClick!();
+        playSfx('click');
+      });
+      row.addEventListener('mouseenter', () => { row.style.background = '#2c3e50'; });
+      row.addEventListener('mouseleave', () => { row.style.background = ''; });
+    }
+    list.appendChild(row);
+  }
+}
+
+function ensureMpHostHistoryPanel(): void {
+  if (!isMpHost()) return;
+  if (mpHostHistoryInstalled) {
+    const panel = document.getElementById('mp-host-history');
+    if (panel) panel.style.display = 'flex';
+    return;
+  }
+  mpHostHistoryInstalled = true;
+  // 清空（同一会话不同 run 复用）
+  mpHostHistory.length = 0;
+
+  const wrap = document.createElement('div');
+  wrap.id = 'mp-host-history';
+  wrap.style.cssText = 'position:fixed;right:12px;top:130px;width:280px;background:rgba(26,29,36,0.95);color:#ecf0f1;border:1px solid #34495e;border-radius:6px;font-family:monospace;font-size:12px;z-index:9997;display:flex;flex-direction:column;box-shadow:0 4px 12px rgba(0,0,0,0.5);';
+  wrap.innerHTML = `
+    <div id="mp-host-history-head" style="padding:6px 10px;background:#2c3e50;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-radius:6px 6px 0 0;">
+      <span>📜 提议历史 (近 5)</span>
+      <span id="mp-host-history-toggle" style="font-size:14px;">▾</span>
+    </div>
+    <div id="mp-host-history-body" style="display:flex;flex-direction:column;">
+      <div id="mp-host-history-list" style="max-height:160px;overflow-y:auto;background:#1a1d24;border-radius:0 0 6px 6px;"></div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+
+  const head = document.getElementById('mp-host-history-head')!;
+  const body = document.getElementById('mp-host-history-body')!;
+  const toggle = document.getElementById('mp-host-history-toggle')!;
+  let collapsed = false;
+  head.addEventListener('click', () => {
+    collapsed = !collapsed;
+    body.style.display = collapsed ? 'none' : 'flex';
+    toggle.textContent = collapsed ? '▸' : '▾';
+  });
+
+  renderMpHostHistory();
+  // 每 5s 刷新一次时间显示
+  setInterval(() => {
+    if (mpHostHistory.length > 0) renderMpHostHistory();
+  }, 5000);
 }
