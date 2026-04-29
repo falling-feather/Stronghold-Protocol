@@ -495,7 +495,18 @@
       <h1>卫戍协议模拟器</h1>
       <button id="btn-start-game">开始游戏</button>
       <button id="btn-multiplayer" style="margin-top:14px;padding:12px 32px;font-size:18px;background:#16a085;border:none;color:white;border-radius:6px;cursor:pointer;font-weight:bold;">联机模式</button>
+      <button id="btn-meta-tree" style="margin-top:14px;padding:12px 32px;font-size:18px;background:#8e44ad;border:none;color:white;border-radius:6px;cursor:pointer;font-weight:bold;">⬢ 升级树</button>
       <p>基于明日方舟的塔防策略游戏</p>
+    </div>
+
+    <!-- v3.6.0：跨局升级树 -->
+    <div id="meta-screen" style="display:none;flex-direction:column;background:linear-gradient(180deg,#1a1d24,#0f1115);min-height:100vh;color:#ecf0f1;">
+      <div class="faction-header" style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #2c3038;">
+        <button class="faction-back" id="btn-meta-back" style="background:transparent;color:#fff;border:1px solid #7f8c8d;border-radius:4px;padding:6px 14px;cursor:pointer;">← 返回</button>
+        <h2 style="flex:1;text-align:center;margin:0;color:#e1b455;letter-spacing:2px;">⬢ 跨局升级树</h2>
+        <span id="meta-shards-display" style="min-width:120px;text-align:right;font-size:18px;color:#f1c40f;font-weight:700;">⬢ 0</span>
+      </div>
+      <div id="meta-body" style="flex:1;padding:24px 30px;overflow-y:auto;"></div>
     </div>
 
     <!-- 联机模式面板（v1.4.0 占位） -->

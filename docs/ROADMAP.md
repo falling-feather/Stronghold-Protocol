@@ -50,6 +50,10 @@
 - [x] v3.5.2 事件卡品质与权重：EventCard 增 rarity（common/rare/epic）+ weight，rollEvent 改加权抽取（默认 100/35/10）；新增 3 张 epic 事件（远古祭坛 / 先知的启示 / 宝箱），高品事件加成更强；modal UI 按 rarity 着色边框/标签
 - [x] v3.5.3 事件日志面板：GameEngine.eventHistory 记录本局已触发事件 + 所选选项；顶栏「📜 N」按钮可点击弹出历史 modal，按品质色分组列表展示
 - [x] v3.5.4 事件波次联动：EventCard 新增 minWave/maxWave/once/cooldown；rollEvent 支持按 currentWave + history 过滤；3 张 epic 设 once+minWave（祭坛 5/启示 4/宝箱 3），黑市 cooldown:3
+- [x] v3.6.0 跨局碎片货币 + meta 升级树：localStorage 永久保存（sp_meta_v1）；4 项升级（启动资金/盟约预热/神秘指引/初始法力）；碎片产出（每波+4、perfect+2、通关+50、史诗事件+15、失败折半）；主菜单新增「⬢ 升级树」入口，节点式购买
+- [x] v3.6.1 升级树扩充 + 前置依赖：MetaUpgrade 新增 prereq 字段；新增 4 项二级升级（坚壁计划/物流优势/韧链/深渊低语）；前置未满足时卡片置灰显示「🔒 需要：xx Lv.N」；GameEngine 应用起始生命/盟约衰减缩放/商店折扣/epic 权重加成
+- [x] v3.6.2 开局福利（boon）3 选 1：PactScreen→BoonScreen→Game 流程；7 个 boon（充裕预算/能量预热/加固防线/誓约觉醒/命运牵引/黑市渠道/初遇眷顾）；按 rarity 加权抽取；可跳过；本局生效（不影响 meta 持久数据）
+- [x] v3.6.3 升级树重置返还 + 分类标签：MetaUpgrade 新增 tag 字段（经济/盟约/事件/防御）；MetaScreen 顶部分类筛选 chip；重置按钮改为返还 80% 已花费碎片（resetMetaWithRefund）；重置前 confirm 显示返还数额
 
 ## v4.x — 联机
 

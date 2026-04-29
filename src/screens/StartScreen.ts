@@ -1,6 +1,7 @@
 // 开始界面：仅承接两个入口（开始游戏 / 联机模式）
 import { showFactionScreen, initFactionScreen } from './FactionScreen';
 import { showMultiplayerScreen, initMultiplayerScreen } from './MultiplayerScreen';
+import { showMetaScreen, initMetaScreen } from './MetaScreen';
 
 export function initStartScreen(): void {
   const startScreen = document.getElementById('start-screen');
@@ -14,7 +15,9 @@ export function initStartScreen(): void {
 
   btnStartGame.addEventListener('click', () => showFactionScreen());
   document.getElementById('btn-multiplayer')?.addEventListener('click', () => showMultiplayerScreen());
+  document.getElementById('btn-meta-tree')?.addEventListener('click', () => showMetaScreen());
 
   initFactionScreen();
   initMultiplayerScreen();
+  initMetaScreen();
 }

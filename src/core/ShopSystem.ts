@@ -5,6 +5,7 @@
 import { OPERATOR_DB, RARITY_RATES, CONFIG } from '../config/gameData';
 import { ShopItem, OperatorPoolStats } from '../types';
 import type { GameEngine } from './GameEngine';
+import { applyShopDiscount } from '../config/metaData';
 
 const POOL_LIMIT = 7;
 const REFRESH_COST = 2;
@@ -45,12 +46,21 @@ export class ShopSystem {
       this.shopItems.push({
         uid: `shop_${Date.now()}_${i}`,
         templateId,
-        cost: template.cost,
+        cost: this.applyAllDiscounts(template.cost),
         bought: false
       });
       i++;
     }
     this.engine.notifyUpdate();
+  }
+
+  // v3.6.2：综合折扣 = meta 升级 + boon"黑市渠道"
+  private applyAllDiscounts(price: number): number {
+    let p = applyShopDiscount(price);
+    if (this.engine.activeBoonId === 'boon_shop_discount') {
+      p = Math.max(1, Math.round(p * 0.85));
+    }
+    return p;
   }
 
   private rollForOperator(): string {

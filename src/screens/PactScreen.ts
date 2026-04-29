@@ -1,8 +1,8 @@
 // 盟约选择页（v3.1.0；v3.2.1：每个盟约可切换 普通/枷锁 模式；v3.3.2：预览潜在共鸣）
 import { PACT_DB, SELECTABLE_PACTS, PACT_PICK_MIN, PACT_PICK_MAX, RESONANCE_DB } from '../config/gameData';
 import { PactSelection } from '../types';
-import { screenState, showOnly } from './shared';
-import { startGame } from './GameScreen';
+import { showOnly } from './shared';
+import { showBoonScreen } from './BoonScreen';
 
 let selections: PactSelection[] = []; // 玩家已选盟约（含 shackled 标记）
 let initialized = false;
@@ -23,7 +23,8 @@ export function initPactScreen(): void {
       alert(`至少需要选择 ${PACT_PICK_MIN} 个盟约`);
       return;
     }
-    startGame(screenState.currentFactionId, screenState.currentRoster, selections.slice());
+    // v3.6.2：进入开局福利屏（不再直接 startGame）
+    showBoonScreen(selections.slice());
   });
   initialized = true;
 }

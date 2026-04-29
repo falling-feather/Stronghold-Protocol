@@ -1,5 +1,6 @@
 // v3.5.0：事件卡数据库
 import { EventCard } from '../types';
+import { getEpicWeightBonus } from './metaData';
 
 export const EVENT_DB: Record<string, EventCard> = {
   ev_mystic_merchant: {
@@ -242,9 +243,10 @@ export interface RollHistoryEntry {
 export function rollEvent(
   currentWave: number,
   history: RollHistoryEntry[] = [],
+  chance: number = EVENT_TRIGGER_CHANCE,
   rng: () => number = Math.random,
 ): EventCard | null {
-  if (rng() >= EVENT_TRIGGER_CHANCE) return null;
+  if (rng() >= chance) return null;
   const all = Object.values(EVENT_DB);
   if (all.length === 0) return null;
   // v3.5.4：过滤可抽卡集合
@@ -260,7 +262,12 @@ export function rollEvent(
     return true;
   });
   if (cards.length === 0) return null;
-  const weights = cards.map(c => c.weight ?? RARITY_DEFAULT_WEIGHT[c.rarity ?? 'common'] ?? 50);
+  const weights = cards.map(c => {
+    const base = c.weight ?? RARITY_DEFAULT_WEIGHT[c.rarity ?? 'common'] ?? 50;
+    // v3.6.1：epic 事件抽取权重加成（meta 升级"深渊低语"）
+    if ((c.rarity ?? 'common') === 'epic') return base + getEpicWeightBonus();
+    return base;
+  });
   const total = weights.reduce((a, b) => a + b, 0);
   let roll = rng() * total;
   for (let i = 0; i < cards.length; i++) {

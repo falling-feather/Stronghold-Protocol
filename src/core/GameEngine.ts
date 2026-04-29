@@ -1,5 +1,8 @@
 import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, PACT_DB, DEFAULT_ACTIVE_PACTS, RESONANCE_DB, resolveSkillForRank, applyTalentsToStats, buildTalentEffects } from '../config/gameData';
-import { rollEvent } from '../config/eventData';
+import { rollEvent, EVENT_TRIGGER_CHANCE } from '../config/eventData';
+import { BoonId, BOON_DB } from '../config/boonData';
+import { getStartingMoneyBonus, getPactExtraStack, getEventChanceBonus, getStartingSpBonus, getStartingLivesBonus, getDecayMultiplier, calcShardsForRun } from '../config/metaData';
+import { addShards } from './MetaSave';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
 import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection, EventCard, EventEngineHandle } from '../types';
@@ -73,22 +76,35 @@ export class GameEngine {
   pendingEvent: EventCard | null = null;
   // v3.5.3：本局事件日志
   eventHistory: { eventId: string; eventName: string; rarity: 'common'|'rare'|'epic'; optionIdx: number; optionLabel: string; afterWave: number }[] = [];
+  // v3.6.2：本局开局福利（boon）
+  activeBoonId: BoonId | null = null;
 
-  constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null, activePactSelections: PactSelection[] | null = null) {
+  constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null, activePactSelections: PactSelection[] | null = null, activeBoonId: BoonId | null = null) {
     this.factionId = factionId;
     this.allowedTemplateIds = allowedTemplateIds;
+    this.activeBoonId = activeBoonId;
+    const boon = activeBoonId ? BOON_DB[activeBoonId] : null;
     const eff = FACTION_DB[factionId].effect;
-    this.lives = eff.initialLives ?? CONFIG.BASE_LIVES;
-    this.money = eff.initialMoney ?? CONFIG.BASE_MONEY;
+    const boonLives = boon?.id === 'boon_starting_lives' ? 2 : 0;
+    const boonMoney = boon?.id === 'boon_starting_money' ? 60 : 0;
+    this.lives = (eff.initialLives ?? CONFIG.BASE_LIVES) + getStartingLivesBonus() + boonLives;
+    this.money = (eff.initialMoney ?? CONFIG.BASE_MONEY) + getStartingMoneyBonus() + boonMoney;
     this.shop = new ShopSystem(this);
     this.shop.refreshShop(true);
     // v3.0.0/v3.1.0/v3.2.1：初始化盟约运行时（外部传入 selections；缺省走 DEFAULT_ACTIVE_PACTS 全部非枷锁）
     const selections: PactSelection[] = (activePactSelections && activePactSelections.length > 0)
       ? activePactSelections
       : DEFAULT_ACTIVE_PACTS.map(id => ({ defId: id, shackled: false }));
-    this.pacts = selections.filter(s => PACT_DB[s.defId]).map(s => ({
-      defId: s.defId, stack: 0, appliedTier: -1, decayAccum: 0, shackled: !!s.shackled,
-    }));
+    // v3.6.0：meta 升级"盟约预热"+ v3.6.2 boon"誓约觉醒"
+    const boonPactStack = boon?.id === 'boon_pact_warmup' ? 2 : 0;
+    const extraStack = getPactExtraStack() + boonPactStack;
+    this.pacts = selections.filter(s => PACT_DB[s.defId]).map(s => {
+      const def = PACT_DB[s.defId];
+      const initStack = Math.min(def.cap, extraStack);
+      return { defId: s.defId, stack: initStack, appliedTier: -1, decayAccum: 0, shackled: !!s.shackled };
+    });
+    // 初始 stack 立即结算 tier，让 meta 加成战斗前就生效
+    this.pacts.forEach(rt => (this as any).reconcilePactTier(rt));
   }
 
   // 公开给 ShopSystem 调用
@@ -168,7 +184,11 @@ export class GameEngine {
       this.notifyUpdate(); // 触发UI隐藏底部
       return true;
     } else {
-      alert("全域威胁已清除！");
+      // v3.6.0：通关时结算碎片
+      const epicCount = this.eventHistory.filter(h => h.rarity === 'epic').length;
+      const earned = calcShardsForRun({ wavesCleared: WAVES.length, victory: true, epicEventsTriggered: epicCount });
+      addShards(earned);
+      alert(`全域威胁已清除！\n获得碎片：+${earned}（含通关奖励 50 + 每史诗事件 +15）`);
       return false;
     }
   }
@@ -190,6 +210,8 @@ export class GameEngine {
     const perfect = this.killedEnemiesInWave >= this.totalEnemiesInWave;
     this.onPactEvent('wave_clear');
     if (perfect) this.onPactEvent('wave_perfect');
+    // v3.6.0：每波结束发 4 碎片（perfect +2），积少成多
+    addShards(4 + (perfect ? 2 : 0));
 
     this.operators.forEach(op => {
       op.stats.hp = op.stats.maxHp;
@@ -204,7 +226,12 @@ export class GameEngine {
         // v3.5.0：尝试触发事件卡（不与 alert 冲突，alert 关闭后立即弹出 modal）
         if (!this.pendingEvent) {
           // v3.5.4：传入 currentWave + history 以支持 minWave/once/cooldown 过滤
-          const ev = rollEvent(this.waveIndex, this.eventHistory);
+          // v3.6.0：meta 升级"神秘指引"提升触发概率
+          // v3.6.2：boon"命运牵引" +20%；"初遇眷顾" 强制首个事件触发
+          const boonChance = this.activeBoonId === 'boon_event_chance' ? 0.2 : 0;
+          const forceFirst = this.activeBoonId === 'boon_double_first_event' && this.eventHistory.length === 0;
+          const chance = forceFirst ? 1 : (EVENT_TRIGGER_CHANCE + getEventChanceBonus() + boonChance);
+          const ev = rollEvent(this.waveIndex, this.eventHistory, chance);
           if (ev) {
             this.pendingEvent = ev;
             this.notifyUpdate();
@@ -373,6 +400,10 @@ export class GameEngine {
       if (t.effect !== 'sp_init') return sum;
       return sum + (rank === 2 ? t.rankValues.rank2 : t.rankValues.rank1);
     }, 0);
+    // v3.6.0：meta 升级 — 初始法力（每等级 +5 SP，封顶 skill cost）
+    const metaSpBonus = getStartingSpBonus();
+    // v3.6.2：boon"能量预热"额外 +15 SP
+    const boonSpBonus = this.activeBoonId === 'boon_starting_sp' ? 15 : 0;
 
     this.operators.push({
       id: `op_${Date.now()}`,
@@ -392,7 +423,7 @@ export class GameEngine {
       blockingEnemyIds: [],
       isRetreated: false,
       skill: skillInfo,
-      currentSp: skillInfo.initialSp + extraSp,
+      currentSp: Math.min(skillInfo.cost, skillInfo.initialSp + extraSp + metaSpBonus + boonSpBonus),
       skillActive: false,
       skillDuration: 0,
       rank: rank,
@@ -883,11 +914,15 @@ export class GameEngine {
   private tickPactDecay(dt: number) {
     if (this.pacts.length === 0) return;
     let dirty = false;
+    // v3.6.1：meta 升级"韧链"减少衰减 — 直接缩放 dt
+    const decayMul = getDecayMultiplier();
+    if (decayMul <= 0) return;
+    const scaledDt = dt * decayMul;
     for (const rt of this.pacts) {
       const def = PACT_DB[rt.defId];
       if (!def?.decay) continue;
       if (rt.stack <= 0) continue;
-      rt.decayAccum += dt;
+      rt.decayAccum += scaledDt;
       while (rt.decayAccum >= def.decay.interval && rt.stack > 0) {
         rt.decayAccum -= def.decay.interval;
         rt.stack = Math.max(0, rt.stack - def.decay.perTick);
@@ -986,7 +1021,11 @@ export class GameEngine {
     this.enemies = this.enemies.filter(e => !e.markedForDeletion);
     this.projectiles = this.projectiles.filter(p => !p.markedForDeletion);
     if (this.lives <= 0) {
-      alert('任务失败！页面将刷新。');
+      // v3.6.0：失败时结算碎片
+      const epicCount = this.eventHistory.filter(h => h.rarity === 'epic').length;
+      const earned = calcShardsForRun({ wavesCleared: this.waveIndex, victory: false, epicEventsTriggered: epicCount });
+      addShards(earned);
+      alert(`任务失败！\n清剿波次：${this.waveIndex}\n获得碎片：+${earned}\n页面将刷新。`);
       location.reload();
     }
   }
