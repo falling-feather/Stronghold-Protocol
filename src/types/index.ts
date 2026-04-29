@@ -120,6 +120,16 @@ export interface PactSelection {
   shackled: boolean;
 }
 
+// v3.3.0：盟约共鸣 — 当多个盟约同时达到 minTier 时激活的额外加成
+export interface PactResonance {
+  id: string; // 例如 'reso_flame_storm'，运行时 sourceId 形如 'resonance_<id>_<n>'
+  name: string;
+  desc: string;
+  requires: { defId: string; minTier: number }[]; // 全部满足才激活
+  scope: 'all_operators' | 'all_enemies';
+  effects: StatusEffect[]; // 激活期间挂载到 scope 内全体单位
+}
+
 export interface Enemy extends Entity {
   waypointIndex: number;
   isBlockedBy: string | null;

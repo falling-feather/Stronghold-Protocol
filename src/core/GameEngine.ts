@@ -1,4 +1,4 @@
-import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, PACT_DB, DEFAULT_ACTIVE_PACTS, resolveSkillForRank, applyTalentsToStats, buildTalentEffects } from '../config/gameData';
+import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, ENEMY_DB, OPERATOR_DB, WAVES, PACT_DB, DEFAULT_ACTIVE_PACTS, RESONANCE_DB, resolveSkillForRank, applyTalentsToStats, buildTalentEffects } from '../config/gameData';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
 import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection } from '../types';
@@ -64,6 +64,9 @@ export class GameEngine {
 
   // v3.0.0：盟约叠层运行时
   pacts: PactRuntime[] = [];
+  // v3.3.0：当前激活的共鸣 id 集合 + 最近激活时间戳（UI 闪光用）
+  activeResonances: Set<string> = new Set();
+  resonanceActivatedAt: Record<string, number> = {};
 
   constructor(factionId: FactionId = 'command', allowedTemplateIds: Set<string> | null = null, activePactSelections: PactSelection[] | null = null) {
     this.factionId = factionId;
@@ -715,7 +718,49 @@ export class GameEngine {
     }
     rt.appliedTier = newTier;
     void idPrefix; // 为后续更精细前缀匹配预留
+    // v3.3.0：tier 变化后重新评估盟约共鸣
+    this.reconcileResonances();
     return true;
+  }
+
+  // v3.3.0：扫描 RESONANCE_DB，激活/失活差量应用到全体单位
+  private reconcileResonances(): void {
+    const now = performance.now();
+    for (const reso of Object.values(RESONANCE_DB)) {
+      const allMet = reso.requires.every(req => {
+        const rt = this.pacts.find(p => p.defId === req.defId);
+        return !!rt && rt.appliedTier >= req.minTier;
+      });
+      const wasActive = this.activeResonances.has(reso.id);
+      if (allMet && !wasActive) {
+        this.activeResonances.add(reso.id);
+        this.resonanceActivatedAt[reso.id] = now;
+        if (reso.scope === 'all_operators') {
+          for (const op of this.operators) {
+            if (op.isRetreated) continue;
+            for (const eff of reso.effects) op.effects.push({ ...eff, remaining: eff.duration });
+          }
+        } else if (reso.scope === 'all_enemies') {
+          for (const en of this.enemies) {
+            if (en.markedForDeletion) continue;
+            for (const eff of reso.effects) en.effects.push({ ...eff, remaining: eff.duration });
+          }
+        }
+      } else if (!allMet && wasActive) {
+        this.activeResonances.delete(reso.id);
+        // 撤效果：通过 sourceId 前缀 'resonance_<id>_' 过滤
+        const prefix = `resonance_${reso.id}_`;
+        if (reso.scope === 'all_operators') {
+          for (const op of this.operators) {
+            op.effects = op.effects.filter(e => !e.id.startsWith(prefix));
+          }
+        } else if (reso.scope === 'all_enemies') {
+          for (const en of this.enemies) {
+            en.effects = en.effects.filter(e => !e.id.startsWith(prefix));
+          }
+        }
+      }
+    }
   }
 
   // v3.0.0：返回当前已激活 tier 的所有 effects（用于干员部署时叠加）
@@ -732,6 +777,12 @@ export class GameEngine {
       // tier 加成：仅当 stack 达阈值
       if (rt.appliedTier < 0) continue;
       for (const eff of def.tiers[rt.appliedTier].effects) out.push({ ...eff, remaining: eff.duration });
+    }
+    // v3.3.0：当前激活的盟约共鸣（仅 all_operators 范围）也叠加
+    for (const resoId of this.activeResonances) {
+      const reso = RESONANCE_DB[resoId];
+      if (!reso || reso.scope !== 'all_operators') continue;
+      for (const eff of reso.effects) out.push({ ...eff, remaining: eff.duration });
     }
     return out;
   }

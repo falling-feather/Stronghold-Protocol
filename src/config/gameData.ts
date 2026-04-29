@@ -1,4 +1,4 @@
-import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType, OperatorClass, ClassTrait, SkillDefinition, BaseStats, Talent, StatusEffect, EnemyTraits, PactDefinition } from '../types';
+import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType, OperatorClass, ClassTrait, SkillDefinition, BaseStats, Talent, StatusEffect, EnemyTraits, PactDefinition, PactResonance } from '../types';
 
 export const CONFIG = {
   TILE_SIZE: 64,
@@ -547,3 +547,33 @@ export const SELECTABLE_PACTS: string[] = [
 // v3.1.0：开局选择盟约的数量上下限
 export const PACT_PICK_MIN = 1;
 export const PACT_PICK_MAX = 2;
+
+// v3.3.0：盟约共鸣 — 多个盟约同时达 minTier 时触发额外加成
+const mkResoEffect = (id: string, name: string, stat: 'atk' | 'def' | 'aspd' | 'spd' | 'magicResist' | 'blockCount', mod: number, modType: 'flat' | 'pct'): StatusEffect => ({
+  id, name, kind: 'buff', stat, mod, modType, duration: -1, remaining: -1,
+});
+
+export const RESONANCE_DB: Record<string, PactResonance> = {
+  reso_flame_storm: {
+    id: 'reso_flame_storm',
+    name: '共鸣·烈风',
+    desc: '烎佑 + 空中猎手 同时达 tier1：全体攻击 +8%',
+    requires: [
+      { defId: 'pact_flame_blessing', minTier: 0 },
+      { defId: 'pact_aerial_hunter', minTier: 0 },
+    ],
+    scope: 'all_operators',
+    effects: [mkResoEffect('resonance_reso_flame_storm_atk', '[共鸣·烈风] 炽烈之心', 'atk', 0.08, 'pct')],
+  },
+  reso_iron_echo: {
+    id: 'reso_iron_echo',
+    name: '共鸣·坚壁',
+    desc: '钢铁誓约 + 余音回响 同时达 tier1：全体魔抗 +8',
+    requires: [
+      { defId: 'pact_iron_resolve', minTier: 0 },
+      { defId: 'pact_lingering_echo', minTier: 0 },
+    ],
+    scope: 'all_operators',
+    effects: [mkResoEffect('resonance_reso_iron_echo_mr', '[共鸣·坚壁] 不动之余', 'magicResist', 8, 'flat')],
+  },
+};

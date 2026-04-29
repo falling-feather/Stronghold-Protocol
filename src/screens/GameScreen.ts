@@ -1,7 +1,7 @@
 // 游戏对局屏幕：包含初始化、UI 渲染循环、交互事件、详情面板、拖拽（v1.5.x）
 import { GameEngine } from '../core/GameEngine';
 import { Renderer } from '../view/Renderer';
-import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps, resolveSkillForRank, CLASS_TRAITS, PACT_DB } from '../config/gameData';
+import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps, resolveSkillForRank, CLASS_TRAITS, PACT_DB, RESONANCE_DB } from '../config/gameData';
 import { FactionId } from '../config/factions';
 import { Roster, rosterToAllowedSet } from '../config/roster';
 import { Direction, PactSelection } from '../types';
@@ -242,6 +242,19 @@ function renderPactBadges(): void {
     else if (rt.lastStackChangeAt && now - rt.lastStackChangeAt < 280) cls.push('stack-bump');
     return `<div class="${cls.join(' ')}" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:bold;margin-left:6px;border:2px solid ${borderColor};">${rt.stack}${rt.shackled ? '⛓' : ''}</div>`;
   }).join('');
+  // v3.3.0：盟约共鸣徽记（金色 ✦）
+  if (engine && engine.activeResonances.size > 0) {
+    const eng = engine;
+    const resoHtml = Array.from(eng.activeResonances).map(rid => {
+      const reso = RESONANCE_DB[rid];
+      if (!reso) return '';
+      const activatedAt = eng.resonanceActivatedAt[rid] || 0;
+      const flashCls = (now - activatedAt < 1200) ? ' tier-up' : '';
+      const title = `${reso.name}\n${reso.desc}（生效中）`;
+      return `<div class="pact-badge${flashCls}" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 8px;border-radius:16px;background:linear-gradient(90deg,#f1c40f,#e67e22);color:#000;font-size:11px;font-weight:bold;margin-left:8px;border:2px solid #fff;">✦${reso.name}</div>`;
+    }).join('');
+    container.innerHTML += resoHtml;
+  }
 }
 
 function gameLoop(timestamp: number): void {

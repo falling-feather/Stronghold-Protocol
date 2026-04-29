@@ -38,6 +38,7 @@
 - [x] v3.2.0 誓约枷锁（负面盟约）：PactDefinition 新增 penalty/penaltyDesc；getActivePactEffectsForOperator 部署时无视 tier 附加 penalty 至干员；PactScreen 卡片显示 ⛓ 红色枷锁段；5 盟约各配代价（炎佑 def-3 / 余音 mr-5 / 碎铳之簧 def-5 / 高翔之狩 mr-3 / 钢铁誓约 atk-8%）
 - [x] v3.2.1 枷锁可选开关：每个盟约可在 PactScreen 切换「普通/枷锁」模式（默认普通）；枷锁模式 = 阈值 ×0.7 上取整 + penalty 生效；PactRuntime.shackled / PactSelection 类型；GameEngine 构造器接受 PactSelection[]；徽记加 ⛓ 标记 + 红边
 - [x] v3.2.2 视觉反馈：PactRuntime.lastTierUpAt / lastStackChangeAt 时间戳；CSS @keyframes pact-tier-up（升阶金光脉冲）+ pact-stack-bump（叠层小弹跳）；renderPactBadges 按时间戳挂 class
+- [x] v3.3.0 盟约共鸣：RESONANCE_DB（reso_flame_storm 炎佑+空中猎手→atk +8% / reso_iron_echo 钢铁誓约+余音回响→magicResist +8）；GameEngine.activeResonances 集合 + reconcileResonances 差量应用；getActivePactEffectsForOperator 叠加；UI 顶栏激活时显示金色 ✦ 徽记（含闪光）
 
 ## v4.x — 联机
 
