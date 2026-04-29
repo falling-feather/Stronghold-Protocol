@@ -56,6 +56,7 @@
 - [x] v3.6.3 升级树重置返还 + 分类标签：MetaUpgrade 新增 tag 字段（经济/盟约/事件/防御）；MetaScreen 顶部分类筛选 chip；重置按钮改为返还 80% 已花费碎片（resetMetaWithRefund）；重置前 confirm 显示返还数额
 - [x] v3.7.0 成就 / 解锁系统：MetaSave 扩 stats（累计开局/通关/波数/史诗/单局共鸣峰值/枷锁通关/已用 boon 集合）+ achievements 持久层；新增 8 个成就（首胜/沙场老将/百战之躯/深渊探求/共鸣大师/枷锁勇者/福利收藏家/不屈意志），命中即弹窗发放碎片奖励；GameEngine 在每波/通关/失败/事件解析时联动统计；主菜单新增「🏆 成就」入口（AchievementScreen 含进度条与统计摘要）
 - [x] v3.8.0 每日挑战：基于日期种子（mulberry32）固定 3 盟约（含 1 枷锁），主菜单「📅 每日挑战」入口；MetaSave 加 daily.lastCompletedDate；GameEngine 加 isDailyMode，通关时若当日未结算则 +150 碎片奖励；DailyScreen 显示今日盟约/状态/奖励
+- [x] v3.9.0 BGM/SFX 接入：WebAudio 合成骨架（无外部资源），8 个 SFX（部署/射击/受击/波清/失败/点击/事件/成就）+ 3 路混音器（master/sfx/bgm）；主菜单「⚙ 设置」入口含音量滑块 + 试音按钮；BGM 在开战时启动、设置面板可单独试听；GameEngine 在部署/受击/波次清理/事件/成就解锁等节点联动播音
 
 ## v4.x — 联机
 

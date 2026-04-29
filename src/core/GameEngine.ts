@@ -5,6 +5,7 @@ import { getStartingMoneyBonus, getPactExtraStack, getEventChanceBonus, getStart
 import { addShards, bumpStat, setStatMax, recordBoonUsed, getStats, unlockAchievement, isAchievementUnlocked, getDailyState, setDailyCompleted } from './MetaSave';
 import { ACHIEVEMENTS, checkAchievements } from '../config/achievements';
 import { getDailyChallenge, getTodayDate } from '../config/dailyData';
+import { playSfx } from './AudioSystem';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
 import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection, EventCard, EventEngineHandle } from '../types';
@@ -149,6 +150,7 @@ export class GameEngine {
     // 时间到，根据剩余怪物数扣除生命值
     const remainingEnemies = this.totalEnemiesInWave - this.killedEnemiesInWave;
     this.lives -= remainingEnemies;
+    if (remainingEnemies > 0) playSfx('hit');
     
     // 清除所有敌人
     this.enemies.forEach(enemy => enemy.markedForDeletion = true);
@@ -238,6 +240,8 @@ export class GameEngine {
     if (perfect) this.onPactEvent('wave_perfect');
     // v3.6.0：每波结束发 4 碎片（perfect +2），积少成多
     addShards(4 + (perfect ? 2 : 0));
+    // v3.9.0：波次清理音效
+    playSfx('wave_clear');
     // v3.7.0：累计波数 + 共鸣峰值
     bumpStat('totalWavesCleared', 1);
     setStatMax('maxResonanceInRun', this.activeResonances.size);
@@ -289,6 +293,8 @@ export class GameEngine {
     });
     // v3.7.0：史诗事件计数
     if ((ev.rarity ?? 'common') === 'epic') bumpStat('totalEpicEvents', 1);
+    // v3.9.0：事件触发音效
+    playSfx('event');
     this.pendingEvent = null;
     this.notifyUpdate();
   }
@@ -471,6 +477,8 @@ export class GameEngine {
     // v3.0.0：盟约事件
     this.onPactEvent('deploy_any');
     this.onPactEvent(`deploy_class:${template.class}` as PactSource);
+    // v3.9.0：部署音效
+    playSfx('deploy');
 
     this.notifyUpdate();
     return true;
@@ -583,6 +591,7 @@ export class GameEngine {
       const targetGrid = PATH_WAYPOINTS[enemy.waypointIndex + 1];
       if (!targetGrid) {
         this.lives -= 1;
+        playSfx('hit');
         enemy.markedForDeletion = true;
         return;
       }
@@ -1058,6 +1067,7 @@ export class GameEngine {
       const earned = calcShardsForRun({ wavesCleared: this.waveIndex, victory: false, epicEventsTriggered: epicCount });
       addShards(earned);
       this.checkAndAnnounceAchievements();
+      playSfx('wave_fail');
       alert(`任务失败！\n清剿波次：${this.waveIndex}\n获得碎片：+${earned}\n页面将刷新。`);
       location.reload();
     }
@@ -1079,6 +1089,7 @@ export class GameEngine {
       }
     }
     if (lines.length > 0) {
+      playSfx('achievement');
       setTimeout(() => alert(`★ 成就解锁 ★\n${lines.join('\n')}${totalReward ? `\n累计奖励：+${totalReward} 碎片` : ''}`), 50);
     }
   }

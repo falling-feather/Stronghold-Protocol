@@ -6,6 +6,7 @@ import { FactionId } from '../config/factions';
 import { Roster, rosterToAllowedSet } from '../config/roster';
 import { Direction, PactSelection } from '../types';
 import { showOnly } from './shared';
+import { startBgm } from '../core/AudioSystem';
 import type { BoonId } from '../config/boonData';
 
 let canvas: HTMLCanvasElement | null = null;
@@ -79,6 +80,9 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
   (window as any).engine = engine;
 
   engine.onStateUpdated = () => renderUI();
+
+  // v3.9.0：开战时启动 BGM（用户点击为合法手势）
+  startBgm();
 
   // v3.5.3：事件日志按钮（点击弹出已触发事件历史）
   const btnEventLog = document.getElementById('btn-event-log');

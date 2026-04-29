@@ -4,6 +4,8 @@ import { showMultiplayerScreen, initMultiplayerScreen } from './MultiplayerScree
 import { showMetaScreen, initMetaScreen } from './MetaScreen';
 import { showAchievementScreen, initAchievementScreen } from './AchievementScreen';
 import { showDailyScreen, initDailyScreen } from './DailyScreen';
+import { showSettingsScreen, initSettingsScreen } from './SettingsScreen';
+import { playSfx } from '../core/AudioSystem';
 
 export function initStartScreen(): void {
   const startScreen = document.getElementById('start-screen');
@@ -15,15 +17,17 @@ export function initStartScreen(): void {
     return;
   }
 
-  btnStartGame.addEventListener('click', () => showFactionScreen());
-  document.getElementById('btn-multiplayer')?.addEventListener('click', () => showMultiplayerScreen());
-  document.getElementById('btn-meta-tree')?.addEventListener('click', () => showMetaScreen());
-  document.getElementById('btn-achievements')?.addEventListener('click', () => showAchievementScreen());
-  document.getElementById('btn-daily')?.addEventListener('click', () => showDailyScreen());
+  btnStartGame.addEventListener('click', () => { playSfx('click'); showFactionScreen(); });
+  document.getElementById('btn-multiplayer')?.addEventListener('click', () => { playSfx('click'); showMultiplayerScreen(); });
+  document.getElementById('btn-meta-tree')?.addEventListener('click', () => { playSfx('click'); showMetaScreen(); });
+  document.getElementById('btn-achievements')?.addEventListener('click', () => { playSfx('click'); showAchievementScreen(); });
+  document.getElementById('btn-daily')?.addEventListener('click', () => { playSfx('click'); showDailyScreen(); });
+  document.getElementById('btn-settings')?.addEventListener('click', () => { playSfx('click'); showSettingsScreen(); });
 
   initFactionScreen();
   initMultiplayerScreen();
   initMetaScreen();
   initAchievementScreen();
   initDailyScreen();
+  initSettingsScreen();
 }
