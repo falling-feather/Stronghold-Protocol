@@ -81,6 +81,8 @@ export interface EnemyTraits {
   healAura?: { perSec: number; radiusTiles: number };
   // v3.17.0：远程攻击（不需要 block，对 range tile 内最近的 operator 周期扣 hp）
   ranged?: { rangeTiles: number };
+  // v3.17.1：抗治疗光环（场内有存活同阶敌时，医疗弹 damage × mult）
+  healSuppress?: { mult: number };
 }
 
 // v3.0.0：盟约叠层
@@ -223,6 +225,9 @@ export interface Projectile {
   sourceId?: string; // v3.16.0：发射者 operator id（用于击杀回报、治疗目标等）
   sourceClass?: string; // v3.16.0：发射者职业（命中分支判断减速等附加效果）
   targetIsAlly?: boolean; // v3.16.0：true 表示 targetId 指向 operator（治疗弹）
+  // v3.17.1：敌人远程攻击的类型标记
+  targetIsOperator?: boolean; // true 表示 targetId 指向 operator（敌人远程弹）
+  sourceEnemyId?: string; // 发射者 enemy id
 }
 
 export interface ShopItem {

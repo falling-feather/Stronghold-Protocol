@@ -586,6 +586,12 @@ export const ENEMY_DB: Record<string, { name: string; color: string; radius: num
     name: '远程骚扰兵', color: '#d35400', radius: 14,
     stats: { hp: 700, maxHp: 700, atk: 220, def: 50, spd: 1.0, range: 2.5, aspd: 1.6, blockCount: 1, magicResist: 10 },
     traits: { ranged: { rangeTiles: 2.5 } }
+  },
+  // v3.17.1：抗治疗者 — 场内存在时，所有医疗弹治疗量 ×0.5
+  'silencer': {
+    name: '抗治疗者', color: '#7f8c8d', radius: 16,
+    stats: { hp: 1100, maxHp: 1100, atk: 200, def: 80, spd: 1.0, range: 0, aspd: 1.6, blockCount: 1, magicResist: 25 },
+    traits: { healSuppress: { mult: 0.5 } }
   }
 };
 
@@ -604,6 +610,8 @@ export const WAVES = [
   // v3.17.0：新敌人波次（治疗 + 远程骚扰）
   { count: 3, interval: 2.8, enemyId: 'dervish', reward: 50 },
   { count: 5, interval: 1.8, enemyId: 'harasser', reward: 45 },
+  // v3.17.1：抗治疗者波次
+  { count: 2, interval: 3.5, enemyId: 'silencer', reward: 60 },
 ];
 
 // v3.0.0：盟约叠层数据库

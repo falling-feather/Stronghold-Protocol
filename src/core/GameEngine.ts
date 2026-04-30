@@ -604,11 +604,20 @@ export class GameEngine {
           if (nearest) {
             const target = nearest as Operator;
             const enemyAtk = this.modifyStat(enemy.effects, enemy.stats.atk, 'atk');
-            const opDef = this.modifyStat(target.effects, target.stats.def, 'def');
-            const damage = Math.max(5, enemyAtk - opDef);
-            target.stats.hp -= damage;
+            // v3.17.1：发射可视弹道（projectile 飞向目标后再扣 hp）
+            this.projectiles.push({
+              id: `eproj_${Date.now()}_${Math.random()}`,
+              pos: { x: enemy.pos.x, y: enemy.pos.y },
+              targetId: target.id,
+              speed: 600,
+              damage: enemyAtk,
+              color: '#e67e22',
+              markedForDeletion: false,
+              atkType: 'physical',
+              targetIsOperator: true,
+              sourceEnemyId: enemy.id,
+            });
             enemy.attackCooldown = this.modifyStat(enemy.effects, enemy.stats.aspd, 'aspd');
-            if (target.stats.hp <= 0) this.handleOperatorRetreat(target);
           } else {
             enemy.attackCooldown = 0.2; // 没目标，短促重试
           }
@@ -1106,6 +1115,24 @@ export class GameEngine {
 
   private updateProjectiles(dt: number) {
     this.projectiles.forEach(proj => {
+      // v3.17.1：敌人远程弹分支（targetIsOperator=true → target 为 operator，命中扣 hp）
+      if (proj.targetIsOperator) {
+        const op = this.operators.find(o => o.id === proj.targetId);
+        if (!op || op.markedForDeletion || op.isRetreated) {
+          proj.markedForDeletion = true;
+          return;
+        }
+        const opCenter = { x: op.pos.x + CONFIG.TILE_SIZE/2, y: op.pos.y + CONFIG.TILE_SIZE/2 };
+        proj.pos = moveTowards(proj.pos, opCenter, proj.speed * dt);
+        if (getDistance(proj.pos, opCenter) < 15) {
+          const opDef = this.modifyStat(op.effects, op.stats.def, 'def');
+          const damage = Math.max(5, proj.damage - opDef);
+          op.stats.hp -= damage;
+          if (op.stats.hp <= 0) this.handleOperatorRetreat(op);
+          proj.markedForDeletion = true;
+        }
+        return;
+      }
       // v3.16.0：治疗弹分支（targetIsAlly=true → target 为友军 operator）
       if (proj.targetIsAlly) {
         const ally = this.operators.find(o => o.id === proj.targetId);
@@ -1116,7 +1143,11 @@ export class GameEngine {
         const allyCenter = { x: ally.pos.x + CONFIG.TILE_SIZE/2, y: ally.pos.y + CONFIG.TILE_SIZE/2 };
         proj.pos = moveTowards(proj.pos, allyCenter, proj.speed * dt);
         if (getDistance(proj.pos, allyCenter) < 15) {
-          ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + proj.damage);
+          // v3.17.1：抗治疗光环 — 全场存在 healSuppress trait 敌人时，治疗量 × mult
+          let healAmount = proj.damage;
+          const suppressor = this.enemies.find(e => !e.markedForDeletion && e.traits?.healSuppress);
+          if (suppressor) healAmount = healAmount * suppressor.traits!.healSuppress!.mult;
+          ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + healAmount);
           proj.markedForDeletion = true;
         }
         return;
