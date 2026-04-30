@@ -10,6 +10,7 @@ import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
 import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection, EventCard, EventEngineHandle } from '../types';
 import { getDistance, moveTowards, checkCollision, isInAttackRange } from './MathUtils';
+import { showToast, showAlert, showConfirm } from './ModalSystem';
 
 export interface BenchOperator {
   uid: string;
@@ -171,12 +172,16 @@ export class GameEngine {
   }
 
   // === 战斗流程 ===
-  tryStartCombat(): boolean {
+  async tryStartCombat(): Promise<boolean> {
     if (this.phase === 'COMBAT') return false;
 
     if (this.money > 0) {
-      const confirmBurn = window.confirm(`还有 资金 ${this.money} 未花费。\n战斗开始将回收资金！\n确认开始？`);
-      if (!confirmBurn) return false;
+      const ok = await showConfirm(
+        '资金未花完',
+        `还有资金 ${this.money} 未花费。\n战斗开始将回收资金！\n确认开始？`,
+        { okLabel: '开始战斗', cancelLabel: '再考虑', danger: true },
+      );
+      if (!ok) return false;
     }
 
     if (this.waveIndex < WAVES.length) {
@@ -220,7 +225,7 @@ export class GameEngine {
           dailyMsg = '\n（今日挑战已结算，不重复发奖）';
         }
       }
-      alert(`全域威胁已清除！\n获得碎片：+${earned}（含通关奖励 50 + 每史诗事件 +15）${dailyMsg}`);
+      showAlert('全域威胁已清除', `获得碎片：+${earned}\n（含通关奖励 50 + 每史诗事件 +15）${dailyMsg}`);
       return false;
     }
   }
@@ -260,7 +265,7 @@ export class GameEngine {
     });
     
     setTimeout(() => {
-        alert(`=== 第 ${this.waveIndex} 波次完成 ===\n获得资金: ${this.currentWaveReward}`);
+        showToast(`第 ${this.waveIndex} 波完成 · +${this.currentWaveReward} 资金`, { level: 'success' });
         this.refreshShop(true);
         this.notifyUpdate(); // 触发UI弹出底部
         // v3.5.0：尝试触发事件卡（不与 alert 冲突，alert 关闭后立即弹出 modal）
@@ -375,7 +380,7 @@ export class GameEngine {
     if (index === -1) return false;
 
     if (this.bench.length >= CONFIG.MAX_BENCH_SIZE) {
-        alert("备战区已满，无法撤回！");
+        showToast('备战区已满，无法撤回！', { level: 'warn' });
         return false;
     }
 
@@ -854,7 +859,7 @@ export class GameEngine {
     if (op.currentSp < op.skill.cost) return false;
     if (op.skill.duration <= 0) {
       // 当前版本仅支持持续型技能；瞬发型在 v2.x 后续迭代支持
-      alert('该技能为瞬发型，暂未实现手动激活，敬请期待。');
+      showToast('该技能为瞬发型，暂未实现手动激活。', { level: 'warn' });
       return false;
     }
     op.skillActive = true;
@@ -1284,8 +1289,7 @@ export class GameEngine {
       addShards(earned);
       this.checkAndAnnounceAchievements();
       playSfx('wave_fail');
-      alert(`任务失败！\n清剿波次：${this.waveIndex}\n获得碎片：+${earned}\n页面将刷新。`);
-      location.reload();
+      showAlert('任务失败', `清剿波次：${this.waveIndex}\n获得碎片：+${earned}\n点击确认后页面将刷新。`).then(() => location.reload());
     }
   }
 
@@ -1306,7 +1310,7 @@ export class GameEngine {
     }
     if (lines.length > 0) {
       playSfx('achievement');
-      setTimeout(() => alert(`★ 成就解锁 ★\n${lines.join('\n')}${totalReward ? `\n累计奖励：+${totalReward} 碎片` : ''}`), 50);
+      setTimeout(() => showAlert('★ 成就解锁 ★', `${lines.join('\n')}${totalReward ? `\n\n累计奖励：+${totalReward} 碎片` : ''}`), 50);
     }
   }
 

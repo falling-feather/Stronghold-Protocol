@@ -2,6 +2,7 @@
 import { showOnly } from './shared';
 import { META_UPGRADES, isPrereqMet, TAG_LABELS, calcTotalSpentShards } from '../config/metaData';
 import { loadMeta, getUpgradeTier, setUpgradeTier, addShards, resetMetaWithRefund } from '../core/MetaSave';
+import { showToast, showConfirm } from '../core/ModalSystem';
 
 let inited = false;
 let body: HTMLElement | null = null;
@@ -98,16 +99,17 @@ function render(): void {
       render();
     });
   });
-  body.querySelector('#meta-reset-btn')?.addEventListener('click', () => {
+  body.querySelector('#meta-reset-btn')?.addEventListener('click', async () => {
     const spent = calcTotalSpentShards();
     const refund = Math.floor(spent * 0.8);
     if (spent === 0) {
-      alert('当前没有可重置的升级。');
+      showToast('当前没有可重置的升级。', { level: 'info' });
       return;
     }
-    if (confirm(`确定要重置所有跨局升级吗？\n将返还 ⬢${refund}（已花费 ⬢${spent} 的 80%）。`)) {
+    const ok = await showConfirm('重置跨局升级', `将返还 ⦿${refund}（已花费 ⦿${spent} 的 80%）。\n确定要重置所有跨局升级吗？`, { okLabel: '确定重置', danger: true });
+    if (ok) {
       const refunded = resetMetaWithRefund(spent, 0.8);
-      alert(`已重置。返还 ⬢${refunded}`);
+      showToast(`已重置。返还 ⦿${refunded}`, { level: 'success' });
       render();
     }
   });

@@ -3,6 +3,7 @@ import { PACT_DB, SELECTABLE_PACTS, PACT_PICK_MIN, PACT_PICK_MAX, RESONANCE_DB }
 import { PactSelection } from '../types';
 import { showOnly } from './shared';
 import { showBoonScreen } from './BoonScreen';
+import { showToast } from '../core/ModalSystem';
 
 let selections: PactSelection[] = []; // 玩家已选盟约（含 shackled 标记）
 let initialized = false;
@@ -20,7 +21,7 @@ export function initPactScreen(): void {
   document.getElementById('btn-pact-back')?.addEventListener('click', () => showOnly('faction-screen'));
   document.getElementById('btn-pact-confirm')?.addEventListener('click', () => {
     if (selections.length < PACT_PICK_MIN) {
-      alert(`至少需要选择 ${PACT_PICK_MIN} 个盟约`);
+      showToast(`至少需要选择 ${PACT_PICK_MIN} 个盟约`, { level: 'warn' });
       return;
     }
     // v3.6.2：进入开局福利屏（不再直接 startGame）

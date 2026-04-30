@@ -3,6 +3,7 @@ import { OPERATOR_DB } from '../config/gameData';
 import { ROSTER_SLOTS, getCandidatesByRarity, saveRoster, validateRoster } from '../config/roster';
 import { screenState, showOnly } from './shared';
 import { renderFactionScreen } from './FactionScreen';
+import { showToast } from '../core/ModalSystem';
 
 export function showRosterScreen(): void {
   showOnly('roster-screen');
@@ -19,7 +20,7 @@ export function initRosterScreen(): void {
   document.getElementById('btn-roster-save')?.addEventListener('click', () => {
     const v = validateRoster(screenState.currentRoster);
     if (!v.ok) {
-      alert('阵容未填满！以下稀有度需补选：' + v.missing.map(r => '★'.repeat(r)).join(' / '));
+      showToast('阵容未填满！以下稀有度需补选：' + v.missing.map(r => '★'.repeat(r)).join(' / '), { level: 'warn' });
       return;
     }
     saveRoster(screenState.currentRoster);

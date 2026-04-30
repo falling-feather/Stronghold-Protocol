@@ -4,6 +4,7 @@ import { mpAdapter } from '../network/mpBridge';
 import { showOnly } from './shared';
 import { showMultiplayerGuestViewer } from './MultiplayerGuestViewer';
 import { getDefaultMpUrl } from '../network/mpConfig';
+import { showAlert } from '../core/ModalSystem';
 
 const adapter = mpAdapter;
 let initialized = false;
@@ -54,7 +55,7 @@ export function initMultiplayerScreen(): void {
         // v4.1.1：host 自动跳回主菜单提示开始游戏（保持联机连接）
         setTimeout(() => {
           showOnly('start-screen');
-          alert('★ 双方已就绪 — 你是主机\n请点击「开始游戏」选择阵营进入战斗，画面会自动同步给观战方。');
+          showAlert('双方已就绪 · 你是主机', '请点击「开始游戏」选择阵营进入战斗，画面会自动同步给观战方。');
         }, 80);
       }
     } else if (msg.type === 'error') {

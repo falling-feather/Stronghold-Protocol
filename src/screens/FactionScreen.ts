@@ -4,6 +4,7 @@ import { validateRoster } from '../config/roster';
 import { screenState, showOnly } from './shared';
 import { showRosterScreen, initRosterScreen } from './RosterScreen';
 import { showPactScreen, initPactScreen } from './PactScreen';
+import { showToast } from '../core/ModalSystem';
 
 export function showFactionScreen(): void {
   showOnly('faction-screen');
@@ -21,7 +22,7 @@ export function initFactionScreen(): void {
   document.getElementById('btn-faction-confirm')?.addEventListener('click', () => {
     const v = validateRoster(screenState.currentRoster);
     if (!v.ok) {
-      alert('当前阵容未填满稀有度：' + v.missing.join('、') + '，请先完成阵容编排。');
+      showToast('当前阵容未填满稀有度：' + v.missing.join('、') + '，请先完成阵容编排。', { level: 'warn' });
       showRosterScreen();
       return;
     }

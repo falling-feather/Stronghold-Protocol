@@ -6,6 +6,7 @@ import { OPERATOR_DB, RARITY_RATES, CONFIG } from '../config/gameData';
 import { ShopItem, OperatorPoolStats } from '../types';
 import type { GameEngine } from './GameEngine';
 import { applyShopDiscount } from '../config/metaData';
+import { showToast } from './ModalSystem';
 
 const POOL_LIMIT = 7;
 const REFRESH_COST = 2;
@@ -21,7 +22,7 @@ export class ShopSystem {
   // ---- 刷新与抽取 ----
   refreshShop(forceFree: boolean = false): void {
     if (this.isInTemporaryShop) {
-      alert('请先完成临时商店的选择！');
+      showToast('请先完成临时商店的选择！', { level: 'warn' });
       return;
     }
     if (!forceFree) {
@@ -103,12 +104,12 @@ export class ShopSystem {
 
     const poolStats = this.operatorPool.get(item.templateId);
     if (poolStats && poolStats.count >= POOL_LIMIT) {
-      alert('该角色已达到最大获取次数！');
+      showToast('该角色已达到最大获取次数！', { level: 'warn' });
       return false;
     }
     if (this.engine.money < item.cost) return false;
     if (this.engine.bench.length >= CONFIG.MAX_BENCH_SIZE) {
-      alert('备战区已满！');
+      showToast('备战区已满！', { level: 'warn' });
       return false;
     }
 
@@ -131,7 +132,7 @@ export class ShopSystem {
     const item = this.temporaryShopItems.find(i => i.uid === shopItemUid);
     if (!item || item.bought) return false;
     if (this.engine.bench.length >= CONFIG.MAX_BENCH_SIZE) {
-      alert('备战区已满！');
+      showToast('备战区已满！', { level: 'warn' });
       return false;
     }
     const template = OPERATOR_DB[item.templateId as keyof typeof OPERATOR_DB];
@@ -196,7 +197,7 @@ export class ShopSystem {
       .map(([id]) => id);
 
     if (candidates.length === 0) {
-      alert('自动合并完成！但暂时没有更高等级的角色可用。');
+      showToast('自动合并完成！但暂时没有更高等级的角色可用。', { level: 'info' });
       return;
     }
 
@@ -212,7 +213,7 @@ export class ShopSystem {
       });
     }
     this.isInTemporaryShop = true;
-    alert(`自动合并完成！获得2阶${template.name}！\n进入临时商店，可免费获得一个角色。`);
+    showToast(`自动合并完成！获得2阶${template.name}\n进入临时商店，可免费获得一个角色。`, { level: 'success', duration: 3500 });
     this.engine.notifyUpdate();
   }
 
