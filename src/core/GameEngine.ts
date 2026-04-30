@@ -329,6 +329,14 @@ export class GameEngine {
         }
         self.notifyUpdate();
       },
+      // v3.17.0：野战医院事件 — 全员 hp 回满
+      healAllOperatorsFull: () => {
+        for (const op of self.operators) {
+          if (op.isRetreated) continue;
+          op.stats.hp = op.stats.maxHp;
+        }
+        self.notifyUpdate();
+      },
       notifyUpdate: () => self.notifyUpdate(),
     };
   }
@@ -562,12 +570,49 @@ export class GameEngine {
     this.enemies.forEach(enemy => {
       // v2.3.0：状态效果倒计时
       this.tickEffects(enemy.effects, dt);
+      // v3.17.0：治疗光环 — 每秒对半径内同盟敌人 +perSec hp（capped maxHp）
+      if (enemy.traits?.healAura) {
+        const aura = enemy.traits.healAura;
+        const radiusPx = aura.radiusTiles * CONFIG.TILE_SIZE;
+        const heal = aura.perSec * dt;
+        this.enemies.forEach(other => {
+          if (other === enemy || other.markedForDeletion) return;
+          if (getDistance(enemy.pos, other.pos) > radiusPx) return;
+          other.stats.hp = Math.min(other.stats.maxHp, other.stats.hp + heal);
+        });
+      }
       // v2.4.0：Boss 阶段触发
       if (enemy.traits?.bossPhase && !enemy.bossPhaseTriggered &&
           enemy.stats.hp > 0 && enemy.stats.hp <= enemy.stats.maxHp * enemy.traits.bossPhase.atHpPct) {
         enemy.bossPhaseTriggered = true;
         const eff = enemy.traits.bossPhase.effect;
         enemy.effects.push({ ...eff, remaining: eff.duration });
+      }
+      // v3.17.0：远程攻击 — 不需要 block，周期对 range 内最近 operator 扣 hp
+      if (!enemy.isBlockedBy && enemy.traits?.ranged) {
+        enemy.attackCooldown -= dt;
+        if (enemy.attackCooldown <= 0) {
+          const radiusPx = enemy.traits.ranged.rangeTiles * CONFIG.TILE_SIZE;
+          let nearest: Operator | null = null;
+          let minDist = Infinity;
+          this.operators.forEach(op => {
+            if (op.isRetreated || op.markedForDeletion) return;
+            const opCenter = { x: op.pos.x + CONFIG.TILE_SIZE/2, y: op.pos.y + CONFIG.TILE_SIZE/2 };
+            const d = getDistance(enemy.pos, opCenter);
+            if (d <= radiusPx && d < minDist) { minDist = d; nearest = op; }
+          });
+          if (nearest) {
+            const target = nearest as Operator;
+            const enemyAtk = this.modifyStat(enemy.effects, enemy.stats.atk, 'atk');
+            const opDef = this.modifyStat(target.effects, target.stats.def, 'def');
+            const damage = Math.max(5, enemyAtk - opDef);
+            target.stats.hp -= damage;
+            enemy.attackCooldown = this.modifyStat(enemy.effects, enemy.stats.aspd, 'aspd');
+            if (target.stats.hp <= 0) this.handleOperatorRetreat(target);
+          } else {
+            enemy.attackCooldown = 0.2; // 没目标，短促重试
+          }
+        }
       }
       if (enemy.isBlockedBy) {
         const blocker = this.operators.find(op => op.id === enemy.isBlockedBy);

@@ -574,6 +574,18 @@ export const ENEMY_DB: Record<string, { name: string; color: string; radius: num
     name: '碎晶兽', color: '#9b59b6', radius: 16,
     stats: { hp: 800, maxHp: 800, atk: 260, def: 60, spd: 1.4, range: 0, aspd: 1.6, blockCount: 0, magicResist: 25 },
     traits: { summon: { childId: 'slug', count: 3, on: 'death' } }
+  },
+  // v3.17.0：游医萨满 — 中速低 hp，散发治疗光环（每秒 +35 hp，半径 2.4 tile）
+  'dervish': {
+    name: '游医萨满', color: '#27ae60', radius: 16,
+    stats: { hp: 900, maxHp: 900, atk: 100, def: 40, spd: 1.1, range: 0, aspd: 1.6, blockCount: 0, magicResist: 30 },
+    traits: { healAura: { perSec: 35, radiusTiles: 2.4 } }
+  },
+  // v3.17.0：远程骚扰兵 — 不需要 block，1.6s 内远程扣 op hp
+  'harasser': {
+    name: '远程骚扰兵', color: '#d35400', radius: 14,
+    stats: { hp: 700, maxHp: 700, atk: 220, def: 50, spd: 1.0, range: 2.5, aspd: 1.6, blockCount: 1, magicResist: 10 },
+    traits: { ranged: { rangeTiles: 2.5 } }
   }
 };
 
@@ -589,6 +601,9 @@ export const WAVES = [
   { count: 4, interval: 3.0, enemyId: 'bulwark', reward: 50 },
   { count: 6, interval: 1.5, enemyId: 'berserker', reward: 45 },
   { count: 3, interval: 2.5, enemyId: 'splitter', reward: 55 },
+  // v3.17.0：新敌人波次（治疗 + 远程骚扰）
+  { count: 3, interval: 2.8, enemyId: 'dervish', reward: 50 },
+  { count: 5, interval: 1.8, enemyId: 'harasser', reward: 45 },
 ];
 
 // v3.0.0：盟约叠层数据库

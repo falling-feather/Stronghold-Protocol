@@ -77,6 +77,10 @@ export interface EnemyTraits {
   // v3.10.0：护盾、被击狂怒
   shield?: number;
   enrageOnHit?: { aspdMod: number; spdMod: number; durationS: number };
+  // v3.17.0：治疗光环（每秒给指定 tile 半径内同盟敌人 +N hp，capped maxHp）
+  healAura?: { perSec: number; radiusTiles: number };
+  // v3.17.0：远程攻击（不需要 block，对 range tile 内最近的 operator 周期扣 hp）
+  ranged?: { rangeTiles: number };
 }
 
 // v3.0.0：盟约叠层
@@ -140,6 +144,8 @@ export interface EventEngineHandle {
   money: number;
   addPactStack(defId: string, n: number): void;
   addAllOperatorsSp(amount: number): void;
+  // v3.17.0：把所有未撤退干员 hp 回满（野战医院事件用）
+  healAllOperatorsFull(): void;
   notifyUpdate(): void;
 }
 export interface EventOption {

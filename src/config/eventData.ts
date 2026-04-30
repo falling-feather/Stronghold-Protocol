@@ -375,6 +375,68 @@ export const EVENT_DB: Record<string, EventCard> = {
       },
     ],
   },
+  // === v3.17.0：治疗/减速主题事件卡 ===
+  ev_field_hospital: {
+    id: 'ev_field_hospital',
+    name: '前线野战医院',
+    desc: '一支医疗分队短暂驻扎，营地的伤亡势头有了喘息空间。',
+    rarity: 'rare',
+    cooldown: 3,
+    options: [
+      {
+        label: '全员急救（已部署干员 hp 回满）',
+        desc: '所有非撤退干员 hp = maxHp',
+        apply: (e) => { e.healAllOperatorsFull(); },
+      },
+      {
+        label: '征用药品（-120 资金，全员 SP +20）',
+        desc: '资金 -120 但所有干员 SP +20',
+        apply: (e) => {
+          if (e.money >= 120) { e.money -= 120; e.addAllOperatorsSp(20); }
+          e.notifyUpdate();
+        },
+      },
+      {
+        label: '婉拒援助（+90 资金）',
+        desc: '把医疗物资折价卖了换 90 资金',
+        apply: (e) => { e.money += 90; e.notifyUpdate(); },
+      },
+    ],
+  },
+  ev_emp_storm: {
+    id: 'ev_emp_storm',
+    name: '电磁风暴',
+    desc: '高空电磁扰动笼罩战场，敌我双方的节奏都将被打乱。',
+    rarity: 'rare',
+    cooldown: 4,
+    options: [
+      {
+        label: '架设减速力场（消耗 80 资金，下波敌人初始减速 25%）',
+        desc: '通过临时盟约层叠加：碎铳之簧 +3 层（间接减速）',
+        apply: (e) => {
+          if (e.money >= 80) { e.money -= 80; e.addPactStack('pact_broken_spring', 3); }
+          e.notifyUpdate();
+        },
+      },
+      {
+        label: '听任风暴（全员 SP -8、+150 资金）',
+        desc: 'SP 扰动换得意外赏金',
+        apply: (e) => {
+          e.addAllOperatorsSp(-8);
+          e.money += 150;
+          e.notifyUpdate();
+        },
+      },
+      {
+        label: '强行屏蔽（钢铁誓约 -2 层）',
+        desc: '硬撑过去，无资源损失但盟约层数下降',
+        apply: (e) => {
+          e.addPactStack('pact_iron_resolve', -2);
+          e.notifyUpdate();
+        },
+      },
+    ],
+  },
 };
 
 // 事件卡随机抽取（每波结束后按 EVENT_TRIGGER_CHANCE 概率触发）
