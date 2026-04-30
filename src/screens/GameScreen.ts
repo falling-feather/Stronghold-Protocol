@@ -1,6 +1,7 @@
 // 游戏对局屏幕：包含初始化、UI 渲染循环、交互事件、详情面板、拖拽（v1.5.x）
 import { GameEngine } from '../core/GameEngine';
 import { Renderer } from '../view/Renderer';
+import { onLayoutChange } from '../core/LayoutManager';
 import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps, resolveSkillForRank, CLASS_TRAITS, PACT_DB, RESONANCE_DB, WAVES, ENEMY_DB } from '../config/gameData';
 import { FactionId } from '../config/factions';
 import { Roster, rosterToAllowedSet } from '../config/roster';
@@ -133,17 +134,12 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
   }, 100);
 
   if (!resizeListenersBound) {
-    window.addEventListener('resize', () => {
+    // v3.20.0：布局变化由全局 LayoutManager 统一驱动；本屏只补 canvas 尺寸 + 内部布局
+    onLayoutChange(() => {
       handleResize();
-      if (renderer && isMobileDevice()) {
+      if (renderer) {
         setTimeout(() => { if (renderer) renderer.resize(); }, 50);
       }
-    });
-    window.addEventListener('orientationchange', () => {
-      setTimeout(() => {
-        handleResize();
-        if (renderer) renderer.resize();
-      }, 200);
     });
     resizeListenersBound = true;
   }
@@ -152,11 +148,6 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
     initInteractionEvents();
     interactionEventsBound = true;
   }
-}
-
-function isMobileDevice(): boolean {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-         (window.innerWidth <= 768);
 }
 
 function calculateLayout(): void {
@@ -200,19 +191,9 @@ function calculateLayout(): void {
 }
 
 function handleResize(): void {
-  const overlay = document.getElementById('mobile-overlay')!;
-  const isMobile = isMobileDevice();
-
-  if (document.documentElement) {
-    if (isMobile) {
-      document.documentElement.classList.add('mobile-rotated');
-      overlay.style.display = 'none';
-    } else {
-      document.documentElement.classList.remove('mobile-rotated');
-      overlay.style.display = 'none';
-    }
-  }
-
+  // v3.20.0：旋转/aspect 由 LayoutManager 负责，本函数只重算游戏区缩放
+  const overlay = document.getElementById('mobile-overlay');
+  if (overlay) overlay.style.display = 'none';
   if (appRoot && appRoot.style.display !== 'none') {
     setTimeout(() => calculateLayout(), 100);
   }

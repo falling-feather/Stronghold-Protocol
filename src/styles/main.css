@@ -669,3 +669,52 @@ html.mobile-rotated .start-menu-btn.primary { padding: 10px; font-size: 16px; le
 .sp-modal-btn-primary { background: #3498db; color: #fff; }
 .sp-modal-btn-danger { background: #e74c3c; color: #fff; }
 .sp-modal-btn-ghost { background: transparent; color: #bdc3c7; border: 1px solid rgba(255,255,255,0.18); }
+/* === v3.20.0：UI 自适应布局 === */
+
+/* 通用：禁止双指/双击缩放（提升手机体验） */
+html, body { touch-action: manipulation; }
+
+/* 极宽屏（21:9+）：限制内容居中宽度，避免无限拉伸 */
+html.aspect-ultrawide #app-root { max-width: 2560px; margin: 0 auto; }
+html.aspect-ultrawide .mp-screen-inner,
+html.aspect-ultrawide .start-menu-wrap,
+html.aspect-ultrawide .pact-grid,
+html.aspect-ultrawide .roster-grid,
+html.aspect-ultrawide .meta-grid { max-width: 1600px; margin-left: auto; margin-right: auto; }
+
+/* 接近方形/竖屏小窗 (<=1.1)：缩小标题和卡片，避免溢出 */
+html.aspect-tall .start-title,
+html.aspect-portrait .start-title { font-size: clamp(28px, 6vw, 48px); }
+html.aspect-tall .start-menu,
+html.aspect-portrait .start-menu { grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 8px 10px; }
+html.aspect-tall .start-menu-btn,
+html.aspect-portrait .start-menu-btn { padding: 8px 10px; font-size: 13px; letter-spacing: 1px; }
+
+/* 移动端旋转模式：根 html 已 90deg 旋转，所有屏幕共享 */
+html.mobile-rotated body { overscroll-behavior: none; }
+html.mobile-rotated #start-screen,
+html.mobile-rotated #faction-screen,
+html.mobile-rotated #pact-screen,
+html.mobile-rotated #roster-screen,
+html.mobile-rotated #meta-screen,
+html.mobile-rotated #boon-screen,
+html.mobile-rotated #achievement-screen,
+html.mobile-rotated #daily-screen,
+html.mobile-rotated #mp-screen,
+html.mobile-rotated #settings-screen { padding: 8px 16px; }
+
+/* 旋转后菜单字号收紧 */
+html.mobile-rotated .start-title { font-size: 32px; letter-spacing: 3px; }
+html.mobile-rotated .start-subtitle { font-size: 11px; letter-spacing: 1px; }
+html.mobile-rotated .start-menu { grid-template-columns: repeat(3, minmax(140px, 1fr)); gap: 6px 10px; }
+html.mobile-rotated .start-menu-btn { padding: 7px 10px; font-size: 12px; letter-spacing: 1px; }
+html.mobile-rotated .start-menu-btn.primary { padding: 9px 10px; font-size: 14px; letter-spacing: 2px; }
+html.mobile-rotated .start-version-row { font-size: 10px; letter-spacing: 1px; }
+
+/* Modal/Toast 在旋转模式下适当缩小 */
+html.mobile-rotated .sp-modal-panel { min-width: 260px; max-width: 88vw; padding: 14px 18px 12px; }
+html.mobile-rotated .sp-modal-title { font-size: 15px; }
+html.mobile-rotated .sp-modal-body { font-size: 13px; }
+html.mobile-rotated .sp-modal-btn { padding: 6px 14px; font-size: 13px; }
+html.mobile-rotated #sp-toast-stack { top: 8px; }
+html.mobile-rotated .sp-toast { min-width: 180px; padding: 8px 12px; font-size: 12px; }
