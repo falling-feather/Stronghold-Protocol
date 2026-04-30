@@ -1,6 +1,7 @@
 // v4.0.0：WebSocket 网络适配器（连接 server/index.js）
 // 仅承载房间/聊天/准备/开始信号；游戏状态同步留待 v4.1+
 import { INetworkAdapter, NetworkEventHandler, NetworkPeerInfo, NetworkRole } from './INetworkAdapter';
+import { getDefaultMpUrl } from './mpConfig';
 
 export interface RoomInfo {
   id: string;
@@ -91,11 +92,11 @@ export class WsAdapter implements INetworkAdapter {
 
   // 兼容旧 INetworkAdapter
   async host(roomCode: string, displayName: string): Promise<void> {
-    if (!this.isConnected) await this.connect(this.url || 'ws://localhost:8787', displayName);
+    if (!this.isConnected) await this.connect(this.url || getDefaultMpUrl(), displayName);
     this._send({ type: 'create_room', name: roomCode });
   }
   async join(roomCode: string, displayName: string): Promise<void> {
-    if (!this.isConnected) await this.connect(this.url || 'ws://localhost:8787', displayName);
+    if (!this.isConnected) await this.connect(this.url || getDefaultMpUrl(), displayName);
     this._send({ type: 'join_room', roomId: roomCode });
   }
   async disconnect(): Promise<void> {

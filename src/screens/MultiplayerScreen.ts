@@ -3,6 +3,7 @@ import { RoomInfo } from '../network/WsAdapter';
 import { mpAdapter } from '../network/mpBridge';
 import { showOnly } from './shared';
 import { showMultiplayerGuestViewer } from './MultiplayerGuestViewer';
+import { getDefaultMpUrl } from '../network/mpConfig';
 
 const adapter = mpAdapter;
 let initialized = false;
@@ -11,7 +12,8 @@ let lastError = '';
 let peerReady: Map<string, boolean> = new Map(); // v4.1.1：对端准备状态
 let selfReady = false;
 
-const DEFAULT_URL = 'ws://localhost:8787';
+// v3.15.0：默认 ws 地址取自 localStorage / VITE_MP_DEFAULT_URL / 本地回退
+const DEFAULT_URL = getDefaultMpUrl();
 
 export function showMultiplayerScreen(): void {
   ensureLobbyDom();

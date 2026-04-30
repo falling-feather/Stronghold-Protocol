@@ -308,3 +308,106 @@
 .pact-badge.tier-up { animation: pact-tier-up 1.0s ease-out; }
 .pact-badge.stack-bump { animation: pact-stack-bump 0.28s ease-out; }
 .pact-badge.shackled-pulse { animation: pact-tier-up 0.8s ease-out; filter: hue-rotate(-40deg); }
+
+/* === v3.15.0：StartScreen 视觉重整 === */
+#start-screen {
+  background:
+    radial-gradient(circle at 30% 20%, rgba(52,152,219,0.18) 0%, transparent 55%),
+    radial-gradient(circle at 70% 80%, rgba(155,89,182,0.18) 0%, transparent 55%),
+    linear-gradient(135deg, #0c1019 0%, #1d2733 100%);
+  gap: 36px;
+  padding: 40px 20px;
+  box-sizing: border-box;
+}
+.start-hero { text-align: center; }
+#start-screen .start-tag {
+  font-size: 12px;
+  letter-spacing: 6px;
+  color: #f1c40f;
+  opacity: 0.85;
+  margin-bottom: 12px;
+}
+#start-screen .start-title {
+  font-size: 56px;
+  margin: 0;
+  background: linear-gradient(120deg, #f1c40f 0%, #ecf0f1 50%, #3498db 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  letter-spacing: 8px;
+  text-shadow: 0 2px 30px rgba(241, 196, 15, 0.15);
+}
+#start-screen .start-subtitle {
+  margin: 10px 0 0;
+  color: #95a5a6;
+  font-size: 14px;
+  letter-spacing: 4px;
+}
+#start-screen .start-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 280px));
+  gap: 14px 18px;
+  width: 100%;
+  max-width: 620px;
+}
+#start-screen .start-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 20px;
+  font-size: 17px;
+  font-weight: bold;
+  color: #fff;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  margin-top: 0;
+}
+#start-screen .start-menu-btn .smb-icon {
+  font-size: 18px;
+  opacity: 0.95;
+}
+#start-screen .start-menu-btn:hover {
+  transform: translateY(-2px);
+  background: rgba(255,255,255,0.12);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+#start-screen .start-menu-btn.primary { background: linear-gradient(135deg, #e74c3c, #c0392b); border-color: rgba(231,76,60,0.6); grid-column: 1 / -1; padding: 18px; font-size: 22px; letter-spacing: 6px; }
+#start-screen .start-menu-btn.primary:hover { box-shadow: 0 8px 24px rgba(231,76,60,0.4); }
+#start-screen .start-menu-btn.teal   { background: linear-gradient(135deg, #16a085, #117a65); border-color: rgba(22,160,133,0.55); }
+#start-screen .start-menu-btn.purple { background: linear-gradient(135deg, #8e44ad, #6c3483); border-color: rgba(142,68,173,0.55); }
+#start-screen .start-menu-btn.orange { background: linear-gradient(135deg, #d35400, #a04000); border-color: rgba(211,84,0,0.55); }
+#start-screen .start-menu-btn.slate  { background: linear-gradient(135deg, #34495e, #2c3e50); border-color: rgba(52,73,94,0.7); }
+#start-screen .start-footer {
+  margin: 0;
+  font-size: 12px;
+  color: #7f8c8d;
+  letter-spacing: 2px;
+}
+
+/* === v3.15.0：GameScreen HUD 资源色带（依赖现有 #top-bar 行内布局） === */
+#top-bar-center .stat-box[data-kind="lives"]  { border-left: 3px solid #e74c3c; }
+#top-bar-center .stat-box[data-kind="money"]  { border-left: 3px solid #f1c40f; }
+#top-bar-right  .stat-box[data-kind="wave"]   { border-left: 3px solid #3498db; }
+#top-bar-right  .stat-box[data-kind="speed"]  { border-left: 3px solid #2ecc71; }
+.stat-box { transition: transform 0.18s ease, background 0.18s ease; }
+.stat-box.bump { animation: stat-bump 0.32s ease-out; }
+@keyframes stat-bump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); background: rgba(241,196,15,0.35); }
+  100% { transform: scale(1); }
+}
+
+/* StartScreen 移动端缩放（旋转后） */
+html.mobile-rotated .start-title { font-size: 36px; letter-spacing: 4px; }
+html.mobile-rotated .start-subtitle { font-size: 12px; letter-spacing: 2px; }
+html.mobile-rotated .start-menu { grid-template-columns: repeat(2, minmax(160px, 220px)); gap: 8px 10px; }
+html.mobile-rotated .start-menu-btn { padding: 8px 12px; font-size: 13px; letter-spacing: 1px; }
+html.mobile-rotated .start-menu-btn.primary { padding: 10px; font-size: 16px; letter-spacing: 3px; }
+

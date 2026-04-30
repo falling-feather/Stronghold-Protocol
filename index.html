@@ -490,16 +490,34 @@
       <div>为了最佳体验，请旋转设备至横屏</div>
     </div>
 
-    <!-- 开始界面 -->
+    <!-- 开始界面（v3.15.0：统一 .start-menu 视觉） -->
     <div id="start-screen">
-      <h1>卫戍协议模拟器</h1>
-      <button id="btn-start-game">开始游戏</button>
-      <button id="btn-multiplayer" style="margin-top:14px;padding:12px 32px;font-size:18px;background:#16a085;border:none;color:white;border-radius:6px;cursor:pointer;font-weight:bold;">联机模式</button>
-      <button id="btn-meta-tree" style="margin-top:14px;padding:12px 32px;font-size:18px;background:#8e44ad;border:none;color:white;border-radius:6px;cursor:pointer;font-weight:bold;">⬢ 升级树</button>
-      <button id="btn-achievements" style="margin-top:14px;padding:12px 32px;font-size:18px;background:#d35400;border:none;color:white;border-radius:6px;cursor:pointer;font-weight:bold;">🏆 成就</button>
-      <button id="btn-daily" style="margin-top:14px;padding:12px 32px;font-size:18px;background:#16a085;border:none;color:white;border-radius:6px;cursor:pointer;font-weight:bold;">📅 每日挑战</button>
-      <button id="btn-settings" style="margin-top:14px;padding:12px 32px;font-size:18px;background:#34495e;border:none;color:white;border-radius:6px;cursor:pointer;font-weight:bold;">⚙ 设置</button>
-      <p>基于明日方舟的塔防策略游戏</p>
+      <div class="start-hero">
+        <div class="start-tag">STRONGHOLD&nbsp;·&nbsp;PROTOCOL</div>
+        <h1 class="start-title">卫戍协议模拟器</h1>
+        <p class="start-subtitle">塔防 · Roguelike · 局内联机协作</p>
+      </div>
+      <div class="start-menu">
+        <button id="btn-start-game" class="start-menu-btn primary">
+          <span class="smb-icon">▶</span><span class="smb-text">开始游戏</span>
+        </button>
+        <button id="btn-multiplayer" class="start-menu-btn teal">
+          <span class="smb-icon">⇄</span><span class="smb-text">联机模式</span>
+        </button>
+        <button id="btn-daily" class="start-menu-btn teal">
+          <span class="smb-icon">📅</span><span class="smb-text">每日挑战</span>
+        </button>
+        <button id="btn-meta-tree" class="start-menu-btn purple">
+          <span class="smb-icon">⬢</span><span class="smb-text">升级树</span>
+        </button>
+        <button id="btn-achievements" class="start-menu-btn orange">
+          <span class="smb-icon">🏆</span><span class="smb-text">成 就</span>
+        </button>
+        <button id="btn-settings" class="start-menu-btn slate">
+          <span class="smb-icon">⚙</span><span class="smb-text">设 置</span>
+        </button>
+      </div>
+      <p class="start-footer">基于明日方舟的塔防策略游戏 · v3.15.0</p>
     </div>
 
     <!-- v3.6.0：跨局升级树 -->
@@ -608,17 +626,17 @@
         
         <!-- 中间：核心资源 -->
         <div id="top-bar-center">
-          <div class="stat-box">生命 <span id="lives-display">10</span></div>
-          <div class="stat-box">资金 <span id="money-display">50</span></div>
-          <div class="stat-box" id="timer-box">时间 <span id="timer-display">60</span></div>
+          <div class="stat-box" data-kind="lives">生命 <span id="lives-display">10</span></div>
+          <div class="stat-box" data-kind="money">资金 <span id="money-display">50</span></div>
+          <div class="stat-box" data-kind="timer" id="timer-box">时间 <span id="timer-display">60</span></div>
           <div id="pact-badges"></div>
           <button id="btn-event-log" class="top-btn" title="事件日志" style="display:none;">📜</button>
         </div>
         
         <!-- 右上角：倍速、波次、开始战斗 -->
         <div id="top-bar-right">
-          <button class="top-btn" id="btn-speed" title="倍速">1x</button>
-          <div class="stat-box">波次 <span id="wave-display">1</span></div>
+          <button class="top-btn" id="btn-speed" data-kind="speed" title="倍速">1x</button>
+          <div class="stat-box" data-kind="wave">波次 <span id="wave-display">1</span></div>
           <button id="btn-next-wave">开始战斗</button>
         </div>
       </div>

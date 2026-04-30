@@ -394,6 +394,80 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     defaultSkillIndex: 0,
     saleValue: 1, shopLevel: 2,
   },
+  // === v3.15.0 干员扩充：4 名新干员，全部沿用现有职业逻辑 ===
+  'guard_lancer': {
+    name: '破阵长矛手', cost: 17, rarity: 4, color: '#c0392b', placement: 'ground', class: 'guard',
+    atkType: 'physical',
+    stats: { hp: 2200, maxHp: 2200, atk: 540, def: 180, spd: 0, range: 1.4, aspd: 1.3, blockCount: 1 },
+    talents: [
+      mkTalent('贯穿', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 10, 18),
+      mkTalent('强健', '初始生命 +{r1}% / +{r2}%', 'hp_pct', 6, 12),
+    ],
+    skills: [
+      mkSkill('s_pierce_thrust', '贯穿突刺', '下次攻击造成 {hits} 段伤害且力量 {atkMul}×', 'attack', 'multistrike',
+        { initialSp: 0, cost: 12, values: { hits: 2, atkMul: 1.3 } },
+        { initialSp: 3, cost: 10, values: { hits: 3, atkMul: 1.5 } }),
+      mkSkill('s_war_fervor', '战意昂扬', '攻击 +{atkPct}%、攻速 +{aspdPct}%，持续 {duration}s', 'auto', 'attack_buff',
+        { initialSp: 0, cost: 28, duration: 15, values: { atkPct: 35, aspdPct: 25 } },
+        { initialSp: 6, cost: 25, duration: 18, values: { atkPct: 50, aspdPct: 40 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 2,
+  },
+  'defender_bulwark': {
+    name: '壁垒守望', cost: 22, rarity: 4, color: '#16a085', placement: 'ground', class: 'defender',
+    stats: { hp: 4200, maxHp: 4200, atk: 240, def: 720, spd: 0, range: 1.0, aspd: 1.7, blockCount: 3 },
+    talents: [
+      mkTalent('钢墙', '防御 +{r1}% / +{r2}%', 'def_pct', 10, 18),
+      mkTalent('阵线统御', '阻挡数 +{r1} / +{r2}', 'block_plus', 1, 1),
+    ],
+    skills: [
+      mkSkill('s_iron_wall', '钢铁壁垒', '防御 +{defPct}%，持续 {duration}s', 'defense', 'defense_buff',
+        { initialSp: 0, cost: 16, duration: 20, values: { defPct: 80 } },
+        { initialSp: 4, cost: 14, duration: 25, values: { defPct: 120 } }),
+      mkSkill('s_guard_post', '坚守阵地', '阻挡数 +{blkPlus}，防御 +{defPct}%，持续 {duration}s', 'auto', 'defense_buff',
+        { initialSp: 0, cost: 32, duration: 18, values: { blkPlus: 1, defPct: 40 } },
+        { initialSp: 6, cost: 28, duration: 22, values: { blkPlus: 2, defPct: 60 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 2,
+  },
+  'sniper_marksman': {
+    name: '神射手', cost: 28, rarity: 5, color: '#f39c12', placement: 'high_ground', class: 'sniper',
+    stats: { hp: 950, maxHp: 950, atk: 720, def: 60, spd: 0, range: 5.0, aspd: 1.6, blockCount: 0 },
+    talents: [
+      mkTalent('鹰眼', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 12, 22),
+      mkTalent('稳定射击', '攻速 +{r1}% / +{r2}%', 'aspd_pct', 8, 14),
+    ],
+    skills: [
+      mkSkill('s_aimed_shot', '瞄准射击', '下次攻击造成 {atkMul}× 伤害', 'attack', 'attack_buff',
+        { initialSp: 0, cost: 14, values: { atkMul: 2.4 } },
+        { initialSp: 3, cost: 12, values: { atkMul: 3.2 } }),
+      mkSkill('s_overwatch', '居高制压', '攻速 +{aspdPct}%、攻击 +{atkPct}%，持续 {duration}s', 'auto', 'attack_buff',
+        { initialSp: 0, cost: 35, duration: 18, values: { aspdPct: 45, atkPct: 30 } },
+        { initialSp: 6, cost: 30, duration: 22, values: { aspdPct: 65, atkPct: 50 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 3,
+  },
+  'caster_arclight': {
+    name: '弧光术师', cost: 32, rarity: 5, color: '#1abc9c', placement: 'high_ground', class: 'caster',
+    stats: { hp: 1400, maxHp: 1400, atk: 820, def: 90, spd: 0, range: 3.2, aspd: 1.7, blockCount: 0 },
+    talents: [
+      mkTalent('魔能洪流', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 14, 22),
+      mkTalent('回路冷却', '攻速 +{r1}% / +{r2}%', 'aspd_pct', 8, 14),
+    ],
+    skills: [
+      mkSkill('s_arc_burst', '弧光爆发', '下次攻击 {atkMul}× 伤害并对周围 {radius} 内敌人附带溅射', 'attack', 'aoe',
+        { initialSp: 0, cost: 16, values: { atkMul: 2.2, radius: 1.0 } },
+        { initialSp: 4, cost: 14, values: { atkMul: 2.8, radius: 1.3 } }),
+      mkSkill('s_chain_storm', '连锁风暴', '攻速 +{aspdPct}%，攻击附带 {radius} 范围溅射，持续 {duration}s', 'auto', 'aoe',
+        { initialSp: 0, cost: 36, duration: 16, values: { aspdPct: 40, radius: 0.9, atkMul: 1.0 } },
+        { initialSp: 6, cost: 32, duration: 20, values: { aspdPct: 60, radius: 1.1, atkMul: 1.1 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 3,
+  },
 };
 
 export const ENEMY_DB: Record<string, { name: string; color: string; radius: number; stats: BaseStats; traits?: EnemyTraits }> = {

@@ -1,9 +1,9 @@
 # 项目快照（SNAPSHOT）
 
-> 写作时间：2026-04-30
+> 写作时间：2026-04-30（v3.15.0 更新）
 > 目的：让接手者在 5 分钟内理解仓库现状、当前进度、提交规范、下一步候选。
-> HEAD：`ccd3810 V3.14.0 事件卡扩充（+5，含 2 负面）`
-> 工作树：clean，无未提交变更，无 remote。
+> HEAD：`<待推送> V3.15.0 干员扩充 + GH Pages + UI 微整`
+> 工作树：clean，远端 `origin → github.com/falling-feather/Stronghold-Protocol`（main 已强推覆盖远端）。
 
 ---
 
@@ -32,15 +32,24 @@ docs/                  # ROADMAP / PACT_DESIGN / MULTIPLAYER / V4_SUMMARY / ARCH
 ## 3. 当前版本与近 8 提交
 
 ```
-ccd3810 V3.14.0 事件卡扩充（+5，含 2 负面）            ← HEAD
-f86945d V3.13.0 boon 扩充（7→10）
-d1cfcfd V3.12.0 共鸣全覆盖（7C2=21）
-1e3806e V3.11.0 盟约扩充（搭配 v3.10 新机制）
-cce8a98 V3.10.0 敌人扩充（护盾 / 被击狂怒 / 碎尸召唤）
-7f1a544 V4.3.8 提议防守点
-c7fbd1a V4.3.0 联机协作增强收束（含 v4.3.1~v4.3.7）
-a3d9382 V4.0.0 联机骨架收束（含 v4.0.1/v4.1.0/v4.1.1/v4.2.0~v4.2.4）
+<待推送> V3.15.0 干员扩充 + GH Pages + UI 微整      ← HEAD
+ccd3810   V3.14.0 事件卡扩充（+5，含 2 负面）
+f86945d   V3.13.0 boon 扩充（7→10）
+d1cfcfd   V3.12.0 共鸣全覆盖（7C2=21）
+1e3806e   V3.11.0 盟约扩充（搭配 v3.10 新机制）
+cce8a98   V3.10.0 敌人扩充（护盾 / 被击狂怒 / 碎尸召唤）
+7f1a544   V4.3.8 提议防守点
+c7fbd1a   V4.3.0 联机协作增强收束（含 v4.3.1~v4.3.7）
+a3d9382   V4.0.0 联机骨架收束（含 v4.0.1/v4.1.0/v4.1.1/v4.2.0~v4.2.4）
 ```
+
+## 远端 / 部署（v3.15.0 新增）
+
+- 远端：`origin → https://github.com/falling-feather/Stronghold-Protocol.git`，本仓库 `main` 已强推覆盖（旧远端被全量替换）。
+- GitHub Pages 工作流：`.github/workflows/deploy.yml`（push main 自动 build + 部署，使用 `actions/deploy-pages@v4`）。
+- 部署后访问：`https://falling-feather.github.io/Stronghold-Protocol/`（首次 push 后需在仓库 Settings → Pages 把 Source 改成 "GitHub Actions"）。
+- 联机 ws 地址：构建期注入 `VITE_MP_DEFAULT_URL`（在仓库 Settings → Secrets and variables → Actions → Variables 添加）。运行时优先级：`localStorage('sp.mp.url')` > 构建变量 > `ws://localhost:8787`。
+- 注意：GitHub Pages 是静态托管，**不能托管 ws 中继**。`server/index.js` 必须自行部署到 Render/Fly.io/VPS 等，再把公网地址填入 `VITE_MP_DEFAULT_URL`（推荐 wss://）。
 
 ## 4. 屏幕（screen）流转
 
