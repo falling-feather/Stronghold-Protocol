@@ -192,9 +192,20 @@ export class ShopSystem {
     const template = OPERATOR_DB[mergedTemplateId as keyof typeof OPERATOR_DB];
     if (!template) return;
     const nextShopLevel = template.shopLevel + 1;
-    const candidates = Object.entries(OPERATOR_DB)
+    let candidates = Object.entries(OPERATOR_DB)
       .filter(([, op]) => op.shopLevel === nextShopLevel)
       .map(([id]) => id);
+
+    // v3.20.1：已达最高星 → 改为提供同档（最高星）随机干员供选择，避免「无事发生」
+    let topTierFallback = false;
+    if (candidates.length === 0) {
+      topTierFallback = true;
+      const sameTier = Object.entries(OPERATOR_DB)
+        .filter(([, op]) => op.shopLevel === template.shopLevel)
+        .map(([id]) => id);
+      const others = sameTier.filter(id => id !== mergedTemplateId);
+      candidates = others.length > 0 ? others : sameTier;
+    }
 
     if (candidates.length === 0) {
       showToast('自动合并完成！但暂时没有更高等级的角色可用。', { level: 'info' });
@@ -213,7 +224,11 @@ export class ShopSystem {
       });
     }
     this.isInTemporaryShop = true;
-    showToast(`自动合并完成！获得2阶${template.name}\n进入临时商店，可免费获得一个角色。`, { level: 'success', duration: 3500 });
+    if (topTierFallback) {
+      showToast(`已达最高星！获得 2 阶 ${template.name}\n额外赠送：随机最高星干员（免费选 1）`, { level: 'success', duration: 3800 });
+    } else {
+      showToast(`自动合并完成！获得2阶${template.name}\n进入临时商店，可免费获得一个角色。`, { level: 'success', duration: 3500 });
+    }
     this.engine.notifyUpdate();
   }
 

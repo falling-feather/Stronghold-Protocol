@@ -8,6 +8,7 @@ import { Roster, rosterToAllowedSet } from '../config/roster';
 import { Direction, PactSelection } from '../types';
 import { showOnly } from './shared';
 import { startBgm } from '../core/AudioSystem';
+import { showAlert } from '../core/ModalSystem';
 import type { BoonId } from '../config/boonData';
 import { mpAdapter, isMpHost } from '../network/mpBridge';
 import { installMarkerListener, drawMarkers, pushLocalMarker } from '../network/mpMarkers';
@@ -350,7 +351,7 @@ function renderPactBadges(): void {
     const cls: string[] = ['pact-badge'];
     if (rt.lastTierUpAt && now - rt.lastTierUpAt < 1000) cls.push('tier-up');
     else if (rt.lastStackChangeAt && now - rt.lastStackChangeAt < 280) cls.push('stack-bump');
-    return `<div class="${cls.join(' ')}" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:bold;margin-left:6px;border:2px solid ${borderColor};">${rt.stack}${rt.shackled ? '⛓' : ''}</div>`;
+    return `<div class="${cls.join(' ')}" data-pact-id="${rt.defId}" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:bold;margin-left:6px;border:2px solid ${borderColor};cursor:pointer;">${rt.stack}${rt.shackled ? '⛓' : ''}</div>`;
   }).join('');
   // v3.3.0：盟约共鸣徽记（金色 ✦）；v3.3.3：枷锁加成版加 ⛓ + 红边
   if (engine && engine.activeResonances.size > 0) {
@@ -364,10 +365,77 @@ function renderPactBadges(): void {
       const bg = boost ? 'linear-gradient(90deg,#c0392b,#e67e22,#f1c40f)' : 'linear-gradient(90deg,#f1c40f,#e67e22)';
       const border = boost ? '#c0392b' : '#fff';
       const label = `${boost ? '⛓✦' : '✦'}${reso.name}${boost ? ' ×2' : ''}`;
-      return `<div class="pact-badge${flashCls}" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 8px;border-radius:16px;background:${bg};color:#000;font-size:11px;font-weight:bold;margin-left:8px;border:2px solid ${border};">${label}</div>`;
+      return `<div class="pact-badge${flashCls}" data-reso-id="${rid}" title="${title.replace(/"/g, '&quot;')}" style="display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 8px;border-radius:16px;background:${bg};color:#000;font-size:11px;font-weight:bold;margin-left:8px;border:2px solid ${border};cursor:pointer;">${label}</div>`;
     }).join('');
     container.innerHTML += resoHtml;
   }
+  // v3.20.1：点击徽记弹出详情面板（手机端无 hover）
+  bindPactBadgeClicks(container);
+}
+
+function bindPactBadgeClicks(container: HTMLElement): void {
+  container.querySelectorAll<HTMLElement>('[data-pact-id]').forEach(el => {
+    const id = el.getAttribute('data-pact-id');
+    if (!id) return;
+    el.onclick = () => showPactDetail(id);
+  });
+  container.querySelectorAll<HTMLElement>('[data-reso-id]').forEach(el => {
+    const id = el.getAttribute('data-reso-id');
+    if (!id) return;
+    el.onclick = () => showResonanceDetail(id);
+  });
+}
+
+function showPactDetail(defId: string): void {
+  if (!engine) return;
+  const def = PACT_DB[defId];
+  const rt = engine.pacts.find(p => p.defId === defId);
+  if (!def || !rt) return;
+  const lines: string[] = [];
+  lines.push(`${def.desc}`);
+  lines.push('');
+  lines.push(`当前层数：${rt.stack} / ${def.cap}${rt.shackled ? '  ⛓ 枷锁模式' : ''}`);
+  lines.push(`生效档位：${rt.appliedTier >= 0 ? `tier${rt.appliedTier + 1}（${def.tiers[rt.appliedTier].description}）` : '未达任何档位'}`);
+  const next = def.tiers[rt.appliedTier + 1];
+  if (next) lines.push(`下一档：阈值 ${next.threshold}（差 ${Math.max(0, next.threshold - rt.stack)} 层） → ${next.description}`);
+  else lines.push('下一档：已达最高档');
+  lines.push('');
+  lines.push('【档位表】');
+  def.tiers.forEach((t, i) => {
+    const mark = i === rt.appliedTier ? '★' : (i < rt.appliedTier ? '✓' : '·');
+    lines.push(`${mark} tier${i + 1} @ ${t.threshold}：${t.description}`);
+  });
+  lines.push('');
+  lines.push('【叠层来源】');
+  def.sources.forEach(s => lines.push(`· ${s.source}：每次 +${s.perEvent}`));
+  if (def.decay) lines.push(`【衰减】每 ${def.decay.interval}s 自动 -${def.decay.perTick} 层`);
+  lines.push('');
+  const scopeText = def.scope === 'all_operators' ? '影响范围：在场所有干员' : def.scope === 'all_enemies' ? '影响范围：在场所有敌人' : '影响范围：全局';
+  lines.push(scopeText);
+  if (def.penaltyDesc) lines.push(`【枷锁代价】${def.penaltyDesc}${rt.shackled ? '（生效中）' : '（未启用）'}`);
+  void showAlert(`${def.name}${rt.shackled ? ' ⛓' : ''}`, lines.join('\n'));
+}
+
+function showResonanceDetail(rid: string): void {
+  if (!engine) return;
+  const reso = RESONANCE_DB[rid];
+  if (!reso) return;
+  const boost = engine.activeResonances.get(rid) || false;
+  const lines: string[] = [];
+  lines.push(reso.desc);
+  lines.push('');
+  lines.push(`激活状态：生效中${boost ? '（⛓ 枷锁加成 ×2）' : ''}`);
+  lines.push('');
+  lines.push('【激活条件（全部满足）】');
+  reso.requires.forEach(r => {
+    const def = PACT_DB[r.defId];
+    const name = def ? def.name : r.defId;
+    lines.push(`· ${name} 达到 tier${r.minTier + 1}`);
+  });
+  lines.push('');
+  const scopeText = reso.scope === 'all_operators' ? '影响范围：在场所有干员' : '影响范围：在场所有敌人';
+  lines.push(scopeText);
+  void showAlert(`✦ ${reso.name}${boost ? ' ×2' : ''}`, lines.join('\n'));
 }
 
 function gameLoop(timestamp: number): void {
