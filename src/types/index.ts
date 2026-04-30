@@ -214,6 +214,9 @@ export interface Projectile {
   color: string;
   markedForDeletion: boolean;
   atkType: AttackType; // v2.1.0
+  sourceId?: string; // v3.16.0：发射者 operator id（用于击杀回报、治疗目标等）
+  sourceClass?: string; // v3.16.0：发射者职业（命中分支判断减速等附加效果）
+  targetIsAlly?: boolean; // v3.16.0：true 表示 targetId 指向 operator（治疗弹）
 }
 
 export interface ShopItem {

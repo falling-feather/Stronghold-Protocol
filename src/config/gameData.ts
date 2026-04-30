@@ -468,6 +468,63 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     defaultSkillIndex: 0,
     saleValue: 1, shopLevel: 3,
   },
+  // v3.16.0：vanguard 先锋（击杀回 +1 资金 + 部署费回流）
+  'vanguard_scout': {
+    name: '游骑斥候', cost: 12, rarity: 3, color: '#e67e22', placement: 'ground', class: 'vanguard',
+    stats: { hp: 1900, maxHp: 1900, atk: 320, def: 110, spd: 0, range: 1.1, aspd: 1.05, blockCount: 2 },
+    talents: [
+      mkTalent('快速集结', '部署费回流加速 +{r1}% / +{r2}%', 'aspd_pct', 6, 12),
+      mkTalent('战地经验', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 8, 14),
+    ],
+    skills: [
+      mkSkill('s_quick_charge', '急速冲锋', '攻速 +{aspdPct}%，攻击力 +{atkPct}%，持续 {duration}s', 'auto', 'attack_buff',
+        { initialSp: 5, cost: 18, duration: 12, values: { aspdPct: 35, atkPct: 25 } },
+        { initialSp: 8, cost: 16, duration: 16, values: { aspdPct: 50, atkPct: 35 } }),
+      mkSkill('s_battle_cry', '战吼', '生命 +{hpPct}%，防御 +{defPct}%，持续 {duration}s', 'auto', 'defense_buff',
+        { initialSp: 4, cost: 22, duration: 14, values: { hpPct: 25, defPct: 50 } },
+        { initialSp: 7, cost: 20, duration: 18, values: { hpPct: 40, defPct: 75 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 1,
+  },
+  // v3.16.0：medic 医疗（治疗友军 operator，攻速即治疗速率）
+  'medic_field': {
+    name: '战地医师', cost: 14, rarity: 3, color: '#2ecc71', placement: 'ground', class: 'medic',
+    stats: { hp: 1500, maxHp: 1500, atk: 320, def: 90, spd: 0, range: 2.4, aspd: 1.4, blockCount: 0 },
+    talents: [
+      mkTalent('稳定剂量', '治疗量 +{r1}% / +{r2}%', 'atk_pct', 12, 20),
+      mkTalent('快速注射', '攻速 +{r1}% / +{r2}%', 'aspd_pct', 8, 14),
+    ],
+    skills: [
+      mkSkill('s_emergency_aid', '紧急救援', '治疗量 {atkMul}× 持续 {duration}s', 'auto', 'attack_buff',
+        { initialSp: 5, cost: 18, duration: 12, values: { atkMul: 1.8 } },
+        { initialSp: 8, cost: 16, duration: 16, values: { atkMul: 2.2 } }),
+      mkSkill('s_field_dressing', '战地包扎', '攻速 +{aspdPct}%，治疗量 +{atkPct}%，持续 {duration}s', 'auto', 'aoe',
+        { initialSp: 4, cost: 24, duration: 14, values: { aspdPct: 40, atkPct: 30 } },
+        { initialSp: 7, cost: 22, duration: 18, values: { aspdPct: 55, atkPct: 45 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 1,
+  },
+  // v3.16.0：supporter 辅助（命中附加减速：spd -25%、aspd +25% 减缓 1.8s）
+  'supporter_jammer': {
+    name: '电磁干扰师', cost: 24, rarity: 4, color: '#9b59b6', placement: 'high_ground', class: 'supporter',
+    stats: { hp: 1100, maxHp: 1100, atk: 380, def: 70, spd: 0, range: 3.0, aspd: 1.6, blockCount: 0 },
+    talents: [
+      mkTalent('频谱压制', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 10, 18),
+      mkTalent('持续干扰', '攻速 +{r1}% / +{r2}%', 'aspd_pct', 8, 14),
+    ],
+    skills: [
+      mkSkill('s_disrupt_field', '干扰场域', '攻速 +{aspdPct}%，攻击力 +{atkPct}%，持续 {duration}s', 'auto', 'aoe',
+        { initialSp: 4, cost: 22, duration: 14, values: { aspdPct: 35, atkPct: 25 } },
+        { initialSp: 7, cost: 20, duration: 18, values: { aspdPct: 50, atkPct: 35 } }),
+      mkSkill('s_overload', '过载脉冲', '下次攻击 {atkMul}× 伤害', 'attack', 'multistrike',
+        { initialSp: 0, cost: 14, values: { atkMul: 2.4, hits: 1 } },
+        { initialSp: 4, cost: 12, values: { atkMul: 3.0, hits: 1 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 2,
+  },
 };
 
 export const ENEMY_DB: Record<string, { name: string; color: string; radius: number; stats: BaseStats; traits?: EnemyTraits }> = {

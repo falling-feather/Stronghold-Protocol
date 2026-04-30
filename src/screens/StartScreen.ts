@@ -6,6 +6,7 @@ import { showAchievementScreen, initAchievementScreen } from './AchievementScree
 import { showDailyScreen, initDailyScreen } from './DailyScreen';
 import { showSettingsScreen, initSettingsScreen } from './SettingsScreen';
 import { playSfx } from '../core/AudioSystem';
+import { APP_VERSION, APP_TAGLINE } from '../version';
 
 export function initStartScreen(): void {
   const startScreen = document.getElementById('start-screen');
@@ -16,6 +17,10 @@ export function initStartScreen(): void {
     console.error('无法找到必要的DOM元素');
     return;
   }
+
+  // v3.16.1：页脚版本号从 src/version.ts 注入，避免 index.html 硬编码失同步
+  const footerEl = startScreen.querySelector<HTMLElement>('.start-footer');
+  if (footerEl) footerEl.textContent = `${APP_TAGLINE} · ${APP_VERSION}`;
 
   btnStartGame.addEventListener('click', () => { playSfx('click'); showFactionScreen(); });
   document.getElementById('btn-multiplayer')?.addEventListener('click', () => { playSfx('click'); showMultiplayerScreen(); });

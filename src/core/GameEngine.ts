@@ -661,6 +661,33 @@ export class GameEngine {
       }
 
       if (op.cooldown <= 0) {
+        const opTemplate = OPERATOR_DB[op.templateId];
+        // v3.16.0：medic 寻友军（受伤比例最低者）—— 完全独立于敌人寻敌
+        if (opTemplate?.class === 'medic') {
+          let allyTarget: Operator | null = null;
+          let lowestRatio = 1;
+          const opCenter = { x: op.pos.x + CONFIG.TILE_SIZE/2, y: op.pos.y + CONFIG.TILE_SIZE/2 };
+          this.operators.forEach(ally => {
+            if (ally.isRetreated || ally.markedForDeletion) return;
+            if (ally.stats.maxHp <= 0) return;
+            const ratio = ally.stats.hp / ally.stats.maxHp;
+            if (ratio >= 1) return; // 满血跳过（医疗自身可治疗，包括自己）
+            const allyCenter = { x: ally.pos.x + CONFIG.TILE_SIZE/2, y: ally.pos.y + CONFIG.TILE_SIZE/2 };
+            const dist = getDistance(opCenter, allyCenter);
+            if (dist > op.stats.range * CONFIG.TILE_SIZE) return;
+            if (ratio < lowestRatio) {
+              lowestRatio = ratio;
+              allyTarget = ally;
+            }
+          });
+          if (allyTarget) {
+            this.fireHealProjectile(op, allyTarget);
+            const aspd = Math.max(0.2, this.modifyStat(op.effects, op.stats.aspd, 'aspd'));
+            op.cooldown = aspd;
+          }
+          return; // medic 本帧攻击逻辑已结束（不打敌人）
+        }
+
         let target: Enemy | null = null;
         if (op.blockingEnemyIds.length > 0) {
           target = this.enemies.find(e => e.id === op.blockingEnemyIds[0]) || null;
@@ -668,7 +695,6 @@ export class GameEngine {
         if (!target) {
           // 使用基于朝向的攻击范围系统
           // v2.4.0：隐身/飞行过滤
-          const opTemplate = OPERATOR_DB[op.templateId];
           const canHitFlying = op.placement === 'high_ground';
           const canHitStealth = opTemplate?.class === 'specialist';
           let minDist = Infinity;
@@ -724,10 +750,37 @@ export class GameEngine {
       damage,
       color: source.skillActive ? '#f1c40f' : baseColor,
       markedForDeletion: false,
-      atkType
+      atkType,
+      sourceId: source.id,
+      sourceClass: sourceTemplate?.class,
     });
 
     // 攻击回复技力（每次攻击+1点）；激活期间不再累计
+    const recoveryType = source.skill.spRecovery;
+    if (!source.skillActive && (recoveryType === 'attack' || recoveryType === 'auto_attack' ||
+        recoveryType === 'attack_defense' || recoveryType === 'all')) {
+      source.currentSp = Math.min(source.skill.cost, source.currentSp + 1);
+    }
+  }
+
+  // v3.16.0：medic 治疗弹（target 为友军 operator）
+  private fireHealProjectile(source: Operator, target: Operator) {
+    const startPos = { x: source.pos.x + CONFIG.TILE_SIZE / 2, y: source.pos.y + CONFIG.TILE_SIZE / 2 };
+    let healAmount = source.stats.atk;
+    healAmount = Math.round(this.modifyStat(source.effects, healAmount, 'atk'));
+    this.projectiles.push({
+      id: `proj_heal_${Date.now()}_${Math.random()}`,
+      pos: startPos,
+      targetId: target.id,
+      speed: 700,
+      damage: healAmount,
+      color: source.skillActive ? '#f1c40f' : '#2ecc71',
+      markedForDeletion: false,
+      atkType: 'heal',
+      sourceId: source.id,
+      sourceClass: 'medic',
+      targetIsAlly: true,
+    });
     const recoveryType = source.skill.spRecovery;
     if (!source.skillActive && (recoveryType === 'attack' || recoveryType === 'auto_attack' ||
         recoveryType === 'attack_defense' || recoveryType === 'all')) {
@@ -1008,6 +1061,22 @@ export class GameEngine {
 
   private updateProjectiles(dt: number) {
     this.projectiles.forEach(proj => {
+      // v3.16.0：治疗弹分支（targetIsAlly=true → target 为友军 operator）
+      if (proj.targetIsAlly) {
+        const ally = this.operators.find(o => o.id === proj.targetId);
+        if (!ally || ally.markedForDeletion || ally.isRetreated) {
+          proj.markedForDeletion = true;
+          return;
+        }
+        const allyCenter = { x: ally.pos.x + CONFIG.TILE_SIZE/2, y: ally.pos.y + CONFIG.TILE_SIZE/2 };
+        proj.pos = moveTowards(proj.pos, allyCenter, proj.speed * dt);
+        if (getDistance(proj.pos, allyCenter) < 15) {
+          ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + proj.damage);
+          proj.markedForDeletion = true;
+        }
+        return;
+      }
+
       const target = this.enemies.find(e => e.id === proj.targetId);
       if (!target || target.markedForDeletion) {
         proj.markedForDeletion = true;
@@ -1039,6 +1108,27 @@ export class GameEngine {
           dmgToHp = finalDamage - absorbed;
         }
         target.stats.hp -= dmgToHp;
+        // v3.16.0：supporter 命中附加减速（aspd/spd 各 -25%，1.8s，覆盖刷新）
+        if (proj.sourceClass === 'supporter' && proj.atkType !== 'heal' && finalDamage > 0) {
+          const SLOW_DUR = 1.8;
+          const exist = target.effects.find(e => e.id === 'supporter_slow_spd');
+          if (exist) {
+            exist.remaining = SLOW_DUR;
+            const existAspd = target.effects.find(e => e.id === 'supporter_slow_aspd');
+            if (existAspd) existAspd.remaining = SLOW_DUR;
+          } else {
+            target.effects.push({
+              id: 'supporter_slow_spd', name: '辅助·减速', kind: 'debuff',
+              stat: 'spd', mod: -0.25, modType: 'pct',
+              duration: SLOW_DUR, remaining: SLOW_DUR,
+            });
+            target.effects.push({
+              id: 'supporter_slow_aspd', name: '辅助·迟缓', kind: 'debuff',
+              stat: 'aspd', mod: 0.25, modType: 'pct',
+              duration: SLOW_DUR, remaining: SLOW_DUR,
+            });
+          }
+        }
         // v3.10.0：被击狂怒 — 命中即给 enemy 加短期 aspd/spd buff（覆盖刷新）
         if (target.traits?.enrageOnHit && proj.atkType !== 'heal' && finalDamage > 0) {
           const er = target.traits.enrageOnHit;
@@ -1070,6 +1160,8 @@ export class GameEngine {
           this.onPactEvent('kill_any');
           // v3.13.0：boon 赏金猟人 — 每击杀 +1 资金
           if (this.activeBoonId === 'boon_kill_bounty') this.money += 1;
+          // v3.16.0：vanguard 击杀回 +1 资金（先锋差异化：持续生费）
+          if (proj.sourceClass === 'vanguard') this.money += 1;
           if (target.traits?.flying) this.onPactEvent('kill_flying');
           if (target.traits?.stealth) this.onPactEvent('kill_stealth');
           if (target.bossPhaseTriggered || target.traits?.bossPhase) this.onPactEvent('kill_elite');

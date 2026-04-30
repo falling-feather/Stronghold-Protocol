@@ -1,8 +1,8 @@
 # 项目快照（SNAPSHOT）
 
-> 写作时间：2026-04-30（v3.15.0 更新）
+> 写作时间：2026-04-30（v3.16.0 更新）
 > 目的：让接手者在 5 分钟内理解仓库现状、当前进度、提交规范、下一步候选。
-> HEAD：`<待推送> V3.15.0 干员扩充 + GH Pages + UI 微整`
+> HEAD：`<待推送> V3.16.0 三职业底层接入 + ws 中继部署模板 + MP 大厅重排`
 > 工作树：clean，远端 `origin → github.com/falling-feather/Stronghold-Protocol`（main 已强推覆盖远端）。
 
 ---

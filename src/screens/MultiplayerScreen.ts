@@ -74,50 +74,52 @@ function ensureLobbyDom(): void {
   if (!body || body.dataset.v4 === '1') return;
   body.dataset.v4 = '1';
   body.innerHTML = `
-    <div style="max-width:900px;margin:0 auto;color:#ecf0f1;display:flex;flex-direction:column;gap:16px;">
-      <div style="background:rgba(52,152,219,0.1);border-left:4px solid #3498db;padding:12px 16px;border-radius:3px;font-size:13px;line-height:1.6;">
-        v4.0.0 联机骨架（房间/聊天/准备）。先在本机另开终端运行 <code style="background:#000;padding:2px 6px;border-radius:3px;">npm run mp-server</code> 启动 WebSocket，再下方连接。游戏战斗同步留待 v4.1+。
+    <div class="mp-lobby-wrap">
+      <div class="mp-banner">
+        <b>v4.0+ 联机骨架</b> · 房间 / 聊天 / 准备 / 双向标记 / 提议 / 提示。
+        本地联调请另开终端 <code>npm run mp-server</code>；公网部署见
+        <a href="https://github.com/falling-feather/Stronghold-Protocol/blob/main/docs/MP_SERVER_DEPLOY.md" target="_blank" rel="noopener">MP_SERVER_DEPLOY.md</a>。
       </div>
 
-      <div style="display:flex;gap:10px;align-items:center;">
-        <input id="mp-url" value="${DEFAULT_URL}" style="flex:2;padding:8px;background:#2c3e50;border:1px solid #4a627a;color:#ecf0f1;border-radius:3px;" />
-        <input id="mp-name" placeholder="昵称" value="玩家" style="flex:1;padding:8px;background:#2c3e50;border:1px solid #4a627a;color:#ecf0f1;border-radius:3px;" />
-        <button id="btn-mp-connect" style="padding:8px 18px;background:#3498db;border:none;color:#fff;border-radius:3px;cursor:pointer;font-weight:bold;">连接</button>
-        <button id="btn-mp-disconnect" style="padding:8px 14px;background:#7f8c8d;border:none;color:#fff;border-radius:3px;cursor:pointer;">断开</button>
+      <div class="mp-conn-bar">
+        <input id="mp-url" class="mp-input mp-input-url" value="${escapeAttr(DEFAULT_URL)}" placeholder="ws:// 或 wss:// 中继地址" />
+        <input id="mp-name" class="mp-input mp-input-name" placeholder="昵称" value="玩家" />
+        <button id="btn-mp-connect" class="mp-btn mp-btn-primary">连接</button>
+        <button id="btn-mp-disconnect" class="mp-btn mp-btn-ghost">断开</button>
       </div>
 
-      <div id="mp-conn-status" style="font-family:monospace;font-size:12px;color:#95a5a6;"></div>
+      <div id="mp-conn-status" class="mp-status">状态：未连接</div>
 
-      <div id="mp-lobby" style="display:none;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-          <div style="background:rgba(255,255,255,0.04);border:1px solid #34495e;border-radius:6px;padding:14px;">
-            <div style="font-weight:bold;color:#3498db;margin-bottom:8px;">创建房间</div>
-            <input id="mp-create-name" placeholder="房间名" style="width:100%;padding:8px;background:#2c3e50;border:1px solid #4a627a;color:#ecf0f1;border-radius:3px;margin-bottom:8px;" />
-            <button id="btn-mp-create" style="width:100%;padding:8px;background:#3498db;border:none;color:#fff;border-radius:3px;cursor:pointer;">创建</button>
-          </div>
-          <div style="background:rgba(255,255,255,0.04);border:1px solid #34495e;border-radius:6px;padding:14px;">
-            <div style="font-weight:bold;color:#16a085;margin-bottom:8px;">房间列表</div>
-            <div id="mp-room-list" style="max-height:160px;overflow-y:auto;font-size:13px;"></div>
-          </div>
+      <div id="mp-lobby" class="mp-lobby" style="display:none;">
+        <div class="mp-lobby-grid">
+          <section class="mp-card mp-card-host">
+            <header class="mp-card-title">创建房间</header>
+            <input id="mp-create-name" class="mp-input" placeholder="房间名（可选）" />
+            <button id="btn-mp-create" class="mp-btn mp-btn-primary mp-btn-block">创建</button>
+          </section>
+          <section class="mp-card mp-card-join">
+            <header class="mp-card-title">房间列表</header>
+            <div id="mp-room-list" class="mp-room-list"></div>
+          </section>
         </div>
       </div>
 
-      <div id="mp-room" style="display:none;background:rgba(0,0,0,0.3);border-radius:6px;padding:14px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div id="mp-room-info" style="font-weight:bold;color:#f1c40f;"></div>
-          <div style="display:flex;gap:8px;">
-            <button id="btn-mp-ready" style="padding:6px 16px;background:#27ae60;border:none;color:#fff;border-radius:3px;cursor:pointer;">准备</button>
-            <button id="btn-mp-leave" style="padding:6px 14px;background:#c0392b;border:none;color:#fff;border-radius:3px;cursor:pointer;">离开</button>
+      <div id="mp-room" class="mp-room" style="display:none;">
+        <div class="mp-room-head">
+          <div id="mp-room-info" class="mp-room-info"></div>
+          <div class="mp-room-actions">
+            <button id="btn-mp-ready" class="mp-btn mp-btn-success">准备</button>
+            <button id="btn-mp-leave" class="mp-btn mp-btn-danger">离开</button>
           </div>
         </div>
-        <div id="mp-chat-log" style="background:#1a1d24;padding:10px;height:160px;overflow-y:auto;font-size:12px;font-family:monospace;border-radius:3px;color:#bdc3c7;"></div>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <input id="mp-chat-input" placeholder="输入消息" style="flex:1;padding:6px 10px;background:#2c3e50;border:1px solid #4a627a;color:#ecf0f1;border-radius:3px;" />
-          <button id="btn-mp-chat-send" style="padding:6px 14px;background:#34495e;border:none;color:#fff;border-radius:3px;cursor:pointer;">发送</button>
+        <div id="mp-chat-log" class="mp-chat-log"></div>
+        <div class="mp-chat-input-row">
+          <input id="mp-chat-input" class="mp-input" placeholder="输入消息后按 Enter 发送" />
+          <button id="btn-mp-chat-send" class="mp-btn mp-btn-slate">发送</button>
         </div>
       </div>
 
-      <div id="mp-error" style="color:#e74c3c;font-size:13px;min-height:18px;"></div>
+      <div id="mp-error" class="mp-error"></div>
     </div>
   `;
 
@@ -152,7 +154,8 @@ function ensureLobbyDom(): void {
     const btn = body.querySelector<HTMLButtonElement>('#btn-mp-ready');
     if (btn) {
       btn.textContent = readyState ? '取消准备' : '准备';
-      btn.style.background = readyState ? '#e67e22' : '#27ae60';
+      btn.classList.toggle('mp-btn-success', !readyState);
+      btn.classList.toggle('mp-btn-warn', readyState);
     }
   });
   const sendChat = () => {
@@ -187,7 +190,7 @@ function render(): void {
   const listEl = document.getElementById('mp-room-list');
   if (listEl) {
     const rooms = adapter.rooms;
-    if (rooms.length === 0) listEl.innerHTML = '<div style="color:#7f8c8d;">（暂无房间）</div>';
+    if (rooms.length === 0) listEl.innerHTML = '<div class="mp-room-empty">（暂无房间）</div>';
     else listEl.innerHTML = rooms.map(r => renderRoomRow(r)).join('');
     listEl.querySelectorAll<HTMLButtonElement>('button[data-room]').forEach(b => {
       b.addEventListener('click', () => adapter.joinRoom(b.getAttribute('data-room')!));
@@ -216,14 +219,18 @@ function render(): void {
 function renderRoomRow(r: RoomInfo): string {
   const full = r.count >= 2;
   return `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #34495e;">
-      <div>
-        <span style="color:#fff;font-weight:bold;">${escapeHtml(r.name)}</span>
-        <span style="color:#7f8c8d;margin-left:8px;font-size:11px;">${r.count}/2 · 准备 ${r.readyCount}</span>
+    <div class="mp-room-row">
+      <div class="mp-room-row-info">
+        <span class="mp-room-row-name">${escapeHtml(r.name)}</span>
+        <span class="mp-room-row-meta">${r.count}/2 · 准备 ${r.readyCount}</span>
       </div>
-      <button data-room="${r.id}" ${full ? 'disabled' : ''} style="padding:4px 12px;background:${full ? '#7f8c8d' : '#16a085'};border:none;color:#fff;border-radius:3px;cursor:${full ? 'not-allowed' : 'pointer'};font-size:12px;">${full ? '已满' : '加入'}</button>
+      <button data-room="${r.id}" ${full ? 'disabled' : ''} class="mp-btn ${full ? 'mp-btn-disabled' : 'mp-btn-success'} mp-btn-sm">${full ? '已满' : '加入'}</button>
     </div>
   `;
+}
+
+function escapeAttr(s: string): string {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
 
 function escapeHtml(s: string): string {

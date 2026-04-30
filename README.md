@@ -78,6 +78,16 @@ npm run dev
 
 两个浏览器窗口分别打开 `http://localhost:5173` → 主菜单 → 联机模式 → 填昵称 → 一方创建房间，另一方加入 → 双方点准备 → 自动进入「host 主战 + guest 观战」模式。
 
+### 公网部署联机（GitHub Pages 等静态站）
+
+GitHub Pages 仅托管前端，**WebSocket 中继需要单独部署**到任何 Node 平台。仓库已附一键部署模板：
+
+- [`Dockerfile`](Dockerfile) — 任何 Docker 平台通用
+- [`render.yaml`](render.yaml) — Render Blueprint 一键部署
+- 完整指南：[docs/MP_SERVER_DEPLOY.md](docs/MP_SERVER_DEPLOY.md)（含 Render / Fly.io / VPS 三套）
+
+部署完成后，把 `wss://` 地址填到仓库 **Settings → Variables → `VITE_MP_DEFAULT_URL`** 即可。
+
 
 ## 待实现功能
 

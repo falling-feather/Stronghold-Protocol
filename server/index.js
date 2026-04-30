@@ -1,13 +1,28 @@
 // v4.0.0：联机骨架服务端（Node.js + ws）
+// v3.16.0：附加 HTTP 健康检查 + 挂载到同一端口（兼容 Render/Fly/Railway 等 PaaS）
 // 启动：npm run mp-server  （默认监听 ws://localhost:8787）
 // 协议：JSON 文本帧
 //   c→s: { type: 'set_name'|'create_room'|'join_room'|'leave_room'|'ready'|'chat', ... }
 //   s→c: { type: 'welcome'|'self'|'rooms'|'joined'|'peer_joined'|'peer_left'|'peer_ready'|'start'|'chat'|'error', ... }
 
 import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
 
 const PORT = parseInt(process.env.PORT || '8787', 10);
-const wss = new WebSocketServer({ port: PORT });
+const HOST = process.env.HOST || '0.0.0.0';
+
+// HTTP 服务器：根路径 + /healthz 都返回 200，便于 PaaS 健康检查
+const httpServer = createServer((req, res) => {
+  if (req.url === '/healthz' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Stronghold Protocol MP server: OK\n');
+    return;
+  }
+  res.writeHead(404, { 'Content-Type': 'text/plain' });
+  res.end('Not Found\n');
+});
+
+const wss = new WebSocketServer({ server: httpServer });
 
 const rooms = new Map(); // roomId -> { id, name, players: Set<ws> }
 const clients = new WeakMap(); // ws -> { id, name, roomId, ready }
@@ -147,4 +162,6 @@ wss.on('connection', (ws) => {
   ws.on('close', () => leaveRoom(ws));
 });
 
-console.log(`[Stronghold MP] WebSocket server listening on ws://localhost:${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+  console.log(`[Stronghold MP] HTTP/WebSocket server listening on http://${HOST}:${PORT} (ws path: /)`);
+});

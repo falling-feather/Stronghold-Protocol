@@ -1,0 +1,18 @@
+# Render Blueprint：一键部署卫戍协议联机中继（ws）
+# 步骤：登录 https://render.com → New + → Blueprint → 选择本仓库 → Apply
+# 部署完成后，把 Render 给的 URL（形如 https://stronghold-mp.onrender.com）
+# 改写成 wss://stronghold-mp.onrender.com/ 后，填入仓库 Variables 的
+# VITE_MP_DEFAULT_URL（详见 docs/MP_SERVER_DEPLOY.md）
+
+services:
+  - type: web
+    name: stronghold-mp
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      # PORT 由 Render 自动注入，无需手动设置
