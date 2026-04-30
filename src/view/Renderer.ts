@@ -68,6 +68,33 @@ export class Renderer {
     engine.operators.forEach(op => this.drawOperator(op));
     engine.enemies.forEach(enemy => this.drawEnemy(enemy));
     engine.projectiles.forEach(proj => this.drawProjectile(proj));
+    // v3.18.0：命中闪光（按 ttl 比例画半透明扩散圆）
+    engine.hitFlashes.forEach(f => {
+      const ratio = Math.max(0, f.ttl / f.maxTtl);
+      const radius = 6 + (1 - ratio) * 14;
+      this.ctx.save();
+      this.ctx.globalAlpha = ratio * 0.85;
+      this.ctx.strokeStyle = f.color;
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.arc(f.pos.x, f.pos.y, radius, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+    });
+    // v3.18.0：silencer 在场提示条
+    if (engine.enemies.some(e => !e.markedForDeletion && e.traits?.healSuppress)) {
+      this.ctx.save();
+      this.ctx.fillStyle = 'rgba(127, 140, 141, 0.85)';
+      const w = 220, h = 30;
+      const x = (CONFIG.MAP_WIDTH * CONFIG.TILE_SIZE - w) / 2;
+      this.ctx.fillRect(x, 8, w, h);
+      this.ctx.fillStyle = '#fff';
+      this.ctx.font = 'bold 16px sans-serif';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText('⚠ 医疗被压制（治疗 ×0.5）', x + w / 2, 8 + h / 2);
+      this.ctx.restore();
+    }
   }
 
   private drawMap() {

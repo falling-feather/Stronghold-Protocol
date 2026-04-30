@@ -33,6 +33,8 @@ export class GameEngine {
   operators: Operator[] = [];
   bench: BenchOperator[] = [];
   projectiles: Projectile[] = [];
+  // v3.18.0：命中闪光（治疗/远程命中视觉反馈）
+  hitFlashes: { pos: { x: number; y: number }; color: string; ttl: number; maxTtl: number }[] = [];
   
   phase: GamePhase = 'PREP';
   factionId: FactionId;
@@ -136,6 +138,8 @@ export class GameEngine {
       this.updateEnemies(dt);
       this.updateOperators(dt);
       this.updateProjectiles(dt);
+      // v3.18.0：命中闪光 ttl 衰减
+      this.hitFlashes = this.hitFlashes.filter(f => { f.ttl -= dt; return f.ttl > 0; });
       this.tickPactDecay(dt); // v3.0.2：盟约衰减
     }
     
@@ -1128,6 +1132,8 @@ export class GameEngine {
           const opDef = this.modifyStat(op.effects, op.stats.def, 'def');
           const damage = Math.max(5, proj.damage - opDef);
           op.stats.hp -= damage;
+          // v3.18.0：橙色命中闪光
+          this.hitFlashes.push({ pos: { x: opCenter.x, y: opCenter.y }, color: '#e67e22', ttl: 0.25, maxTtl: 0.25 });
           if (op.stats.hp <= 0) this.handleOperatorRetreat(op);
           proj.markedForDeletion = true;
         }
@@ -1148,6 +1154,12 @@ export class GameEngine {
           const suppressor = this.enemies.find(e => !e.markedForDeletion && e.traits?.healSuppress);
           if (suppressor) healAmount = healAmount * suppressor.traits!.healSuppress!.mult;
           ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + healAmount);
+          // v3.18.0：绿色命中闪光（被压制时颜色变深参考区分）
+          this.hitFlashes.push({
+            pos: { x: allyCenter.x, y: allyCenter.y },
+            color: suppressor ? '#16a085' : '#2ecc71',
+            ttl: 0.3, maxTtl: 0.3
+          });
           proj.markedForDeletion = true;
         }
         return;

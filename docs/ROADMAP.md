@@ -67,6 +67,7 @@
 - [x] v3.16.1 版本常量集中化：新增 src/version.ts 导出 APP_VERSION / APP_TAGLINE，StartScreen.initStartScreen 启动时 querySelector('.start-footer').textContent 注入，消除 index.html 行内 v3.x.0 硬编码与各处升级失同步问题
 - [x] v3.17.0 治疗/远程/事件卡内容扩充：新增敌人 dervish（游医萨满，每秒 +35 hp、半径 2.4 tile 治疗光环）和 harasser（远程骚扰兵，range 2.5、不需 block 周期扣 op hp）；EnemyTraits 扩字段 healAura/ranged，updateEnemies 实现治疗光环 tick 与远程攻击循环（命中 op 通过 modifyStat 算 atk-def，hp 归零自动 retreat）；新增事件卡 ev_field_hospital（rare 正面，含全员 hp 回满 / 资金换 SP / 折价卖出三选一）与 ev_emp_storm（rare 双面，含碎铳 +3 减速、SP-8 换 +150 资金、钢铁 -2 三选一）；EventEngineHandle 增 healAllOperatorsFull() 方法；WAVES 加 dervish×3 / harasser×5 两波
 - [x] v3.17.1 抗治疗敌 + 远程弹道可视化：新增敌人 silencer（抗治疗者，场内存活时所有医疗弹治疗量 ×0.5）；EnemyTraits 加 healSuppress {mult}；harasser 远程攻击改造为发射真实 projectile（橙色 #e67e22，speed 600，targetIsOperator=true，飞抵后 modifyStat 计算 atk-def 扣 hp）；Projectile 类型扩 targetIsOperator/sourceEnemyId 字段；updateProjectiles 新增敌人远程弹分支；治疗弹分支应用 healSuppress 折扣；WAVES 加 silencer×2 一波
+- [x] v3.18.0 命中视觉反馈 + silencer 在场提示条：GameEngine 新增 hitFlashes 数组（每帧 ttl 衰减自动清理），治疗弹命中 ally 时 push 绿色（被压制时为深绿 #16a085）扩散圆 0.3s，敌人远程弹命中 op 时 push 橙色 #e67e22 扩散圆 0.25s；Renderer 在 projectile 之后画半透明 stroke 圆（半径随 ttl 反比扩张、alpha 正比衰减）；同时在场存在 healSuppress trait 敌人时画顶部居中"⚠ 医疗被压制（治疗 ×0.5）"提示条（rgba 灰底、白字、bold 16px）
 
 ## v4.x — 联机
 
