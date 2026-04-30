@@ -324,7 +324,8 @@ export class GameEngine {
       addAllOperatorsSp: (amount: number) => {
         for (const op of self.operators) {
           if (op.isRetreated) continue;
-          op.currentSp = Math.min(op.skill.cost, op.currentSp + amount);
+          // v3.14.0：允许负值（事件代价），下界 clamp 到 0
+          op.currentSp = Math.max(0, Math.min(op.skill.cost, op.currentSp + amount));
         }
         self.notifyUpdate();
       },

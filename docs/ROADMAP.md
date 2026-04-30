@@ -61,6 +61,7 @@
 - [x] v3.11.0 盟约扩充（搭配 v3.10 新机制）：PactSource 新增 kill_shielded / kill_in_enrage；GameEngine 击杀分支按 traits.shield/effects.id=='enrage_on_hit' 派发；新增 2 盟约 — 破甲誓约 (pact_shield_breaker, kill_shielded → atk +5/10/18%, 枷锁 aspd +5%) 与 狩猎之心 (pact_hunt_enrage, kill_in_enrage perEvent=2 → spd +5/10/15%, 枷锁 mr -3)；SELECTABLE_PACTS 扩至 7；新增 2 共鸣 reso_break_iron (破甲+钢铁→def +5) / reso_hunt_storm (狩猎+高翔→aspd -5%)
 - [x] v3.12.0 共鸣全覆盖（7C2=21）：补齐剩余 9 对 — reso_break_flame/echo/spring/aerial/hunt + reso_hunt_flame/echo/spring/iron；任意 3 选必触发 3 共鸣的全覆盖性恢复
 - [x] v3.13.0 boon 扩充（7→10）：新增 boon_kill_bounty (击杀 +1 钱, common)、boon_wave_bonus (每波 +15 钱, common)、boon_starting_money_big (开局 +120 钱, rare)；GameEngine 接入：kill_any 分支判 kill_bounty、endCombat 判 wave_bonus、initialMoney 分支判 starting_money_big；ach_boon_collector target 同步 7→10
+- [x] v3.14.0 事件卡扩充（+5，含 2 负面）：新增 ev_supply_drop / ev_field_meditation (common 正面)、ev_storm_warning / ev_saboteur (rare 负面 — 三选一全有代价 / 损失 stack/SP/资金)、ev_treasure_map (epic, once, minWave 4, 涉及 v3.11 新盟约 stack)；GameEngine.addAllOperatorsSp 加下界 clamp 0 以支持负值代价；EVENT_DB 总数 8 → 13
 
 ## v4.x — 联机
 

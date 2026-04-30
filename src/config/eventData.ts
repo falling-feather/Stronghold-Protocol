@@ -221,6 +221,160 @@ export const EVENT_DB: Record<string, EventCard> = {
       },
     ],
   },
+  // === v3.14.0：新增 5 张事件卡（含 2 负面）===
+  ev_supply_drop: {
+    id: 'ev_supply_drop',
+    name: '补给空投',
+    desc: '一架不明运输机抛下了一个补给箱，你需要决定如何使用它。',
+    rarity: 'common',
+    options: [
+      {
+        label: '资金分发（+180 资金）',
+        desc: '直接获得 180 资金',
+        apply: (e) => { e.money += 180; e.notifyUpdate(); },
+      },
+      {
+        label: '能源补给（全员 SP +12）',
+        desc: '所有已部署干员 currentSp +12',
+        apply: (e) => { e.addAllOperatorsSp(12); e.notifyUpdate(); },
+      },
+      {
+        label: '弹药补给（碎铳之簧 +4 层）',
+        desc: '盟约·碎铳之簧 stack +4',
+        apply: (e) => { e.addPactStack('pact_broken_spring', 4); },
+      },
+    ],
+  },
+  ev_field_meditation: {
+    id: 'ev_field_meditation',
+    name: '战地冥想',
+    desc: '短暂的宁静让干员们获得了一次集中精神的机会。',
+    rarity: 'common',
+    options: [
+      {
+        label: '统一冥想（全员 SP +18）',
+        desc: '所有已部署干员 currentSp +18',
+        apply: (e) => { e.addAllOperatorsSp(18); e.notifyUpdate(); },
+      },
+      {
+        label: '聆听余响（余音回响 +3 层）',
+        desc: '盟约·余音回响 stack +3',
+        apply: (e) => { e.addPactStack('pact_lingering_echo', 3); },
+      },
+      {
+        label: '默默站岗（不触发任何效果）',
+        desc: '错过此次机会',
+        apply: (e) => { e.notifyUpdate(); },
+      },
+    ],
+  },
+  // 负面 1：风暴预警 — 三选一全有代价
+  ev_storm_warning: {
+    id: 'ev_storm_warning',
+    name: '风暴预警',
+    desc: '前线传来恶劣天气警告，无论如何都要付出一些代价。',
+    rarity: 'rare',
+    cooldown: 3,
+    options: [
+      {
+        label: '加固防御（-100 资金，钢铁誓约 +4 层）',
+        desc: '资金 -100，钢铁誓约 stack +4',
+        apply: (e) => {
+          if (e.money >= 100) {
+            e.money -= 100;
+            e.addPactStack('pact_iron_resolve', 4);
+          } else {
+            e.notifyUpdate();
+          }
+        },
+      },
+      {
+        label: '紧急后撤（-1 钢铁誓约，全员 SP +20）',
+        desc: '钢铁誓约 stack -1，全员 SP +20',
+        apply: (e) => {
+          e.addPactStack('pact_iron_resolve', -1);
+          e.addAllOperatorsSp(20);
+          e.notifyUpdate();
+        },
+      },
+      {
+        label: '硬抗损失（-50 资金）',
+        desc: '资金 -50，无其它效果',
+        apply: (e) => {
+          e.money = Math.max(0, e.money - 50);
+          e.notifyUpdate();
+        },
+      },
+    ],
+  },
+  // 负面 2：破坏者潜入 — 必触发损失
+  ev_saboteur: {
+    id: 'ev_saboteur',
+    name: '破坏者潜入',
+    desc: '一名敌方破坏者混入营地，必须立刻处理但代价不小。',
+    rarity: 'rare',
+    cooldown: 4,
+    options: [
+      {
+        label: '雇佣赏金猎人（-180 资金）',
+        desc: '资金 -180，破坏者被清理',
+        apply: (e) => {
+          e.money = Math.max(0, e.money - 180);
+          e.notifyUpdate();
+        },
+      },
+      {
+        label: '让干员追捕（全员 SP -10）',
+        desc: '所有干员 SP -10（不会低于 0）',
+        apply: (e) => {
+          // 复用 addAllOperatorsSp，传负值会被 Math.min(skill.cost,..) 限制；这里手写减
+          e.addAllOperatorsSp(-10);
+          e.notifyUpdate();
+        },
+      },
+      {
+        label: '放任不管（炎佑 -2、碎铳 -2 层）',
+        desc: '盟约 stack 受损：炎佑 -2、碎铳之簧 -2',
+        apply: (e) => {
+          e.addPactStack('pact_flame_blessing', -2);
+          e.addPactStack('pact_broken_spring', -2);
+          e.notifyUpdate();
+        },
+      },
+    ],
+  },
+  // 史诗正面：藏宝图（once, 后期）
+  ev_treasure_map: {
+    id: 'ev_treasure_map',
+    name: '藏宝图碎片',
+    desc: '一片泛黄的藏宝图碎片在战场拾得，似乎指向某处宝藏。',
+    rarity: 'epic',
+    minWave: 4,
+    once: true,
+    options: [
+      {
+        label: '兑换情报（+350 资金）',
+        desc: '直接卖出获得 350 资金',
+        apply: (e) => { e.money += 350; e.notifyUpdate(); },
+      },
+      {
+        label: '寻找宝藏（破甲 +5、狩猎 +5 层）',
+        desc: '盟约·破甲誓约 +5、狩猎之心 +5',
+        apply: (e) => {
+          e.addPactStack('pact_shield_breaker', 5);
+          e.addPactStack('pact_hunt_enrage', 5);
+        },
+      },
+      {
+        label: '献给营地（全员 SP +25，钢铁 +5 层）',
+        desc: '全员 SP +25，钢铁誓约 +5',
+        apply: (e) => {
+          e.addAllOperatorsSp(25);
+          e.addPactStack('pact_iron_resolve', 5);
+        },
+      },
+    ],
+  },
 };
 
 // 事件卡随机抽取（每波结束后按 EVENT_TRIGGER_CHANCE 概率触发）
