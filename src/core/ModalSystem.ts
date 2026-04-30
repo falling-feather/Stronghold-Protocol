@@ -54,10 +54,28 @@ interface DialogOpts {
   title: string;
   body: string; // 支持 \n
   buttons: DialogButton[];
+  /** Esc / 点击遮罩时返回的值（默认 undefined）。设为 'none' 表示禁止 Esc/遮罩关闭。 */
+  dismissValue?: any;
+}
+
+// 当前活跃 dialog 的 dismiss 回调栈（Esc 只关闭栈顶）
+const dismissStack: Array<() => void> = [];
+let escListenerInstalled = false;
+
+function ensureEscListener(): void {
+  if (escListenerInstalled) return;
+  escListenerInstalled = true;
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && dismissStack.length > 0) {
+      const top = dismissStack[dismissStack.length - 1];
+      top();
+    }
+  });
 }
 
 function showDialog<T>(opts: DialogOpts): Promise<T> {
   const host = ensureModalHost();
+  ensureEscListener();
   return new Promise<T>(resolve => {
     const mask = document.createElement('div');
     mask.className = 'sp-modal-mask';
@@ -76,8 +94,7 @@ function showDialog<T>(opts: DialogOpts): Promise<T> {
       b.className = `sp-modal-btn sp-modal-btn-${btn.variant ?? 'primary'}`;
       b.textContent = btn.label;
       b.addEventListener('click', () => {
-        cleanup();
-        resolve(btn.value as T);
+        finish(btn.value as T);
       });
       actions.appendChild(b);
     });
@@ -87,10 +104,31 @@ function showDialog<T>(opts: DialogOpts): Promise<T> {
     mask.appendChild(panel);
     host.appendChild(mask);
     requestAnimationFrame(() => mask.classList.add('sp-modal-in'));
-    function cleanup() {
+
+    let settled = false;
+    const dismissAllowed = opts.dismissValue !== 'none';
+    const dismissValue = opts.dismissValue as T | undefined;
+
+    function dismiss() {
+      if (!dismissAllowed) return;
+      finish(dismissValue as T);
+    }
+    function finish(value: T) {
+      if (settled) return;
+      settled = true;
+      const idx = dismissStack.indexOf(dismiss);
+      if (idx >= 0) dismissStack.splice(idx, 1);
       mask.classList.remove('sp-modal-in');
       mask.classList.add('sp-modal-out');
       setTimeout(() => mask.remove(), 200);
+      resolve(value);
+    }
+
+    if (dismissAllowed) {
+      mask.addEventListener('click', e => {
+        if (e.target === mask) dismiss();
+      });
+      dismissStack.push(dismiss);
     }
   });
 }
@@ -99,6 +137,7 @@ export function showAlert(title: string, body: string, btnLabel = '知道了'): 
   return showDialog<void>({
     title, body,
     buttons: [{ label: btnLabel, value: undefined, variant: 'primary' }],
+    dismissValue: undefined,
   });
 }
 
@@ -114,6 +153,7 @@ export function showConfirm(
       { label: cancelLabel, value: false, variant: 'ghost' },
       { label: okLabel, value: true, variant: danger ? 'danger' : 'primary' },
     ],
+    dismissValue: false,
   });
 }
 
