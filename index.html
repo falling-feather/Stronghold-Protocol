@@ -123,16 +123,37 @@
       }
       
       .stat-box { 
-        font-size: 16px; 
+        font-size: 14px; 
         font-weight: bold; 
         text-align: center;
-        padding: 4px 12px;
+        padding: 4px 10px;
         background: rgba(255,255,255,0.1);
         border-radius: 4px;
         -webkit-backdrop-filter: blur(5px);
         backdrop-filter: blur(5px);
         white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
       }
+      .stat-box .stat-ico {
+        font-size: 13px;
+        opacity: 0.9;
+        font-weight: normal;
+      }
+      /* pact-badges 单行水平滚动，淡出消失而非换行 */
+      #pact-badges {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        max-width: 28vw;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,1) 85%, rgba(0,0,0,0) 100%);
+        mask-image: linear-gradient(to right, rgba(0,0,0,1) 85%, rgba(0,0,0,0) 100%);
+      }
+      #pact-badges::-webkit-scrollbar { display: none; }
       
       #btn-next-wave {
         background: #e74c3c; 
@@ -208,11 +229,7 @@
       }
       #detail-panel.visible { left: 0; }
       
-      /* 相机平移效果：当面板显示时，画布向右平移 */
-      #detail-panel.visible ~ #canvas-wrapper {
-        transform: translateX(140px); /* 向右平移面板宽度的一半 */
-        transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-      }
+      /* v3.20.2：detail 面板滑出时不再平移画布，改为半透明叠加（避免画布被挤出视野） */
       
       /* 技能按钮优化：放在面板最右侧，方便点击 */
       #btn-action-main {
@@ -303,36 +320,46 @@
         border-top: 1px solid #444; 
         z-index: 10;
         transition: transform 0.3s ease-in-out;
-        flex-shrink: 0; /* 不收缩，优先保证显示 */
-        min-height: 220px; /* 最小高度：备战区(100px) + 商店区(120px) */
-        height: auto; /* 允许根据内容扩展 */
-        /* 底部防误触区：为手机Home条留出空间 */
-        padding-bottom: env(safe-area-inset-bottom, 30px);
+        flex-shrink: 0;
+        min-height: 200px; /* bench(88) + shop(110) */
+        height: auto;
+        padding-bottom: env(safe-area-inset-bottom, 20px);
+      }
+      html.mobile-rotated #bottom-area {
+        min-height: 160px; /* bench(64) + shop(90) + safe(6) */
+        padding-bottom: env(safe-area-inset-bottom, 6px);
       }
       
       /* 战斗时隐藏底部 */
       #bottom-area.hidden { transform: translateY(100%); }
       
 
-      /* 备战区 - 固定高度 */
+      /* 备战区 - 固定高度（移动端缩小） */
       #bench-area {
-        height: 100px;
+        height: 88px;
         background: #34495e; 
-        padding: 10px;
+        padding: 8px 10px;
         display: flex; 
-        gap: 10px; 
+        gap: 8px; 
         align-items: center; 
         overflow-x: auto;
         overflow-y: hidden;
         border-bottom: 1px solid #2c3e50;
-        flex-shrink: 0; /* 不收缩，优先保证显示 */
+        flex-shrink: 0;
+      }
+      html.mobile-rotated #bench-area {
+        height: 64px;
+        padding: 5px 8px;
+        gap: 5px;
       }
       
       .bench-slot {
-        width: 70px; height: 70px; background: rgba(0,0,0,0.2); 
+        width: 64px; height: 64px; background: rgba(0,0,0,0.2); 
         border-radius: 4px; flex-shrink: 0; display: flex; justify-content: center; align-items: center;
         color: #7f8c8d; font-size: 12px; position: relative;
       }
+      html.mobile-rotated .bench-slot { width: 50px; height: 50px; font-size: 10px; }
+      html.mobile-rotated .bench-card { width: 46px !important; height: 46px !important; font-size: 9px !important; }
       .bench-slot.sell-zone {
         background: rgba(231, 76, 60, 0.2); border: 1px dashed #c0392b;
         color: #e74c3c; font-weight: bold;
@@ -346,23 +373,25 @@
       .bench-card:active { cursor: grabbing; }
       .bench-card.selected { border-color: #f1c40f; }
 
-      /* 商店区 - 高度控制在屏幕高度的15-18% */
+      /* 商店区 - 改用 grid 三列：标题 / 卡片区 / 操作按钮（保证刷新升级始终可见） */
       #shop-area {
-        /* 使用vh单位控制高度，最大不超过18% */
-        min-height: 120px;
-        max-height: 18vh; /* 最大高度不超过屏幕高度的18% */
-        height: auto; /* 允许根据内容扩展，但不超过max-height */
-        display: flex; 
-        padding: 10px 20px; 
-        gap: 15px; 
+        min-height: 110px;
+        max-height: 22vh;
+        height: auto;
+        display: grid;
+        grid-template-columns: 36px 1fr 92px;
+        padding: 8px 12px;
+        gap: 10px;
         align-items: stretch;
-        overflow: visible; /* 允许内容显示 */
-        flex-shrink: 0; /* 不收缩，优先保证显示 */
+        overflow: hidden;
+        flex-shrink: 0;
       }
-      
-      /* 移动端：进一步限制高度 */
       html.mobile-rotated #shop-area {
-        max-height: 15vh; /* 移动端更严格的高度限制 */
+        max-height: 18vh;
+        min-height: 90px;
+        grid-template-columns: 28px 1fr 78px;
+        padding: 6px 8px;
+        gap: 6px;
       }
       
       /* 左侧标题 */
@@ -374,22 +403,31 @@
         flex-shrink: 0;
       }
       
-      /* 中间卡片容器 */
+      /* 中间卡片容器 - grid 自适应换行，避免横向溢出 */
       #shop-cards {
-        flex: 1; 
-        display: flex; 
-        gap: 10px; 
-        align-items: center; 
-        overflow-x: auto;
-        overflow-y: hidden;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+        gap: 8px;
+        align-content: center;
+        overflow-y: auto;
+        overflow-x: hidden;
         min-width: 0;
+        padding: 2px;
+      }
+      html.mobile-rotated #shop-cards {
+        grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+        gap: 5px;
       }
       
       .shop-card {
-        width: 100px; height: 80px; background: #fff; border-radius: 4px;
+        height: 76px; background: #fff; border-radius: 4px;
         cursor: pointer; padding: 5px; display: flex; flex-direction: column; justify-content: space-between;
-        transition: all 0.2s; border: 3px solid transparent; flex-shrink: 0;
+        transition: all 0.2s; border: 3px solid transparent;
         position: relative;
+        min-width: 0;
+      }
+      html.mobile-rotated .shop-card {
+        height: 62px; padding: 3px;
       }
       
       /* 拖拽时：原卡片变暗 */
@@ -427,15 +465,21 @@
       .shop-card.selected { border-color: #3498db; transform: translateY(-5px); }
       .shop-card.bought { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
       
-      .shop-name { font-weight: bold; font-size: 14px; color: #2c3e50; }
+      .shop-name { font-weight: bold; font-size: 13px; color: #2c3e50; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .shop-stars { color: #f1c40f; font-size: 10px; }
-      .shop-cost { align-self: flex-end; font-weight: bold; color: #27ae60; font-size: 16px; }
+      .shop-cost { align-self: flex-end; font-weight: bold; color: #27ae60; font-size: 15px; }
+      html.mobile-rotated .shop-name { font-size: 11px; }
+      html.mobile-rotated .shop-cost { font-size: 12px; }
+      html.mobile-rotated .shop-stars { font-size: 8px; }
 
       /* 右侧功能按钮区 */
       .shop-actions {
-        width: 100px; display: flex; flex-direction: column; gap: 8px; justify-content: center;
-        flex-shrink: 0;
+        display: flex; flex-direction: column; gap: 6px; justify-content: center;
+        min-width: 0;
       }
+      html.mobile-rotated .shop-actions { gap: 4px; }
+      html.mobile-rotated .action-btn b { font-size: 11px; }
+      html.mobile-rotated .action-btn span { font-size: 9px; }
       
       .action-btn {
         flex: 1; background: #34495e; border: 1px solid #555; color: #ecf0f1;
@@ -624,11 +668,11 @@
           <button class="top-btn" id="btn-exit" title="退出">✕</button>
         </div>
         
-        <!-- 中间：核心资源 -->
+        <!-- 中间：核心资源（图标化） -->
         <div id="top-bar-center">
-          <div class="stat-box" data-kind="lives">生命 <span id="lives-display">10</span></div>
-          <div class="stat-box" data-kind="money">资金 <span id="money-display">50</span></div>
-          <div class="stat-box" data-kind="timer" id="timer-box">时间 <span id="timer-display">60</span></div>
+          <div class="stat-box" data-kind="lives" title="生命"><span class="stat-ico">❤</span><span id="lives-display">10</span></div>
+          <div class="stat-box" data-kind="money" title="资金"><span class="stat-ico">💰</span><span id="money-display">50</span></div>
+          <div class="stat-box" data-kind="timer" id="timer-box" title="时间"><span class="stat-ico">⏱</span><span id="timer-display">60</span></div>
           <div id="pact-badges"></div>
           <button id="btn-event-log" class="top-btn" title="事件日志" style="display:none;">📜</button>
         </div>
@@ -636,7 +680,7 @@
         <!-- 右上角：倍速、波次、开始战斗 -->
         <div id="top-bar-right">
           <button class="top-btn" id="btn-speed" data-kind="speed" title="倍速">1x</button>
-          <div class="stat-box" data-kind="wave">波次 <span id="wave-display">1</span></div>
+          <div class="stat-box" data-kind="wave" title="波次"><span class="stat-ico">🌊</span><span id="wave-display">1</span></div>
           <button id="btn-next-wave">开始战斗</button>
         </div>
       </div>
