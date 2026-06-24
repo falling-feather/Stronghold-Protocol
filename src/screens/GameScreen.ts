@@ -589,7 +589,18 @@ function initInteractionEvents(): void {
 
     if (engine.pendingDeployment) {
       const pending = engine.pendingDeployment;
-      if (gridX !== pending.gridX || gridY !== pending.gridY) engine.cancelPendingDeployment();
+      const dx = gridX - pending.gridX;
+      const dy = gridY - pending.gridY;
+
+      if (Math.abs(dx) + Math.abs(dy) === 1) {
+        let direction: Direction = 'down';
+        if (dx === 1) direction = 'right';
+        else if (dx === -1) direction = 'left';
+        else if (dy === -1) direction = 'up';
+        engine.confirmDeployment(direction);
+      } else if (dx !== 0 || dy !== 0) {
+        engine.cancelPendingDeployment();
+      }
       return;
     }
 
@@ -622,7 +633,12 @@ function renderShop(): void {
     `;
     div.onclick = (e) => {
       e.stopPropagation();
-      if (!item.bought) selectItem('shop', item.uid);
+      if (item.bought) return;
+      if (selectedType === 'shop' && selectedId === item.uid) {
+        buyShopItem(item.uid);
+      } else {
+        selectItem('shop', item.uid);
+      }
     };
     shopContainer.appendChild(div);
   });
@@ -698,6 +714,13 @@ function closeDetailPanel(): void {
   detailPanel.classList.remove('visible');
 }
 
+function buyShopItem(shopItemUid: string): boolean {
+  if (!engine) return false;
+  const bought = engine.tryBuyOperator(shopItemUid);
+  if (bought && selectedType === 'shop' && selectedId === shopItemUid) closeDetailPanel();
+  return bought;
+}
+
 function updateDetailPanel(): void {
   if (!engine || !selectedType || !selectedId) return;
 
@@ -717,7 +740,7 @@ function updateDetailPanel(): void {
     btnActionMain.innerText = `购买 (${costText})`;
     btnActionMain.disabled = (engine.isInTemporaryShop ? false : engine.money < item.cost) || engine.bench.length >= CONFIG.MAX_BENCH_SIZE;
     btnActionMain.onclick = () => {
-      if (engine!.tryBuyOperator(item.uid)) closeDetailPanel();
+      buyShopItem(item.uid);
     };
   } else if (selectedType === 'bench') {
     const benchOp = engine.bench.find(b => b.uid === selectedId);
@@ -904,25 +927,22 @@ function onDragEnd(clientX: number, clientY: number): void {
 
   if (isDraggingFromPending && pendingDragStartGrid) {
     const rect = canvas.getBoundingClientRect();
-    if (clientX >= rect.left && clientX <= rect.right &&
-        clientY >= rect.top && clientY <= rect.bottom) {
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const x = (clientX - rect.left) * scaleX;
-      const y = (clientY - rect.top) * scaleY;
-      const gridX = Math.floor(x / CONFIG.TILE_SIZE);
-      const gridY = Math.floor(y / CONFIG.TILE_SIZE);
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const startClientX = rect.left + ((pendingDragStartGrid.x + 0.5) * CONFIG.TILE_SIZE) / scaleX;
+    const startClientY = rect.top + ((pendingDragStartGrid.y + 0.5) * CONFIG.TILE_SIZE) / scaleY;
+    const dx = clientX - startClientX;
+    const dy = clientY - startClientY;
+    const minDragDistance = Math.min(CONFIG.TILE_SIZE / scaleX, CONFIG.TILE_SIZE / scaleY) * 0.25;
 
-      const dx = gridX - pendingDragStartGrid.x;
-      const dy = gridY - pendingDragStartGrid.y;
-      if (Math.abs(dx) + Math.abs(dy) === 1) {
-        let direction: Direction = 'down';
-        if (dx === 1) direction = 'right';
-        else if (dx === -1) direction = 'left';
-        else if (dy === 1) direction = 'down';
-        else if (dy === -1) direction = 'up';
-        engine.confirmDeployment(direction);
+    if (Math.max(Math.abs(dx), Math.abs(dy)) >= minDragDistance) {
+      let direction: Direction;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        direction = dx > 0 ? 'right' : 'left';
+      } else {
+        direction = dy > 0 ? 'down' : 'up';
       }
+      engine.confirmDeployment(direction);
     }
 
     isDraggingFromPending = false;
