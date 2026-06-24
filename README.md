@@ -10,7 +10,7 @@
 run.bat
 ```
 
-### 手动运行
+### 手动运行的bug修改
 
 ```bash
 npm install      # 安装依赖（首次运行）
