@@ -24,16 +24,17 @@ function ensureScreenDom(): void {
   if (document.getElementById('daily-screen')) return;
   const div = document.createElement('div');
   div.id = 'daily-screen';
-  div.style.cssText = 'display:none;flex-direction:column;align-items:center;min-height:100vh;padding:30px;background:linear-gradient(135deg,#1a1d24,#0d2a2a);color:#fff;overflow-y:auto;';
+  div.style.display = 'none';
   div.innerHTML = `
-    <h1 style="font-size:30px;margin:0 0 6px;background:linear-gradient(90deg,#1abc9c,#16a085);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">📅 每日挑战</h1>
+    <div class="screen-kicker">SIMULATION // DAILY</div>
+    <h1>每日挑战</h1>
     <div id="daily-date" style="color:#bdc3c7;margin-bottom:16px;font-size:13px;"></div>
     <div id="daily-status" style="margin-bottom:14px;font-size:13px;font-weight:700;"></div>
     <div id="daily-pacts" style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:900px;margin-bottom:18px;"></div>
     <div style="font-size:12px;color:#7f8c8d;max-width:600px;text-align:center;margin-bottom:20px;line-height:1.5;" id="daily-modifier"></div>
     <div style="display:flex;gap:14px;">
-      <button id="btn-daily-back" style="padding:10px 22px;background:#34495e;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:14px;">◀ 返回</button>
-      <button id="btn-daily-start" style="padding:10px 28px;background:linear-gradient(135deg,#1abc9c,#16a085);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:15px;">开始挑战 ▶</button>
+      <button id="btn-daily-back" class="faction-back">← 返回</button>
+      <button id="btn-daily-start" class="faction-confirm">开始挑战 →</button>
     </div>
   `;
   document.body.appendChild(div);
@@ -60,9 +61,8 @@ function render(): void {
       const def = PACT_DB[id];
       if (!def) return '';
       const isShackled = ch.shackledIds.includes(id);
-      const borderColor = isShackled ? '#e74c3c' : '#3498db';
       return `
-        <div style="width:240px;padding:14px;border:2px solid ${borderColor};border-radius:10px;background:linear-gradient(135deg,#2a2d35,#1a1d24);">
+        <div class="daily-pact-card${isShackled ? ' shackled' : ''}">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
             <div style="font-size:15px;font-weight:700;color:#fff;flex:1;">${def.name}</div>
             ${isShackled ? '<span style="font-size:11px;color:#e74c3c;font-weight:700;">⛓ 枷锁</span>' : ''}

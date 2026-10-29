@@ -102,6 +102,7 @@
 - [x] v4.3.7 v4 阶段总结 + README/MULTIPLAYER 增补：新增 docs/V4_SUMMARY.md 收束 v4.0~v4.3.6 全量功能、协议、关键文件、设计决策、未完成项；README 加联机协作小节 + 快速启动段；MULTIPLAYER 顶部说明改写、协议表加 game/marker/event、新增 event.kind 一览（10 种）、新增"v4.3.x 协作 UI 概览"小节
 - [x] v4.3.8 提议防守点：guest 观战面板新增「🛡 提议防守」toggle（与部署/关注/敌情互斥），开启后下次点击发 defend_request(extra.x/y/gx/gy)；host 在该点叠加 🛡防守 marker（复用 mpMarkers）+ 顶部短暂绿色 banner（3s）+ history 🛡 行 + event sfx；guest 端本地立即 marker 反馈
 - [x] v4.3.9 组合战场联防、分组最终攻势和共享领袖生命；首批 PRTS 干员、敌人与装备；重整前端主题和小屏布局
+- [x] v4.3.10 统一升级树、成就和每日挑战页面，并修正旋转布局下的页面滚动
 - [ ] 完整公共卡池规则与原版组合战场细节
 - [ ] 完整领袖攻击、特殊阶段与原版波次编成
 - [ ] 断线重连与延迟处理（已支持淘汰后观战和其他玩家继续）

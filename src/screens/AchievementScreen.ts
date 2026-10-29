@@ -21,13 +21,14 @@ function ensureScreenDom(): void {
   if (document.getElementById('achievement-screen')) return;
   const div = document.createElement('div');
   div.id = 'achievement-screen';
-  div.style.cssText = 'display:none;flex-direction:column;align-items:center;min-height:100vh;padding:30px;background:linear-gradient(135deg,#1a1d24,#2a1f0d);color:#fff;overflow-y:auto;';
+  div.style.display = 'none';
   div.innerHTML = `
-    <h1 style="font-size:30px;margin:0 0 6px;background:linear-gradient(90deg,#f39c12,#e67e22);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">🏆 成就殿堂</h1>
+    <div class="screen-kicker">RECORDS // ACHIEVEMENTS</div>
+    <h1>成就记录</h1>
     <div id="ach-summary" style="color:#bdc3c7;margin-bottom:18px;font-size:13px;text-align:center;"></div>
     <div id="ach-stats" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px;margin-bottom:20px;font-size:12px;"></div>
     <div id="ach-grid" style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:1000px;"></div>
-    <button id="btn-ach-back" style="margin-top:24px;padding:10px 28px;background:#34495e;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:14px;">◀ 返回主菜单</button>
+    <button id="btn-ach-back" class="faction-back">← 返回主菜单</button>
   `;
   document.body.appendChild(div);
   div.querySelector<HTMLButtonElement>('#btn-ach-back')?.addEventListener('click', () => {
@@ -54,7 +55,7 @@ function render(): void {
       ['尝试 Boon', `${stats.boonsUsed.length} / 10`],
     ];
     statEl.innerHTML = items.map(([k, v]) =>
-      `<div style="background:#2a2d35;padding:8px 14px;border-radius:6px;border:1px solid #3a3d45;"><span style="color:#95a5a6;">${k}</span> <span style="color:#f1c40f;font-weight:700;margin-left:6px;">${v}</span></div>`
+      `<div class="achievement-stat"><span>${k}</span> <b>${v}</b></div>`
     ).join('');
   }
 
@@ -64,10 +65,8 @@ function render(): void {
     const unlocked = isAchievementUnlocked(a.id);
     const p = a.progress(stats);
     const pct = Math.min(100, Math.round((p.cur / p.target) * 100));
-    const borderColor = unlocked ? '#27ae60' : '#3a3d45';
-    const opacity = unlocked ? '1' : '0.75';
     return `
-      <div style="width:280px;padding:14px;border:2px solid ${borderColor};border-radius:10px;background:linear-gradient(135deg,#2a2d35,#1a1d24);opacity:${opacity};">
+      <div class="achievement-card${unlocked ? ' unlocked' : ''}">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
           <div style="font-size:32px;">${a.icon}</div>
           <div style="flex:1;">

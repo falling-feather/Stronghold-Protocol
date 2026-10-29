@@ -43,18 +43,17 @@ function render(): void {
     const prereqHint = up.prereq && !prereqOk
       ? `<div style="font-size:12px;color:#e67e22;margin-top:4px;">🔒 需要：${META_UPGRADES.find(u => u.id === up.prereq!.id)?.name ?? up.prereq.id} 达 ${up.prereq.tier} 级</div>`
       : '';
-    const cardOpacity = !prereqOk ? '0.55' : '1';
     const tag = TAG_LABELS[up.tag];
     const tagChip = `<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${tag.color}22;color:${tag.color};border:1px solid ${tag.color}66;margin-right:6px;vertical-align:middle;">${tag.label}</span>`;
     return `
-      <div data-id="${up.id}" class="meta-card" style="opacity:${cardOpacity};background:linear-gradient(135deg,#262b35,#1a1d24);border:1px solid ${maxed ? '#27ae60' : prereqOk ? '#3a3f4b' : '#5d4037'};border-radius:8px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:14px;">
+      <div data-id="${up.id}" class="meta-card${maxed ? ' maxed' : ''}${!prereqOk ? ' locked' : ''}">
         <div style="flex:1;">
           <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:4px;">${tagChip}${up.name}<span style="font-size:13px;color:#bdc3c7;font-weight:400;margin-left:8px;">(${tier}/${up.maxTier})</span></div>
           <div style="font-size:13px;color:#bdc3c7;margin-bottom:6px;">${up.desc}</div>
           <div>${tiers}</div>
           ${prereqHint}
         </div>
-        <button class="meta-buy-btn" data-id="${up.id}" ${!canAfford ? 'disabled' : ''} style="min-width:130px;padding:10px 14px;background:${maxed ? '#27ae60' : !prereqOk ? '#5d4037' : canAfford ? 'linear-gradient(135deg,#9b59b6,#6c3483)' : '#3a3f4b'};color:#fff;border:none;border-radius:5px;cursor:${canAfford ? 'pointer' : 'not-allowed'};font-weight:700;font-size:14px;">
+        <button class="meta-buy-btn" data-id="${up.id}" ${!canAfford ? 'disabled' : ''}>
           ${maxed ? '已满级' : !prereqOk ? '🔒 锁定' : `升级 · ⬢${cost}`}
         </button>
       </div>
@@ -65,18 +64,17 @@ function render(): void {
   const filterChips = (['all', 'economy', 'pact', 'event', 'defense'] as const).map(key => {
     const isActive = activeTagFilter === key;
     const label = key === 'all' ? '全部' : TAG_LABELS[key].label;
-    const color = key === 'all' ? '#bdc3c7' : TAG_LABELS[key].color;
-    return `<button class="meta-filter-chip" data-tag="${key}" style="padding:4px 12px;border-radius:14px;background:${isActive ? color : 'transparent'};color:${isActive ? '#000' : color};border:1px solid ${color};cursor:pointer;font-size:12px;font-weight:700;">${label}</button>`;
+    return `<button class="meta-filter-chip${isActive ? ' selected' : ''}" data-tag="${key}">${label}</button>`;
   }).join('');
   const resetBtn = `
     <div style="margin-top:24px;text-align:center;">
-      <button id="meta-reset-btn" style="padding:8px 18px;background:transparent;color:#c0392b;border:1px solid #c0392b;border-radius:4px;cursor:pointer;font-size:13px;">重置进度（返还 80% = ⬢${refund}）</button>
+      <button id="meta-reset-btn">重置进度（返还 80% = ⬢${refund}）</button>
     </div>
   `;
   body.innerHTML = `
     <div style="max-width:760px;margin:0 auto;">
-      <div style="background:rgba(155,89,182,0.08);border-left:3px solid #9b59b6;padding:12px 16px;border-radius:3px;margin-bottom:18px;font-size:13px;color:#bdc3c7;line-height:1.6;">
-        ⬢ <b>碎片</b>是跨局货币：每完成 1 波 +8（失败 +4），通关额外 +50，每张史诗事件 +15。<br>
+      <div class="meta-intro">
+        ⬢ <b>碎片</b>是跨局货币：每完成 1 波 +4，完美作战额外 +2；结算时按通关情况和史诗事件获得额外碎片。<br>
         升级在此处一次性消耗碎片，效果永久生效于所有后续局。重置可返还 80% 已花费碎片，便于重新分配。
       </div>
       <div style="display:flex;gap:8px;justify-content:center;margin-bottom:14px;flex-wrap:wrap;">${filterChips}</div>

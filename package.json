@@ -2,7 +2,7 @@
   "homepage": "https://github.com/falling-feather/Stronghold-Protocol",
   "name": "stronghold-protocol-geo",
   "private": true,
-  "version": "4.3.9",
+  "version": "4.3.10",
   "type": "module",
   "scripts": {
     "dev": "vite",
