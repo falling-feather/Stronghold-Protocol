@@ -92,7 +92,7 @@ export function getAttackRangeTiles(
     }
   }
 
-  return tiles.filter(t => t.x >= 0 && t.x < 10 && t.y >= 0 && t.y < 8); // 过滤地图外的格子
+  return tiles;
 }
 
 // 检查一个世界坐标是否在攻击范围内

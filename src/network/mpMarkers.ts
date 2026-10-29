@@ -6,6 +6,7 @@ export interface MpMarker {
   y: number;
   from: string;
   label: string;
+  boardId?: string;
   expireAt: number; // performance.now() ms
 }
 
@@ -19,8 +20,8 @@ export function getActiveMarkers(): MpMarker[] {
   return markers;
 }
 
-export function pushLocalMarker(x: number, y: number, from: string, label = ''): void {
-  markers.push({ x, y, from, label, expireAt: performance.now() + MARKER_TTL_MS });
+export function pushLocalMarker(x: number, y: number, from: string, label = '', boardId = mpAdapter.localPeer?.id): void {
+  markers.push({ x, y, from, label, boardId, expireAt: performance.now() + MARKER_TTL_MS });
 }
 
 export function installMarkerListener(): void {
@@ -33,10 +34,11 @@ export function installMarkerListener(): void {
   });
 }
 
-export function drawMarkers(ctx: CanvasRenderingContext2D): void {
+export function drawMarkers(ctx: CanvasRenderingContext2D, boardId = mpAdapter.localPeer?.id): void {
   const now = performance.now();
   const active = getActiveMarkers();
   for (const m of active) {
+    if (m.boardId !== boardId) continue;
     const remain = (m.expireAt - now) / MARKER_TTL_MS;
     const alpha = Math.max(0.15, remain);
     const r = 18 + (1 - remain) * 10;

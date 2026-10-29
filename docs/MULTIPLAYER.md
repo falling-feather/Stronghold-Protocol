@@ -1,127 +1,52 @@
-# 联机模式使用说明（v4.0.0+）
+# 联合模拟：当前实现
 
-> v4.3.x 已扩展为「host 单人战斗 + guest 观战 + 双向标记/提议/聊天/反馈」的协作型联机。
-> 状态同步为单向（host→guest 节流广播帧），guest 不影响战斗进程，仅通过事件向 host 提议/反馈。
+当前支持 1–4 人各自经营、共享干员池、组合战场联防和最终领袖战。服务器协调房间、购买、回合、联防与最终攻势的共同生命和结算；实际战斗由浏览器模拟。其余原版规则仍在开发，见 [ROADMAP.md](ROADMAP.md)。
 
-## 1. 启动 WebSocket 服务
-
-在仓库根目录另开一个终端：
+## 启动与使用
 
 ```powershell
+# 终端 1：联机服务器，默认监听 8787
 npm run mp-server
-```
 
-正常输出：
-
-```
-[Stronghold MP] WebSocket server listening on ws://localhost:8787
-```
-
-默认端口 8787，可通过环境变量覆盖：
-
-```powershell
-$env:PORT = "9000"; npm run mp-server
-```
-
-## 2. 启动客户端
-
-另开终端启动 dev server：
-
-```powershell
+# 终端 2：前端，默认监听 3000
 npm run dev
 ```
 
-浏览器打开 Vite 给出的地址（通常 `http://localhost:5173`）。
+各玩家打开 Vite 输出的地址（默认 `http://localhost:3000/Stronghold-Protocol/`），进入「联机模式」、填写昵称并连接。默认服务器为 `ws://localhost:8787`；其他设备需填写服务器在局域网中的地址。房主创建房间，玩家加入并准备，房主点击「开始模拟」；随后每个人各自选择阵营、阵容和盟约进入战场。也可以单人开房。
 
-## 3. 双人本地联调
+## 对局规则
 
-1. 两个浏览器窗口（或同一窗口两个标签）分别打开同一地址。
-2. 主菜单 → 「联机模式」。
-3. 服务器地址保持 `ws://localhost:8787`，分别填入不同昵称，点「连接」。
-4. 一方点「创建」生成房间；另一方在房间列表中点对应房间「加入」。
-5. 双方都点「准备」后，聊天日志会出现 `★ 双方就绪 — 进入对局`。
-   - **host**（先创建房间者）：聊天日志显示「主机模式」，需手动返回主菜单 →「开始游戏」走正常单机流程；战斗中游戏快照会自动广播给 guest。
-   - **guest**（后加入者）：聊天日志显示「观战模式」，自动跳转到只读镜像视图，渲染 host 的游戏画面（节流 ~120ms / 帧）。
-6. 房间内可实时收发聊天；任意一方点「离开」或关闭窗口会触发对端 `peer_left`。
+- 玩家使用同一张地图，各自保有资金、生命、阵容和战场；所有在场玩家准备后，服务器开始下一波。联合模拟固定 2 倍速，战斗中不能暂停。
+- 不同干员按其协议阶级分别拥有有限库存，同盟模拟库存为单人库存的两倍，具体数值见 [`shared/gameRules.json`](../shared/gameRules.json)。商店按剩余数量加权抽取。已展示的卡片不预留库存，库存耗尽后仍可购买这些卡片；出售或淘汰后归还持有数量。3 名同名初始干员合并成精锐仍占 3 个名额。
+- 玩家完成普通战斗后等待其余玩家。有人漏怪时，从无漏怪玩家中按部署人数、是否有激活盟约、存活干员数及座位顺序选择最多 2 人协防。各协防者保留自己普通战斗结束时的干员生命和未开启技能的技力；已开启技能和临时效果清除，联防不增加或衰减盟约层数。
+- 联防将最多两名协防者的阵地镜像拼接到一个战场，漏怪汇集后依次入场，携带原战斗的剩余生命和护盾；两名协防者的干员在同一场模拟中同时作战。地图连接路径和 1.5 秒入场间隔是本项目的简化设计。最终幸存敌人只扣原玩家生命，每人每回合最多扣 10 点。等待时可点击「查看联防」，由选出的第一位协防者负责模拟并向其他玩家广播画面。
+- 生命归零的玩家被淘汰，持有干员返还公共池，可继续观看和沟通；其他玩家继续按存活人数准备和作战。所有玩家淘汰时结束本局。
+- 完成当前原型的 14 个普通波次后，存活玩家随机两两分组，落单者独立成组；组内两侧阵地进入最终攻势。各组分别模拟领袖与普通敌人，但所有组共享同一领袖生命及队伍目标生命。领袖生命归零获胜，队伍目标生命归零或超时上限到达则失败；服务器维护共享生命、计时和胜负。120 秒后每经过 1 秒扣 1 点队伍生命，超时最多 150 秒；单次伤害达到或超过 300,000 不生效。最终攻势的倒计时按真实时间计算，不随模拟倍速变化。
+- 最终领袖目前固定为「假想敌：铳」：初始生命按每位存活玩家 225,000 相加，取值与倍乘方式见 [PRTS_DATA.md](PRTS_DATA.md)。每侧追加 4 名步兵作为原型护卫，领袖抵达路线终点后停留；原版技能、特殊阶段、敌人编成和地图机关尚未复刻。装备为各玩家独立库存，不占共享干员池。
+- 队友战场可以切换查看，并可聊天、标记或提出建议。仍在作战的玩家断开或离开会结束当前对局；已淘汰的观战者离开不影响其他玩家。目前不支持断线重连。
 
-## 4. 协议简表
+库存、协防选择和淘汰规则的参考见 [PRTS_DATA.md](PRTS_DATA.md)。现有模板、经济、地图和波次仍有大量原型设定。
 
-JSON 文本帧。
+## 公网部署
 
-### 客户端 → 服务端
+GitHub Pages 只承载前端，联机服务需要另行部署。配置 HTTPS 页面可访问的 `wss://` 地址，详见 [MP_SERVER_DEPLOY.md](MP_SERVER_DEPLOY.md)。`Dockerfile` 包含服务端与共享规则。前端和服务器必须使用相同版本；房间与共享池保存在服务器内存中，重启会结束对局。
 
-| type | 字段 | 说明 |
+## 协议概要
+
+| 类型 | 方向 | 作用 |
 |---|---|---|
-| `set_name` | `name` | 设置昵称（≤20 字符） |
-| `create_room` | `name` | 新建房间，自动加入 |
-| `join_room` | `roomId` | 加入指定房间（满 2 人拒绝） |
-| `leave_room` | — | 离开当前房间 |
-| `ready` | `ready` | 切换准备状态 |
-| `chat` | `text` | 房间内广播文本（≤200 字符） |
-| `game` | `payload` | host→guest 游戏快照帧（120ms 节流，v4.1.0） |
-| `marker` | `x, y, label` | guest→host 画布标记点（v4.2.0） |
-| `event` | `kind, text, level, extra` | 双向事件（host→guest 通知 / guest→host 提议，v4.1.0+） |
+| `create_room` / `join_room` / `ready` / `room_start` | 客户端 → 服务端 | 房间管理及由房主开始模拟 |
+| `start` | 服务端 → 玩家 | 通知地图随机值和参战玩家 |
+| `shop_offer` / `shop_offer_result` | 双向 | 注册和确认当前展示的商店卡片 |
+| `pool_take` / `pool_result` / `pool_return` / `pool_state` | 双向 | 购买、返还和广播共享库存 |
+| `round_ready` / `round_status` / `round_start` | 双向 | 按存活玩家同步每回合准备和开战 |
+| `round_done` / `defense_start` / `defense_done` / `round_settle` / `round_prep` | 双向 | 收集战斗结果、安排协防并结算生命与淘汰 |
+| `final_start` / `final_state` / `final_damage` / `final_leak` | 双向 | 分组开始最终攻势，报告伤害与漏怪并同步共同状态 |
+| `match_complete` / `match_ended` | 服务端 → 玩家 | 对局结束或因在场玩家离开而终止 |
+| `game` / `chat` / `marker` / `event` | 双向 | 同步战场快照、聊天与定向协作信息 |
 
-### 服务端 → 客户端
+服务器校验共享池操作、联防结果的敌人身份、最终攻势的上报身份与序号，但不独立模拟或验证各客户端的战斗结果；当前适合可信玩家一起测试。
 
-| type | 字段 | 说明 |
-|---|---|---|
-| `welcome` | `id` | 分配客户端 id |
-| `self` | `name` | 昵称回显 |
-| `rooms` | `list[]` | 全局房间列表（每次变更广播） |
-| `joined` | `roomId, name, you` | 进入某房间 |
-| `peer_joined` | `name` | 房间内出现新对端 |
-| `peer_left` | `name` | 对端离开 |
-| `peer_ready` | `name, ready` | 对端切换准备状态 |
-| `start` | — | 房间满员且双方就绪 |
-| `chat` | `from, text` | 房间内聊天 |
-| `game` | `from, payload` | 游戏帧广播（host→guest，v4.1.0） |
-| `marker` | `from, x, y, label` | 标记点广播（guest→host，v4.2.0） |
-| `event` | `from, kind, text, level, extra` | 事件广播（v4.1.0+，详见下表） |
-| `left` | — | 自身离开确认 |
-| `error` | `msg` | 操作错误提示 |
+## 尚未实现
 
-### `event.kind` 一览
-
-| kind | 方向 | 说明 |
-|---|---|---|
-| `wave` | host→guest | 波次开始；`extra` 含下一波预告 `{count, enemyName, label, isBoss, isFlying, isStealth, nextWaveNo}` (v4.3.3) |
-| `phase` | host→guest | 阶段切换（COMBAT→PREP，level=success） |
-| `lives` | host→guest | 生命≤3 下降警示（level=danger） |
-| `end` | host→guest | 失败终结（level=danger） |
-| `deploy_request` | guest→host | guest 在格子上提议部署，host 弹横幅接受/拒绝 (v4.2.3) |
-| `deploy_response` | host→guest | host 对 deploy_request 的回应 toast |
-| `focus_request` | guest→host | guest 提议关注最近干员；`extra.operatorId`；host 弹横幅查看/忽略，查看 → selectItem('map', id) (v4.3.0) |
-| `focus_response` | host→guest | host 对 focus_request 的回应 toast |
-| `enemy_intel` | guest→host | guest 标记最近敌人；`extra.enemyId/x/y`；host 在敌人位置叠加 ⚠敌情 marker + 顶部短横幅 (v4.3.2) |
-| `intel_response` | guest→host | guest 对 wave 预告的快反馈；`extra.ack=ready/help`；host 顶部短横幅 + history (v4.3.6) |
-| `defend_request` | guest→host | guest 提议防守点；`extra.x/y/gx/gy`；host 在该点叠加 🛡防守 marker + 顶部短横幅 (v4.3.8) |
-
-## 5. 已知限制
-
-- 服务端无持久化、无鉴权，仅本地或可信局域网调试。
-- guest 仅能观战 + 提议 + 标记 + 聊天，不能直接干预 host 战斗（所有 *_request 需 host 手动确认）。
-- 重连/延迟补偿/状态同步增量化均待 v4.4+ 实装；当前 host→guest 为全量快照 120ms 节流。
-- 无房间密码、无最大房间数限制。
-
-## 6. v4.3.x 协作 UI 概览
-
-**host（主画面）**
-- 右下 fixed `#mp-host-chat`：可折叠聊天面板（标题栏 ▾/▸，140px 日志 + 输入 + 5 个快捷预设按钮 [好/不好/等一下/GG/GL]）
-- 右上 top:130px `#mp-host-history`：📜 提议历史 (近 5)，记录 marker 📍 / deploy_request 🎯 / focus_request ⭐ / enemy_intel ⚠ / defend_request 🛡 / intel_response ✅🆘；focus 行可点击跳转干员
-- 顶部 top:36px：deploy_request / focus_request 横幅（接受/拒绝/查看/忽略）+ enemy_intel/defend_request/intel_response 短横幅（3s）
-
-**guest（观战面板）**
-- 中央 Canvas 640×512：渲染 host 推送的快照 + marker 圆环
-- 4 个 toggle 按钮（互斥）：🎯 提议部署 / ⭐ 提议关注 / ⚠ 标记敌人 / 🤝 默认 marker
-- 6 个 emoji 快捷标记按钮（⚠/🛡/💰/👹/🏃/🤝）：发预设 marker
-- 底部 100px 聊天框 + 5 快捷预设
-- 右上 toast 列表：host 事件通知；wave 预告附「✅ 可以」「🆘 需援」按钮（8s）
-
-## 6. 故障排查
-
-| 现象 | 排查 |
-|---|---|
-| 浏览器报 `WebSocket 连接失败` | 确认 `npm run mp-server` 已运行；端口未被占用 |
-| 创建房间后看不到自己 | 刷新页面重连；服务端重启会丢失所有房间 |
-| 准备后无 `start` 提示 | 必须双方都进入同一房间且都点了准备 |
+断线重连、原版完整回合编成及地图、领袖特殊技能、干员所属盟约与特质、策略和更多装备仍需补齐。当前 14 波普通战斗加最终战共 15 回合；[PRTS 帮助](https://prts.wiki/w/卫戍协议/帮助)所列原版标准模拟为第 9 回合领袖战，其他难度的回合数也需按版本核对。

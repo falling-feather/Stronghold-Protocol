@@ -1,12 +1,12 @@
-# 联机中继服务 部署指南（v3.16.0）
+# 联机服务部署指南
 
-> 卫戍协议的联机依赖一个 WebSocket 中继服务（`server/index.js`）。
+> 卫戍协议的联机依赖 WebSocket 服务（`server/index.js`），用于房间、共享池和回合协调。
 > GitHub Pages 只能托管静态前端，**无法运行 ws**，因此中继必须部署到
 > 任何能跑 Node 的 PaaS / VPS，再把公网地址回填到前端构建变量。
 
 ---
 
-## 一键部署：Render（推荐，免费额度够用）
+## 一键部署：Render
 
 1. Fork 或保持本仓库挂在你自己的 GitHub 账号下
 2. 登录 <https://render.com> → 顶部 **New +** → **Blueprint**
@@ -20,12 +20,11 @@
    `wss://stronghold-mp.onrender.com/`
    把这个最终 URL 填到下一节的 GitHub Variables
 
-> Render 免费实例 15 分钟无访问会休眠，第一次连接会有 ~30s 冷启动；要长开
-> 推荐升级 Starter（$7/月）或换下面的 Fly.io / VPS 方案。
+> 套餐、休眠和计费规则请以服务商当前说明为准。
 
 ---
 
-## 备选：Fly.io（也免费）
+## 备选：Fly.io
 
 1. 安装 flyctl：<https://fly.io/docs/flyctl/install/>
 2. 在仓库根执行：
@@ -93,8 +92,8 @@ location.reload();
 ### 方式 3：本机联机（默认）
 
 - 启动 `npm run mp-server`（端口 8787）
-- 访问 `http://localhost:3000/Stronghold-Protocol/` 即可，前端自动连
-  `ws://localhost:8787`
+- 访问 `http://localhost:3000/Stronghold-Protocol/`，联机页面默认填写
+  `ws://localhost:8787`，点击「连接」即可
 
 ---
 

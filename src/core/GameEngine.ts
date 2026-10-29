@@ -8,14 +8,23 @@ import { getDailyChallenge, getTodayDate } from '../config/dailyData';
 import { playSfx } from './AudioSystem';
 import { FACTION_DB, FactionId } from '../config/factions';
 import { ShopSystem } from './ShopSystem';
-import { Enemy, Operator, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection, EventCard, EventEngineHandle } from '../types';
+import { Enemy, Operator, OperatorTemplate, SkillInfo, EquipmentItem, Projectile, GamePhase, Direction, AttackType, StatusEffect, StatusStat, PactRuntime, PactSource, PactSelection, EventCard, EventEngineHandle } from '../types';
 import { getDistance, moveTowards, checkCollision, isInAttackRange } from './MathUtils';
 import { showToast, showAlert, showConfirm } from './ModalSystem';
+import { Battlefield, DefenseFormation, buildDefenseField, combineDefenseFormations, buildAssaultField, combineAssaultFormations } from './Battlefield';
+import finalAssaultRules from '../../shared/finalAssault.json';
+import { EQUIPMENT_DB, equipmentEffect } from '../config/equipmentData';
+
+const pactEffectIds = new Set([
+  ...Object.values(PACT_DB).flatMap(def => [...(def.penalty ?? []), ...def.tiers.flatMap(tier => tier.effects)]),
+  ...Object.values(RESONANCE_DB).flatMap(def => def.effects),
+].map(effect => effect.id));
 
 export interface BenchOperator {
   uid: string;
   templateId: string;
-  rank: 1 | 2; // 角色等阶
+  rank: 1 | 2; // 初始 / 精锐
+  equipment?: EquipmentItem[];
 }
 
 // 角色池统计类型已迁至 src/types/index.ts（外部主要通过 ShopSystem 访问）
@@ -29,10 +38,36 @@ interface PendingDeployment {
   rank: 1 | 2;
 }
 
+export interface EscapedEnemy {
+  templateId: string;
+  hp: number;
+  shield?: number;
+  leakId?: string;
+  ownerId?: string;
+}
+
+export interface RoundOutcome {
+  round: number;
+  complete: boolean;
+  lives: number;
+  leaks: EscapedEnemy[];
+  formation: { deployed: number; activePacts: number; alive: number; operators: Operator[] };
+}
+
+export interface FinalAssaultState {
+  bossHp: number;
+  bossMaxHp: number;
+  teamLives: number;
+  remainingSeconds: number;
+  overtime: number;
+  result: 'victory' | 'defeat' | null;
+}
+
 export class GameEngine {
   enemies: Enemy[] = [];
   operators: Operator[] = [];
   bench: BenchOperator[] = [];
+  equipmentInventory: EquipmentItem[] = [];
   projectiles: Projectile[] = [];
   // v3.18.0：命中闪光（治疗/远程命中视觉反馈）
   hitFlashes: { pos: { x: number; y: number }; color: string; ttl: number; maxTtl: number }[] = [];
@@ -59,18 +94,35 @@ export class GameEngine {
   pendingDeployment: PendingDeployment | null = null;
   
   onStateUpdated: (() => void) | null = null;
+  onRoundFinished: ((outcome: RoundOutcome) => void) | null = null;
+  onDefenseFinished: ((survivors: EscapedEnemy[]) => void) | null = null;
+  onEliminated: ((earned: number) => void) | null = null;
+  onFinalDamage: ((damage: number) => void) | null = null;
+  onFinalLeak: (() => void) | null = null;
+  isDefense = false;
+  isFinalAssault = false;
+  finalState: FinalAssaultState | null = null;
+  battlefield: Battlefield | null = null;
 
   private enemiesToSpawn: number = 0;
   private spawnTimer: number = 0;
   private spawnInterval: number = 0;
   private currentEnemyId: string = '';
   private currentWaveReward: number = 0;
+  private escapedEnemies: EscapedEnemy[] = [];
+  private defenseQueue: EscapedEnemy[] = [];
+  private ownOperatorsBeforeDefense: Operator[] | null = null;
+  private assaultRoutes: { x: number; y: number }[][] = [];
+  private assaultNetworked = false;
+  private assaultElapsed = 0;
+  private pendingOutcome: RoundOutcome | null = null;
+  private settled = false;
+  private nextOperatorId = 0;
+  private nextEquipmentId = 0;
   
   // 战斗时间限制
   public combatTimeLimit: number = 0; // 当前波次的战斗时间限制（秒）
   public combatTimeRemaining: number = 0; // 剩余时间（秒）
-  private totalEnemiesInWave: number = 0; // 当前波次的总怪物数
-  private killedEnemiesInWave: number = 0; // 当前波次已击杀的怪物数
 
   // v3.0.0：盟约叠层运行时
   pacts: PactRuntime[] = [];
@@ -125,13 +177,33 @@ export class GameEngine {
     if (this.onStateUpdated) this.onStateUpdated();
   }
 
-  update(dt: number) {
+  update(dt: number, realDt: number = dt) {
     if (this.phase === 'COMBAT') {
-      // 更新战斗时间
-      this.combatTimeRemaining -= dt;
-      if (this.combatTimeRemaining <= 0) {
-        this.handleTimeUp();
-        return;
+      if (this.isFinalAssault) {
+        if (!this.assaultNetworked && this.finalState) {
+          this.assaultElapsed += realDt;
+          const overtime = Math.min(finalAssaultRules.maxOvertimeSeconds,
+            Math.max(0, Math.floor(this.assaultElapsed - finalAssaultRules.timeLimitSeconds)));
+          this.finalState.teamLives = Math.max(0, this.finalState.teamLives - (overtime - this.finalState.overtime));
+          this.finalState.overtime = overtime;
+          this.finalState.remainingSeconds = Math.max(0, Math.ceil(finalAssaultRules.timeLimitSeconds - this.assaultElapsed));
+          this.combatTimeRemaining = this.finalState.remainingSeconds;
+          this.lives = this.finalState.teamLives;
+          if (this.lives <= 0 || overtime >= finalAssaultRules.maxOvertimeSeconds) {
+            this.finishFinalAssault('defeat');
+            return;
+          }
+        }
+      } else {
+        this.combatTimeRemaining -= dt;
+        if (this.combatTimeRemaining <= 0) {
+          this.handleTimeUp();
+          return;
+        }
+      }
+
+      for (const op of this.operators) {
+        if (!op.isRetreated) op.skillAutoCooldown = Math.max(0, op.skillAutoCooldown - dt);
       }
       
       this.handleSpawning(dt);
@@ -141,39 +213,42 @@ export class GameEngine {
       this.updateProjectiles(dt);
       // v3.18.0：命中闪光 ttl 衰减
       this.hitFlashes = this.hitFlashes.filter(f => { f.ttl -= dt; return f.ttl > 0; });
-      this.tickPactDecay(dt); // v3.0.2：盟约衰减
+      if (!this.isDefense && !this.isFinalAssault) this.tickPactDecay(dt);
     }
     
     this.cleanup();
 
-    if (this.phase === 'COMBAT') {
+    if (this.phase === 'COMBAT' && !this.isFinalAssault) {
       this.checkCombatEnd();
     }
   }
   
   private handleTimeUp() {
-    // 时间到，根据剩余怪物数扣除生命值
-    const remainingEnemies = this.totalEnemiesInWave - this.killedEnemiesInWave;
-    this.lives -= remainingEnemies;
-    if (remainingEnemies > 0) playSfx('hit');
-    
-    // 清除所有敌人
-    this.enemies.forEach(enemy => enemy.markedForDeletion = true);
-    this.enemiesToSpawn = 0;
-    
-    if (this.lives <= 0) {
-      this.phase = 'PREP';
-      this.notifyUpdate();
-      return;
+    for (const enemy of this.enemies) {
+      if (!enemy.markedForDeletion) this.recordEscape(enemy);
+      enemy.markedForDeletion = true;
     }
-    
-    // 结束战斗
+    if (this.isDefense) {
+      this.escapedEnemies.push(...this.defenseQueue);
+      this.defenseQueue = [];
+    } else {
+      const template = ENEMY_DB[this.currentEnemyId];
+      if (template) for (let i = 0; i < this.enemiesToSpawn; i++) {
+        this.escapedEnemies.push({ templateId: this.currentEnemyId, hp: template.stats.maxHp, shield: template.traits?.shield ?? 0 });
+      }
+    }
+    this.enemiesToSpawn = 0;
     this.endCombat();
   }
 
   // === 战斗流程 ===
   async tryStartCombat(): Promise<boolean> {
-    if (this.phase === 'COMBAT') return false;
+    if (!await this.confirmStartCombat()) return false;
+    return this.startCombat();
+  }
+
+  async confirmStartCombat(): Promise<boolean> {
+    if (this.phase === 'COMBAT' || this.settled) return false;
 
     if (this.money > 0) {
       const ok = await showConfirm(
@@ -184,9 +259,17 @@ export class GameEngine {
       if (!ok) return false;
     }
 
+    return true;
+  }
+
+  startCombat(): boolean {
+    if (this.phase === 'COMBAT' || this.settled) return false;
     if (this.waveIndex < WAVES.length) {
       const waveConfig = WAVES[this.waveIndex];
       this.enemiesToSpawn = waveConfig.count;
+      this.escapedEnemies = [];
+      this.isDefense = false;
+      this.spawnTimer = 0;
       this.spawnInterval = waveConfig.interval;
       this.currentEnemyId = waveConfig.enemyId;
       this.currentWaveReward = waveConfig.reward;
@@ -196,15 +279,78 @@ export class GameEngine {
       const difficultyFactor = Math.min(this.waveIndex / WAVES.length, 1);
       this.combatTimeLimit = 90 - (difficultyFactor * 30); // 90秒到60秒
       this.combatTimeRemaining = this.combatTimeLimit;
-      this.totalEnemiesInWave = waveConfig.count;
-      this.killedEnemiesInWave = 0;
       
       this.money = 0;
       this.phase = 'COMBAT';
+      for (const op of this.operators) op.skillAutoCooldown = 3;
       this.notifyUpdate(); // 触发UI隐藏底部
       return true;
     } else {
-      // v3.6.0：通关时结算碎片
+      return this.startFinalAssault([{ playerId: 'solo', operators: this.operators }], {
+        bossHp: finalAssaultRules.healthPerPlayer, bossMaxHp: finalAssaultRules.healthPerPlayer,
+        teamLives: this.lives, remainingSeconds: finalAssaultRules.timeLimitSeconds, overtime: 0, result: null,
+      }, false);
+    }
+  }
+
+  startFinalAssault(formations: DefenseFormation[], state: FinalAssaultState, networked: boolean): boolean {
+    if (this.phase !== 'PREP' || this.settled || formations.length < 1 || formations.length > 2) return false;
+    this.ownOperatorsBeforeDefense = this.operators;
+    const { field, routes } = buildAssaultField(MAP_LAYOUT, PATH_WAYPOINTS, formations.length);
+    this.battlefield = field;
+    this.assaultRoutes = routes;
+    this.operators = combineAssaultFormations(formations);
+    this.enemies = [];
+    this.projectiles = [];
+    this.enemiesToSpawn = finalAssaultRules.escortCount;
+    this.spawnTimer = 0;
+    this.spawnInterval = finalAssaultRules.escortIntervalSeconds;
+    this.isFinalAssault = true;
+    this.assaultNetworked = networked;
+    this.assaultElapsed = 0;
+    this.finalState = { ...state };
+    this.lives = state.teamLives;
+    this.combatTimeLimit = finalAssaultRules.timeLimitSeconds;
+    this.combatTimeRemaining = state.remainingSeconds;
+    this.money = 0;
+    this.phase = 'COMBAT';
+    for (const [index, route] of routes.entries()) {
+      const start = route[0];
+      this.spawnEnemy(finalAssaultRules.bossId, { x: start.x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2,
+        y: start.y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2, gridX: start.x, gridY: start.y, waypointIndex: 0 });
+      const boss = this.enemies[this.enemies.length - 1];
+      boss.assaultRoute = index;
+      boss.assaultBoss = true;
+      boss.stats.hp = state.bossHp;
+      boss.stats.maxHp = state.bossMaxHp;
+    }
+    this.notifyUpdate();
+    return true;
+  }
+
+  updateFinalState(state: FinalAssaultState): void {
+    this.finalState = { ...state };
+    this.lives = state.teamLives;
+    this.combatTimeRemaining = state.remainingSeconds;
+    for (const boss of this.enemies) if (boss.assaultBoss) {
+      boss.stats.hp = state.bossHp;
+      boss.stats.maxHp = state.bossMaxHp;
+    }
+    this.notifyUpdate();
+  }
+
+  finishFinalAssault(result: 'victory' | 'defeat'): void {
+    if (this.settled) return;
+    this.settled = true;
+    this.phase = 'PREP';
+    this.isFinalAssault = false;
+    this.enemies = [];
+    this.projectiles = [];
+    if (this.ownOperatorsBeforeDefense) this.operators = this.ownOperatorsBeforeDefense;
+    this.ownOperatorsBeforeDefense = null;
+    this.battlefield = null;
+    this.assaultRoutes = [];
+    if (result === 'victory') {
       const epicCount = this.eventHistory.filter(h => h.rarity === 'epic').length;
       const earned = calcShardsForRun({ wavesCleared: WAVES.length, victory: true, epicEventsTriggered: epicCount });
       addShards(earned);
@@ -226,8 +372,14 @@ export class GameEngine {
         }
       }
       showAlert('全域威胁已清除', `获得碎片：+${earned}\n（含通关奖励 50 + 每史诗事件 +15）${dailyMsg}`);
-      return false;
+    } else {
+      const epicCount = this.eventHistory.filter(h => h.rarity === 'epic').length;
+      const earned = calcShardsForRun({ wavesCleared: this.waveIndex, victory: false, epicEventsTriggered: epicCount });
+      addShards(earned);
+      playSfx('wave_fail');
+      showAlert('最终攻势失败', `共同目标生命已耗尽。\n获得碎片：+${earned}`);
     }
+    this.notifyUpdate();
   }
 
   private checkCombatEnd() {
@@ -238,22 +390,82 @@ export class GameEngine {
 
   private endCombat() {
     this.phase = 'PREP';
+    this.enemies = [];
+    this.projectiles = [];
+    this.enemiesToSpawn = 0;
+    if (this.isDefense) {
+      const survivors = this.escapedEnemies.slice();
+      this.isDefense = false;
+      this.escapedEnemies = [];
+      if (this.ownOperatorsBeforeDefense) this.operators = this.ownOperatorsBeforeDefense;
+      this.ownOperatorsBeforeDefense = null;
+      this.battlefield = null;
+      this.notifyUpdate();
+      this.onDefenseFinished?.(survivors);
+      return;
+    }
+
+    const outcome: RoundOutcome = {
+      round: this.waveIndex,
+      complete: this.waveIndex + 1 >= WAVES.length,
+      lives: this.lives,
+      leaks: this.escapedEnemies.slice(),
+      formation: this.getFormationSnapshot(),
+    };
+    this.pendingOutcome = outcome;
+    this.notifyUpdate();
+    if (this.onRoundFinished) this.onRoundFinished(outcome);
+    else this.settleRound(outcome.leaks.length);
+  }
+
+  getFormationSnapshot(): RoundOutcome['formation'] {
+    return {
+      deployed: this.operators.length,
+      activePacts: this.pacts.filter(pact => pact.appliedTier >= 0).length,
+      alive: this.operators.filter(op => !op.isRetreated && !op.markedForDeletion).length,
+      operators: structuredClone(this.operators),
+    };
+  }
+
+  startDefense(enemies: EscapedEnemy[], formations: DefenseFormation[] = [{ playerId: 'self', operators: this.operators }]): boolean {
+    if (this.phase !== 'PREP' || !this.pendingOutcome || enemies.length === 0 ||
+        formations.length < 1 || formations.length > 2 ||
+        enemies.some(enemy => !ENEMY_DB[enemy.templateId] || !enemy.leakId || !enemy.ownerId)) return false;
+    this.ownOperatorsBeforeDefense = this.operators;
+    this.battlefield = buildDefenseField(MAP_LAYOUT, PATH_WAYPOINTS, formations.length);
+    this.operators = combineDefenseFormations(formations);
+    this.isDefense = true;
+    this.escapedEnemies = [];
+    this.defenseQueue = enemies.map(enemy => ({ ...enemy }));
+    this.enemiesToSpawn = enemies.length;
+    this.spawnInterval = 1.5;
+    this.spawnTimer = this.spawnInterval;
+    this.combatTimeRemaining = this.combatTimeLimit;
+    this.phase = 'COMBAT';
+    this.notifyUpdate();
+    return true;
+  }
+
+  settleRound(loss: number): void {
+    const outcome = this.pendingOutcome;
+    if (!outcome) return;
+    this.pendingOutcome = null;
+    this.lives = Math.max(0, this.lives - Math.min(10, Math.max(0, Math.floor(loss))));
+    if (this.lives <= 0) {
+      this.notifyUpdate();
+      this.cleanup();
+      return;
+    }
+
     this.waveIndex++;
     this.money += this.currentWaveReward;
-    // v3.13.0：boon 后勤补给 — 每波额外 +15
     if (this.activeBoonId === 'boon_wave_bonus') this.money += 15;
-    this.combatTimeRemaining = 0; // 重置时间
+    this.combatTimeRemaining = 0;
     this.combatTimeLimit = 0;
-
-    // v3.0.0：盟约波次事件
-    const perfect = this.killedEnemiesInWave >= this.totalEnemiesInWave;
     this.onPactEvent('wave_clear');
-    if (perfect) this.onPactEvent('wave_perfect');
-    // v3.6.0：每波结束发 4 碎片（perfect +2），积少成多
-    addShards(4 + (perfect ? 2 : 0));
-    // v3.9.0：波次清理音效
+    if (outcome.leaks.length === 0) this.onPactEvent('wave_perfect');
+    addShards(4 + (outcome.leaks.length === 0 ? 2 : 0));
     playSfx('wave_clear');
-    // v3.7.0：累计波数 + 共鸣峰值
     bumpStat('totalWavesCleared', 1);
     setStatMax('maxResonanceInRun', this.activeResonances.size);
     this.checkAndAnnounceAchievements();
@@ -262,29 +474,25 @@ export class GameEngine {
       op.stats.hp = op.stats.maxHp;
       op.isRetreated = false;
       op.blockingEnemyIds = [];
+      op.cooldown = 0;
+      op.currentSp = this.initialSkillSp(OPERATOR_DB[op.templateId], op.rank, op.skill);
+      op.skillActive = false;
+      op.skillDuration = 0;
+      op.effects = [
+        ...op.effects.filter(effect => effect.duration < 0 && !pactEffectIds.has(effect.id)),
+        ...this.getActivePactEffectsForOperator(),
+      ];
     });
-    
-    setTimeout(() => {
-        showToast(`第 ${this.waveIndex} 波完成 · +${this.currentWaveReward} 资金`, { level: 'success' });
-        this.refreshShop(true);
-        this.notifyUpdate(); // 触发UI弹出底部
-        // v3.5.0：尝试触发事件卡（不与 alert 冲突，alert 关闭后立即弹出 modal）
-        if (!this.pendingEvent) {
-          // v3.5.4：传入 currentWave + history 以支持 minWave/once/cooldown 过滤
-          // v3.6.0：meta 升级"神秘指引"提升触发概率
-          // v3.6.2：boon"命运牵引" +20%；"初遇眷顾" 强制首个事件触发
-          const boonChance = this.activeBoonId === 'boon_event_chance' ? 0.2 : 0;
-          const forceFirst = this.activeBoonId === 'boon_double_first_event' && this.eventHistory.length === 0;
-          const chance = forceFirst ? 1 : (EVENT_TRIGGER_CHANCE + getEventChanceBonus() + boonChance);
-          const ev = rollEvent(this.waveIndex, this.eventHistory, chance);
-          if (ev) {
-            this.pendingEvent = ev;
-            this.notifyUpdate();
-          }
-        }
-    }, 100);
+    this.refreshShop(true);
+    if (!this.pendingEvent) {
+      const boonChance = this.activeBoonId === 'boon_event_chance' ? 0.2 : 0;
+      const forceFirst = this.activeBoonId === 'boon_double_first_event' && this.eventHistory.length === 0;
+      const chance = forceFirst ? 1 : (EVENT_TRIGGER_CHANCE + getEventChanceBonus() + boonChance);
+      this.pendingEvent = rollEvent(this.waveIndex, this.eventHistory, chance);
+    }
+    showToast(`第 ${this.waveIndex} 波完成 · +${this.currentWaveReward} 资金`, { level: 'success' });
+    this.notifyUpdate();
   }
-
   // v3.5.0：事件卡 — 玩家选择某选项后调用
   resolveEvent(optionIndex: number) {
     if (!this.pendingEvent) return;
@@ -363,6 +571,62 @@ export class GameEngine {
     return this.shop.sellBenchOperator(benchUid);
   }
 
+  addEquipment(templateId: string): EquipmentItem | null {
+    if (!EQUIPMENT_DB[templateId]) return null;
+    const item: EquipmentItem = { uid: `equipment_${++this.nextEquipmentId}`, templateId, rank: 1 };
+    this.equipmentInventory.push(item);
+    this.mergeEquipment(templateId);
+    this.notifyUpdate();
+    return item;
+  }
+
+  private mergeEquipment(templateId: string): void {
+    const candidates: { item: EquipmentItem; holder: Operator | BenchOperator | null }[] = [];
+    for (const item of this.equipmentInventory) if (item.templateId === templateId && item.rank === 1) candidates.push({ item, holder: null });
+    for (const holder of [...this.bench, ...this.operators]) {
+      for (const item of holder.equipment ?? []) if (item.templateId === templateId && item.rank === 1) candidates.push({ item, holder });
+    }
+    if (candidates.length < 2) return;
+    for (const { item, holder } of candidates.slice(0, 2)) {
+      if (!holder) this.equipmentInventory = this.equipmentInventory.filter(entry => entry.uid !== item.uid);
+      else {
+        holder.equipment = holder.equipment?.filter(entry => entry.uid !== item.uid);
+        if ('effects' in holder) holder.effects = holder.effects.filter(effect => effect.id !== `equipment_${item.uid}`);
+      }
+    }
+    this.equipmentInventory.push({ uid: `equipment_${++this.nextEquipmentId}`, templateId, rank: 2 });
+  }
+
+  equipOperator(operatorId: string, equipmentUid: string): boolean {
+    return this.equipToHolder(this.operators.find(operator => operator.id === operatorId), equipmentUid);
+  }
+
+  equipBenchOperator(benchUid: string, equipmentUid: string): boolean {
+    return this.equipToHolder(this.bench.find(operator => operator.uid === benchUid), equipmentUid);
+  }
+
+  private equipToHolder(holder: Operator | BenchOperator | undefined, equipmentUid: string): boolean {
+    if (this.phase !== 'PREP' || this.settled) return false;
+    const index = this.equipmentInventory.findIndex(item => item.uid === equipmentUid);
+    if (!holder || index < 0 || (holder.equipment?.length ?? 0) >= 2) return false;
+    const [item] = this.equipmentInventory.splice(index, 1);
+    holder.equipment = [...(holder.equipment ?? []), item];
+    if ('effects' in holder) holder.effects.push(equipmentEffect(item));
+    this.notifyUpdate();
+    return true;
+  }
+
+  recoverEquipment(holder: Operator | BenchOperator): void {
+    const items = holder.equipment ?? [];
+    if (!items.length) return;
+    this.equipmentInventory.push(...items);
+    if ('effects' in holder) {
+      const ids = new Set(items.map(item => `equipment_${item.uid}`));
+      holder.effects = holder.effects.filter(effect => !ids.has(effect.id));
+    }
+    holder.equipment = [];
+  }
+
   upgradeCore() {
     const upgradeCost = this.coreLevel * 10;
     if (this.money >= upgradeCost && this.coreLevel < 5) {
@@ -374,16 +638,39 @@ export class GameEngine {
 
   // === 部署 / 撤回 ===
 
+  private initialSkillSp(template: OperatorTemplate, rank: 1 | 2, skill: SkillInfo): number {
+    const talentSp = template.talents.reduce((sum, talent) => talent.effect === 'sp_init'
+      ? sum + (rank === 2 ? talent.rankValues.rank2 : talent.rankValues.rank1) : sum, 0);
+    const boonSp = this.activeBoonId === 'boon_starting_sp' ? 15 : 0;
+    return Math.min(skill.cost, skill.initialSp + talentSp + getStartingSpBonus() + boonSp);
+  }
+
   // 撤回战场上的角色回备战区
   recallOperator(operatorId: string): boolean {
-    const index = this.operators.findIndex(op => op.id === operatorId);
-    if (index === -1) return false;
+    if (!this.operators.some(op => op.id === operatorId)) return false;
 
     if (this.bench.length >= CONFIG.MAX_BENCH_SIZE) {
         showToast('备战区已满，无法撤回！', { level: 'warn' });
         return false;
     }
 
+    const op = this.removeOperatorFromField(operatorId)!;
+    // 加回备战区（撤回时保留等阶，但不保留朝向）
+    this.bench.push({
+        uid: `bench_${Date.now()}_${Math.random()}`,
+        templateId: op.templateId,
+        rank: op.rank || 1,
+        equipment: op.equipment ?? [],
+    });
+
+    this.notifyUpdate();
+    return true;
+  }
+
+  // 撤回和合并共用场上移除逻辑；调用方负责后续放置和通知。
+  removeOperatorFromField(operatorId: string): Operator | null {
+    const index = this.operators.findIndex(op => op.id === operatorId);
+    if (index === -1) return null;
     const op = this.operators[index];
     // 处理阻挡逻辑：释放被阻挡的敌人
     op.blockingEnemyIds.forEach(eid => {
@@ -393,16 +680,27 @@ export class GameEngine {
 
     // 从战场移除
     this.operators.splice(index, 1);
-    
-    // 加回备战区（撤回时保留等阶，但不保留朝向）
-    this.bench.push({
-        uid: `bench_${Date.now()}_${Math.random()}`,
-        templateId: op.templateId,
-        rank: op.rank || 1 // 保持原有等阶
-    });
+    return op;
+  }
 
-    this.notifyUpdate();
-    return true;
+  promoteDeployedOperator(operatorId: string): void {
+    const op = this.operators.find(operator => operator.id === operatorId);
+    if (!op) return;
+    const template = OPERATOR_DB[op.templateId];
+    const talentIds = new Set(buildTalentEffects(template.talents, op.rank, op.templateId).map(effect => effect.id));
+    op.effects = [
+      ...op.effects.filter(effect => effect.duration < 0 && !talentIds.has(effect.id)),
+      ...buildTalentEffects(template.talents, 2, op.templateId),
+    ];
+    op.rank = 2;
+    op.stats = applyTalentsToStats(template.eliteStats ?? template.stats, template.talents, 2);
+    op.skill = resolveSkillForRank(template, 2);
+    op.currentSp = this.initialSkillSp(template, 2, op.skill);
+    op.skillActive = false;
+    op.skillDuration = 0;
+    op.skillAutoCooldown = 3;
+    op.cooldown = 0;
+    op.isRetreated = false;
   }
 
   // 第一步：放置角色到格子（进入待部署状态）
@@ -446,25 +744,17 @@ export class GameEngine {
     }
 
     const template = OPERATOR_DB[templateId];
+    const equipment = this.bench[benchIndex].equipment ?? [];
 
     // 从备战区移除
     this.bench.splice(benchIndex, 1);
 
     // 部署角色 — 使用 v1.2 体系：天赋叠加到属性，技能按 rank 解析
-    const finalStats = applyTalentsToStats(template.stats, template.talents, rank);
+    const finalStats = applyTalentsToStats(rank === 2 ? template.eliteStats ?? template.stats : template.stats, template.talents, rank);
     const skillInfo = resolveSkillForRank(template, rank);
-    // 天赋 sp_init 额外起手 SP
-    const extraSp = template.talents.reduce((sum, t) => {
-      if (t.effect !== 'sp_init') return sum;
-      return sum + (rank === 2 ? t.rankValues.rank2 : t.rankValues.rank1);
-    }, 0);
-    // v3.6.0：meta 升级 — 初始法力（每等级 +5 SP，封顶 skill cost）
-    const metaSpBonus = getStartingSpBonus();
-    // v3.6.2：boon"能量预热"额外 +15 SP
-    const boonSpBonus = this.activeBoonId === 'boon_starting_sp' ? 15 : 0;
 
     this.operators.push({
-      id: `op_${Date.now()}`,
+      id: `op_${++this.nextOperatorId}`,
       templateId: templateId,
       pos: { x: gridX * CONFIG.TILE_SIZE, y: gridY * CONFIG.TILE_SIZE },
       gridPos: { x: gridX, y: gridY },
@@ -476,19 +766,22 @@ export class GameEngine {
       targetId: null,
       cost: template.cost,
       placement: template.placement,
+      tier: template.tier,
       rarity: template.rarity,
       markedForDeletion: false,
       blockingEnemyIds: [],
       isRetreated: false,
       skill: skillInfo,
-      currentSp: Math.min(skillInfo.cost, skillInfo.initialSp + extraSp + metaSpBonus + boonSpBonus),
+      currentSp: this.initialSkillSp(template, rank, skillInfo),
       skillActive: false,
       skillDuration: 0,
+      skillAutoCooldown: 3,
+      equipment,
       rank: rank,
       direction: direction,
       deployTime: 0,
       costRefunded: false,
-      effects: [...buildTalentEffects(template.talents, rank, templateId), ...this.getActivePactEffectsForOperator()] // sourceId 用 templateId 更稳定
+      effects: [...buildTalentEffects(template.talents, rank, templateId), ...this.getActivePactEffectsForOperator(), ...equipment.map(equipmentEffect)]
     });
 
     // 清除待部署状态
@@ -514,6 +807,8 @@ export class GameEngine {
 
   private updateBlocking() {
     this.enemies.forEach(enemy => {
+      if (enemy.markedForDeletion) return;
+      if (enemy.traits?.flying || enemy.traits?.unblockable) return;
       if (enemy.isBlockedBy) {
         const blocker = this.operators.find(op => op.id === enemy.isBlockedBy);
         if (!blocker || blocker.markedForDeletion || blocker.isRetreated) {
@@ -539,18 +834,28 @@ export class GameEngine {
     if (this.enemiesToSpawn > 0) {
       this.spawnTimer += dt;
       if (this.spawnTimer >= this.spawnInterval) {
-        this.spawnEnemy();
+        if (this.isFinalAssault) {
+          for (const [index, route] of this.assaultRoutes.entries()) {
+            const start = route[0];
+            this.spawnEnemy(finalAssaultRules.escortEnemyId, { x: start.x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2,
+              y: start.y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2, gridX: start.x, gridY: start.y, waypointIndex: 0 });
+            this.enemies[this.enemies.length - 1].assaultRoute = index;
+          }
+        } else {
+          const escaped = this.isDefense ? this.defenseQueue.shift() : undefined;
+          this.spawnEnemy(escaped?.templateId, undefined, escaped);
+        }
         this.spawnTimer = 0;
         this.enemiesToSpawn--;
       }
     }
   }
 
-  private spawnEnemy(enemyId?: string, atPos?: { x: number; y: number; gridX: number; gridY: number; waypointIndex: number }) {
+  private spawnEnemy(enemyId?: string, atPos?: { x: number; y: number; gridX: number; gridY: number; waypointIndex: number }, escaped?: EscapedEnemy) {
     const id = enemyId ?? this.currentEnemyId;
     const template = ENEMY_DB[id as keyof typeof ENEMY_DB];
     if (!template) return;
-    const startNode = PATH_WAYPOINTS[0];
+    const startNode = (this.battlefield?.waypoints ?? PATH_WAYPOINTS)[0];
     const px = atPos?.x ?? (startNode.x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE/2);
     const py = atPos?.y ?? (startNode.y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE/2);
     const gx = atPos?.gridX ?? startNode.x;
@@ -558,11 +863,14 @@ export class GameEngine {
     const wpi = atPos?.waypointIndex ?? 0;
     this.enemies.push({
       id: `en_${Date.now()}_${Math.floor(Math.random()*1000)}`,
+      templateId: id,
+      leakId: escaped?.leakId,
+      ownerId: escaped?.ownerId,
       pos: { x: px, y: py },
       gridPos: { x: gx, y: gy },
       radius: template.radius,
       color: template.color,
-      stats: { ...template.stats },
+      stats: { ...template.stats, hp: escaped ? Math.min(template.stats.maxHp, escaped.hp) : template.stats.hp },
       waypointIndex: wpi,
       markedForDeletion: false,
       isBlockedBy: null,
@@ -571,14 +879,24 @@ export class GameEngine {
       traits: template.traits,
       bossPhaseTriggered: false,
       // v3.10.0：护盾初始化
-      currentShield: template.traits?.shield ?? 0,
+      currentShield: escaped?.shield ?? template.traits?.shield ?? 0,
     });
+  }
+
+  private recordEscape(enemy: Enemy): void {
+    if (this.isDefense && !enemy.leakId) return;
+    this.escapedEnemies.push({ templateId: enemy.templateId, hp: Math.max(1, enemy.stats.hp),
+      shield: enemy.currentShield ?? 0, leakId: enemy.leakId, ownerId: enemy.ownerId });
   }
 
   private updateEnemies(dt: number) {
     this.enemies.forEach(enemy => {
+      if (enemy.markedForDeletion) return;
       // v2.3.0：状态效果倒计时
       this.tickEffects(enemy.effects, dt);
+      if (enemy.traits?.regeneratePerSecond) {
+        enemy.stats.hp = Math.min(enemy.stats.maxHp, enemy.stats.hp + enemy.traits.regeneratePerSecond * dt);
+      }
       // v3.17.0：治疗光环 — 每秒对半径内同盟敌人 +perSec hp（capped maxHp）
       if (enemy.traits?.healAura) {
         const aura = enemy.traits.healAura;
@@ -641,24 +959,26 @@ export class GameEngine {
             const enemyAtk = this.modifyStat(enemy.effects, enemy.stats.atk, 'atk');
             const blockerDef = this.modifyStat(blocker.effects, blocker.stats.def, 'def');
             const damage = Math.max(10, enemyAtk - blockerDef);
-            blocker.stats.hp -= damage;
-            
-            // 受击回复技力（每次受击+1点）
-            const recoveryType = blocker.skill.spRecovery;
-            if (recoveryType === 'defense' || recoveryType === 'auto_defense' || 
-                recoveryType === 'attack_defense' || recoveryType === 'all') {
-              blocker.currentSp = Math.min(blocker.skill.cost, blocker.currentSp + 1);
-            }
-            
+            this.receiveOperatorDamage(blocker, damage);
             enemy.attackCooldown = this.modifyStat(enemy.effects, enemy.stats.aspd, 'aspd');
-            if (blocker.stats.hp <= 0) this.handleOperatorRetreat(blocker);
           }
         }
         return;
       }
-      const targetGrid = PATH_WAYPOINTS[enemy.waypointIndex + 1];
+      const route = enemy.assaultRoute !== undefined ? this.assaultRoutes[enemy.assaultRoute] : (this.battlefield?.waypoints ?? PATH_WAYPOINTS);
+      const targetGrid = route[enemy.waypointIndex + 1];
       if (!targetGrid) {
-        this.lives -= 1;
+        if (enemy.assaultBoss) return;
+        if (this.isFinalAssault && enemy.assaultRoute !== undefined) {
+          if (this.onFinalLeak) this.onFinalLeak();
+          else if (this.finalState) {
+            this.updateFinalState({ ...this.finalState, teamLives: Math.max(0, this.finalState.teamLives - 1) });
+            if (this.finalState.teamLives <= 0) this.finishFinalAssault('defeat');
+          }
+          enemy.markedForDeletion = true;
+          return;
+        }
+        this.recordEscape(enemy);
         playSfx('hit');
         enemy.markedForDeletion = true;
         return;
@@ -684,6 +1004,20 @@ export class GameEngine {
     this.onPactEvent('retreat_any');
   }
 
+  private receiveOperatorDamage(op: Operator, damage: number): void {
+    op.stats.hp -= damage;
+    const recoveryType = op.skill.spRecovery;
+    if (!op.skillActive && (recoveryType === 'defense' || recoveryType === 'auto_defense' ||
+        recoveryType === 'attack_defense' || recoveryType === 'all')) {
+      op.currentSp = Math.min(op.skill.cost, op.currentSp + 1);
+    }
+    if (op.stats.hp <= 0) {
+      this.handleOperatorRetreat(op);
+    } else if (OPERATOR_DB[op.templateId]?.class === 'defender' && op.skillAutoCooldown <= 0) {
+      this.tryActivateSkill(op.id);
+    }
+  }
+
   private updateOperators(dt: number) {
     this.operators.forEach(op => {
       if (op.isRetreated) return;
@@ -707,7 +1041,7 @@ export class GameEngine {
       }
 
       // v2.0.0：技能持续时间倒计时；归零后取消激活并清空 SP
-      if (op.skillActive) {
+      if (op.skillActive && op.skill.duration > 0) {
         op.skillDuration = Math.max(0, op.skillDuration - dt);
         if (op.skillDuration <= 0) {
           op.skillActive = false;
@@ -722,6 +1056,8 @@ export class GameEngine {
           recoveryType === 'auto_defense' || recoveryType === 'all')) {
         op.currentSp = Math.min(op.skill.cost, op.currentSp + dt);
       }
+
+      if (op.skillActive && op.skill.values.stopAttack) return;
 
       if (op.cooldown <= 0) {
         const opTemplate = OPERATOR_DB[op.templateId];
@@ -744,6 +1080,8 @@ export class GameEngine {
             }
           });
           if (allyTarget) {
+            if (op.skillAutoCooldown <= 0) this.tryActivateSkill(op.id);
+            if (op.skillActive && op.skill.values.stopAttack) return;
             this.fireHealProjectile(op, allyTarget);
             const aspd = Math.max(0.2, this.modifyStat(op.effects, op.stats.aspd, 'aspd'));
             op.cooldown = aspd;
@@ -753,28 +1091,37 @@ export class GameEngine {
 
         let target: Enemy | null = null;
         if (op.blockingEnemyIds.length > 0) {
-          target = this.enemies.find(e => e.id === op.blockingEnemyIds[0]) || null;
+          target = this.enemies.find(e => e.id === op.blockingEnemyIds[0] && !e.markedForDeletion) || null;
         }
         if (!target) {
           // 使用基于朝向的攻击范围系统
           // v2.4.0：隐身/飞行过滤
           const canHitFlying = op.placement === 'high_ground';
           const canHitStealth = opTemplate?.class === 'specialist';
+          const preferFlying = opTemplate?.targetPriority === 'flying';
+          let bestIsFlying = false;
           let minDist = Infinity;
           this.enemies.forEach(enemy => {
+            if (enemy.markedForDeletion) return;
             if (enemy.traits?.flying && !canHitFlying) return;
             if (enemy.traits?.stealth && !canHitStealth) return;
             if (isInAttackRange(op.gridPos, op.direction, op.placement, op.stats.range, enemy.pos, CONFIG.TILE_SIZE)) {
               const opCenter = { x: op.pos.x + CONFIG.TILE_SIZE/2, y: op.pos.y + CONFIG.TILE_SIZE/2 };
               const dist = getDistance(opCenter, enemy.pos);
-              if (dist < minDist) {
+              const isFlying = !!enemy.traits?.flying;
+              if ((preferFlying && isFlying && !bestIsFlying) ||
+                  ((!preferFlying || isFlying === bestIsFlying) && dist < minDist)) {
                 minDist = dist;
+                bestIsFlying = isFlying;
                 target = enemy;
               }
             }
           });
         }
         if (target) {
+          // 重装的自动技能由受击触发；其余干员在即将攻击时尝试开启。
+          if (opTemplate?.class !== 'defender' && op.skillAutoCooldown <= 0) this.tryActivateSkill(op.id);
+          if (op.skillActive && op.skill.values.stopAttack) return;
           this.fireProjectile(op, target as Enemy);
           // v2.3.1：skill 的攻速加成已通过 effects 框架统一处理；这里只取 base aspd 走 modifyStat
           const aspd = Math.max(0.2, this.modifyStat(op.effects, op.stats.aspd, 'aspd'));
@@ -792,6 +1139,11 @@ export class GameEngine {
     let damage = source.stats.atk;
     // v2.3.0：状态效果对攻击力的修正
     damage = Math.round(this.modifyStat(source.effects, damage, 'atk'));
+    const skillActive = source.skillActive;
+    const instant = skillActive && source.skill.duration <= 0;
+    if (instant) {
+      damage = Math.round(damage * ((source.skill.values.atkMul ?? 1) + (source.skill.values.atkPct ?? 0) / 100));
+    }
 
     // v2.1.0：解析攻击类型（template.atkType 优先；其次按职业推断）
     const atkType: AttackType = sourceTemplate?.atkType
@@ -805,10 +1157,20 @@ export class GameEngine {
                     : atkType === 'heal' ? '#2ecc71'
                     : '#fff';
 
-    this.projectiles.push({
+    const hits = instant && source.skill.effectType === 'multistrike' ? Math.max(1, Math.floor(source.skill.values.hits ?? 1)) : 1;
+    const splashRadius = skillActive && source.skill.effectType === 'aoe' && !source.skill.values.targets
+      ? (source.skill.values.radius ?? 0) * CONFIG.TILE_SIZE : 0;
+    const targetLimit = skillActive ? Math.max(1, Math.floor(source.skill.values.targets ?? 1)) : 1;
+    const extraTargets = targetLimit > 1 ? this.enemies.filter(enemy =>
+      enemy !== target && !enemy.markedForDeletion &&
+      (!enemy.traits?.flying || source.placement === 'high_ground') &&
+      (!enemy.traits?.stealth || sourceTemplate?.class === 'specialist') &&
+      isInAttackRange(source.gridPos, source.direction, source.placement, source.stats.range, enemy.pos, CONFIG.TILE_SIZE)
+    ).sort((a, b) => getDistance(startPos, a.pos) - getDistance(startPos, b.pos)).slice(0, targetLimit - 1) : [];
+    for (const skillTarget of [target, ...extraTargets]) for (let hit = 0; hit < hits; hit++) this.projectiles.push({
       id: `proj_${Date.now()}_${Math.random()}`,
       pos: startPos,
-      targetId: target.id,
+      targetId: skillTarget.id,
       speed: 600,
       damage,
       color: source.skillActive ? '#f1c40f' : baseColor,
@@ -816,11 +1178,17 @@ export class GameEngine {
       atkType,
       sourceId: source.id,
       sourceClass: sourceTemplate?.class,
+      splashRadius,
     });
+
+    if (instant) {
+      source.skillActive = false;
+      source.currentSp = 0;
+    }
 
     // 攻击回复技力（每次攻击+1点）；激活期间不再累计
     const recoveryType = source.skill.spRecovery;
-    if (!source.skillActive && (recoveryType === 'attack' || recoveryType === 'auto_attack' ||
+    if (!skillActive && (recoveryType === 'attack' || recoveryType === 'auto_attack' ||
         recoveryType === 'attack_defense' || recoveryType === 'all')) {
       source.currentSp = Math.min(source.skill.cost, source.currentSp + 1);
     }
@@ -851,48 +1219,28 @@ export class GameEngine {
     }
   }
 
-  // v2.0.0：手动激活技能。返回是否成功激活。
+  // 激活技能，自动操作的冷却时间从成功开启时开始计算。
   tryActivateSkill(operatorId: string): boolean {
     const op = this.operators.find(o => o.id === operatorId);
     if (!op || op.isRetreated) return false;
     if (op.skillActive) return false;
     if (op.currentSp < op.skill.cost) return false;
-    if (op.skill.duration <= 0) {
-      // 当前版本仅支持持续型技能；瞬发型在 v2.x 后续迭代支持
-      showToast('该技能为瞬发型，暂未实现手动激活。', { level: 'warn' });
-      return false;
-    }
     op.skillActive = true;
     op.skillDuration = op.skill.duration;
-    // v2.3.1：把 skill 的属性加成转写为 effects（让 modifyStat 统一处理）
-    if (op.skill.effectType === 'attack_buff') {
-      const atkMul = op.skill.values.atkMul;
-      if (atkMul) {
-        op.effects.push({
-          id: `skill_${op.id}_atk`,
-          name: `${op.skill.name} · 攻击`,
-          kind: 'buff',
-          stat: 'atk',
-          mod: atkMul - 1,
-          modType: 'pct',
-          duration: op.skill.duration,
-          remaining: op.skill.duration,
-          sourceId: op.id
-        });
-      }
-      const aspdPct = op.skill.values.aspdPct;
-      if (aspdPct) {
-        op.effects.push({
-          id: `skill_${op.id}_aspd`,
-          name: `${op.skill.name} · 攻速`,
-          kind: 'buff',
-          stat: 'aspd',
-          mod: -(aspdPct / 100), // aspd 是冷却秒数，越小越快
-          modType: 'pct',
-          duration: op.skill.duration,
-          remaining: op.skill.duration,
-          sourceId: op.id
-        });
+    op.skillAutoCooldown = 3;
+    if (op.skill.duration > 0) {
+      const values = op.skill.values;
+      const bonuses: { stat: StatusStat; label: string; mod: number; modType: 'flat' | 'pct' }[] = [
+        { stat: 'atk', label: '攻击', mod: (values.atkMul ?? 1) - 1 + (values.atkPct ?? 0) / 100, modType: 'pct' },
+        { stat: 'aspd', label: '攻速', mod: -(values.aspdPct ?? 0) / 100, modType: 'pct' },
+        { stat: 'def', label: '防御', mod: (values.defPct ?? 0) / 100, modType: 'pct' },
+        { stat: 'blockCount', label: '阻挡', mod: values.blkPlus ?? 0, modType: 'flat' },
+      ];
+      for (const bonus of bonuses) {
+        if (!bonus.mod) continue;
+        op.effects.push({ id: `skill_${op.id}_${bonus.stat}`, name: `${op.skill.name} · ${bonus.label}`,
+          kind: 'buff', stat: bonus.stat, mod: bonus.mod, modType: bonus.modType,
+          duration: op.skill.duration, remaining: op.skill.duration, sourceId: op.id });
       }
     }
     this.notifyUpdate();
@@ -917,7 +1265,7 @@ export class GameEngine {
 
   // v3.0.0：盟约叠层 — 事件入口
   onPactEvent(source: PactSource) {
-    if (this.pacts.length === 0) return;
+    if (this.isDefense || this.isFinalAssault || this.pacts.length === 0) return;
     let dirty = false;
     const now = performance.now();
     for (const rt of this.pacts) {
@@ -1115,11 +1463,15 @@ export class GameEngine {
       if (e.modType === 'flat') val += e.mod;
     }
     let pctMul = 1;
+    let equipmentMul = 1;
     for (const e of effects) {
       if (e.stat !== stat) continue;
-      if (e.modType === 'pct') pctMul += e.mod;
+      if (e.modType === 'pct') {
+        if (e.id.startsWith('equipment_')) equipmentMul *= 1 + e.mod;
+        else pctMul += e.mod;
+      }
     }
-    return val * pctMul;
+    return val * pctMul * equipmentMul;
   }
 
   private updateProjectiles(dt: number) {
@@ -1136,10 +1488,9 @@ export class GameEngine {
         if (getDistance(proj.pos, opCenter) < 15) {
           const opDef = this.modifyStat(op.effects, op.stats.def, 'def');
           const damage = Math.max(5, proj.damage - opDef);
-          op.stats.hp -= damage;
+          this.receiveOperatorDamage(op, damage);
           // v3.18.0：橙色命中闪光
           this.hitFlashes.push({ pos: { x: opCenter.x, y: opCenter.y }, color: '#e67e22', ttl: 0.25, maxTtl: 0.25 });
-          if (op.stats.hp <= 0) this.handleOperatorRetreat(op);
           proj.markedForDeletion = true;
         }
         return;
@@ -1177,119 +1528,140 @@ export class GameEngine {
       }
       proj.pos = moveTowards(proj.pos, target.pos, proj.speed * dt);
       if (getDistance(proj.pos, target.pos) < 15) {
-        // v2.1.0：按攻击类型结算最终伤害
-        let finalDamage = proj.damage;
-        if (proj.atkType === 'physical') {
-          // v2.3.0：状态效果对防御的修正
-          const def = this.modifyStat(target.effects, target.stats.def, 'def');
-          finalDamage = Math.max(proj.damage * 0.05, proj.damage - def);
-        } else if (proj.atkType === 'magic') {
-          const baseMr = target.stats.magicResist ?? 0;
-          const mr = this.modifyStat(target.effects, baseMr, 'magicResist');
-          finalDamage = Math.max(proj.damage * 0.05, proj.damage * (1 - mr / 100));
-        } else if (proj.atkType === 'true') {
-          finalDamage = proj.damage;
-        } else if (proj.atkType === 'heal') {
-          // v2.1.0：治疗型暂不对敌人生效（v2.1.x 接入友军选择再做）
-          finalDamage = 0;
-        }
-        // v3.10.0：先扣护盾，溢出再扣 hp
-        let dmgToHp = finalDamage;
-        if ((target.currentShield ?? 0) > 0 && proj.atkType !== 'heal') {
-          const absorbed = Math.min(target.currentShield!, finalDamage);
-          target.currentShield = (target.currentShield ?? 0) - absorbed;
-          dmgToHp = finalDamage - absorbed;
-        }
-        target.stats.hp -= dmgToHp;
-        // v3.16.0：supporter 命中附加减速（aspd/spd 各 -25%，1.8s，覆盖刷新）
-        if (proj.sourceClass === 'supporter' && proj.atkType !== 'heal' && finalDamage > 0) {
-          const SLOW_DUR = 1.8;
-          const exist = target.effects.find(e => e.id === 'supporter_slow_spd');
-          if (exist) {
-            exist.remaining = SLOW_DUR;
-            const existAspd = target.effects.find(e => e.id === 'supporter_slow_aspd');
-            if (existAspd) existAspd.remaining = SLOW_DUR;
-          } else {
-            target.effects.push({
-              id: 'supporter_slow_spd', name: '辅助·减速', kind: 'debuff',
-              stat: 'spd', mod: -0.25, modType: 'pct',
-              duration: SLOW_DUR, remaining: SLOW_DUR,
-            });
-            target.effects.push({
-              id: 'supporter_slow_aspd', name: '辅助·迟缓', kind: 'debuff',
-              stat: 'aspd', mod: 0.25, modType: 'pct',
-              duration: SLOW_DUR, remaining: SLOW_DUR,
-            });
-          }
-        }
-        // v3.10.0：被击狂怒 — 命中即给 enemy 加短期 aspd/spd buff（覆盖刷新）
-        if (target.traits?.enrageOnHit && proj.atkType !== 'heal' && finalDamage > 0) {
-          const er = target.traits.enrageOnHit;
-          const existing = target.effects.find(e => e.id === 'enrage_on_hit');
-          if (existing) {
-            existing.remaining = er.durationS;
-          } else {
-            target.effects.push({
-              id: 'enrage_on_hit', name: '被击狂怒', kind: 'buff',
-              stat: 'aspd', mod: er.aspdMod, modType: 'pct',
-              duration: er.durationS, remaining: er.durationS,
-            });
-            target.effects.push({
-              id: 'enrage_on_hit_spd', name: '被击狂怒·迅捷', kind: 'buff',
-              stat: 'spd', mod: er.spdMod, modType: 'pct',
-              duration: er.durationS, remaining: er.durationS,
-            });
-          }
-        }
+        const source = this.operators.find(op => op.id === proj.sourceId);
+        const radius = proj.splashRadius ?? 0;
+        const splashTargets = radius > 0 ? this.enemies.filter(other =>
+          other !== target && !other.markedForDeletion && getDistance(target.pos, other.pos) <= radius &&
+          (!other.traits?.flying || source?.placement === 'high_ground') &&
+          (!other.traits?.stealth || proj.sourceClass === 'specialist')
+        ) : [];
+        for (const hitTarget of [target, ...splashTargets]) this.applyProjectileHit(proj, hitTarget);
         proj.markedForDeletion = true;
-        if (target.stats.hp <= 0 && !target.markedForDeletion) {
-          target.markedForDeletion = true;
-          this.killedEnemiesInWave++; // 记录击杀数
-          if (target.isBlockedBy) {
-            const blocker = this.operators.find(op => op.id === target.isBlockedBy);
-            if (blocker) blocker.blockingEnemyIds = blocker.blockingEnemyIds.filter(id => id !== target.id);
-          }
-          // v3.0.0：盟约击杀事件
-          this.onPactEvent('kill_any');
-          // v3.13.0：boon 赏金猟人 — 每击杀 +1 资金
-          if (this.activeBoonId === 'boon_kill_bounty') this.money += 1;
-          // v3.16.0：vanguard 击杀回 +1 资金（先锋差异化：持续生费）
-          if (proj.sourceClass === 'vanguard') this.money += 1;
-          if (target.traits?.flying) this.onPactEvent('kill_flying');
-          if (target.traits?.stealth) this.onPactEvent('kill_stealth');
-          if (target.bossPhaseTriggered || target.traits?.bossPhase) this.onPactEvent('kill_elite');
-          // v3.11.0：击杀护盾敌 / 击杀狂怒中敌
-          if ((target.traits?.shield ?? 0) > 0) this.onPactEvent('kill_shielded');
-          if (target.effects.some(e => e.id === 'enrage_on_hit')) this.onPactEvent('kill_in_enrage');
-          // v2.4.0：死亡召唤
-          if (target.traits?.summon && target.traits.summon.on === 'death') {
-            const sm = target.traits.summon;
-            for (let i = 0; i < sm.count; i++) {
-              this.spawnEnemy(sm.childId, {
-                x: target.pos.x + (Math.random() - 0.5) * 20,
-                y: target.pos.y + (Math.random() - 0.5) * 20,
-                gridX: target.gridPos.x,
-                gridY: target.gridPos.y,
-                waypointIndex: target.waypointIndex,
-              });
-            }
-          }
-        }
       }
     });
+  }
+
+  private applyProjectileHit(proj: Projectile, target: Enemy): void {
+    // v2.1.0：按攻击类型结算最终伤害
+    let finalDamage = proj.damage;
+    if (proj.atkType === 'physical') {
+      // v2.3.0：状态效果对防御的修正
+      const def = this.modifyStat(target.effects, target.stats.def, 'def');
+      finalDamage = Math.max(proj.damage * 0.05, proj.damage - def);
+    } else if (proj.atkType === 'magic') {
+      const baseMr = target.stats.magicResist ?? 0;
+      const mr = this.modifyStat(target.effects, baseMr, 'magicResist');
+      finalDamage = Math.max(proj.damage * 0.05, proj.damage * (1 - mr / 100));
+    } else if (proj.atkType === 'true') {
+      finalDamage = proj.damage;
+    } else if (proj.atkType === 'heal') {
+      // v2.1.0：治疗型暂不对敌人生效（v2.1.x 接入友军选择再做）
+      finalDamage = 0;
+    }
+    if (this.isFinalAssault && target.assaultBoss) {
+      if (finalDamage <= 0 || finalDamage >= finalAssaultRules.damageLimit) return;
+      if (this.onFinalDamage) this.onFinalDamage(finalDamage);
+      else if (this.finalState) {
+        this.updateFinalState({ ...this.finalState, bossHp: Math.max(0, this.finalState.bossHp - finalDamage) });
+        if (this.finalState.bossHp <= 0) this.finishFinalAssault('victory');
+      }
+      return;
+    }
+    // v3.10.0：先扣护盾，溢出再扣 hp
+    let dmgToHp = finalDamage;
+    if ((target.currentShield ?? 0) > 0 && proj.atkType !== 'heal') {
+      const absorbed = Math.min(target.currentShield!, finalDamage);
+      target.currentShield = (target.currentShield ?? 0) - absorbed;
+      dmgToHp = finalDamage - absorbed;
+    }
+    target.stats.hp -= dmgToHp;
+    // v3.16.0：supporter 命中附加减速（aspd/spd 各 -25%，1.8s，覆盖刷新）
+    if (proj.sourceClass === 'supporter' && proj.atkType !== 'heal' && finalDamage > 0) {
+      const SLOW_DUR = 1.8;
+      const exist = target.effects.find(e => e.id === 'supporter_slow_spd');
+      if (exist) {
+        exist.remaining = SLOW_DUR;
+        const existAspd = target.effects.find(e => e.id === 'supporter_slow_aspd');
+        if (existAspd) existAspd.remaining = SLOW_DUR;
+      } else {
+        target.effects.push({
+          id: 'supporter_slow_spd', name: '辅助·减速', kind: 'debuff',
+          stat: 'spd', mod: -0.25, modType: 'pct',
+          duration: SLOW_DUR, remaining: SLOW_DUR,
+        });
+        target.effects.push({
+          id: 'supporter_slow_aspd', name: '辅助·迟缓', kind: 'debuff',
+          stat: 'aspd', mod: 0.25, modType: 'pct',
+          duration: SLOW_DUR, remaining: SLOW_DUR,
+        });
+      }
+    }
+    // v3.10.0：被击狂怒 — 命中即给 enemy 加短期 aspd/spd buff（覆盖刷新）
+    if (target.traits?.enrageOnHit && proj.atkType !== 'heal' && finalDamage > 0) {
+      const er = target.traits.enrageOnHit;
+      const existing = target.effects.find(e => e.id === 'enrage_on_hit');
+      if (existing) {
+        existing.remaining = er.durationS;
+      } else {
+        target.effects.push({
+          id: 'enrage_on_hit', name: '被击狂怒', kind: 'buff',
+          stat: 'aspd', mod: er.aspdMod, modType: 'pct',
+          duration: er.durationS, remaining: er.durationS,
+        });
+        target.effects.push({
+          id: 'enrage_on_hit_spd', name: '被击狂怒·迅捷', kind: 'buff',
+          stat: 'spd', mod: er.spdMod, modType: 'pct',
+          duration: er.durationS, remaining: er.durationS,
+        });
+      }
+    }
+    if (target.stats.hp <= 0 && !target.markedForDeletion) {
+      target.markedForDeletion = true;
+      if (target.isBlockedBy) {
+        const blocker = this.operators.find(op => op.id === target.isBlockedBy);
+        if (blocker) blocker.blockingEnemyIds = blocker.blockingEnemyIds.filter(id => id !== target.id);
+      }
+      // v3.0.0：盟约击杀事件
+      this.onPactEvent('kill_any');
+      // v3.13.0：boon 赏金猟人 — 每击杀 +1 资金
+      if (this.activeBoonId === 'boon_kill_bounty') this.money += 1;
+      // v3.16.0：vanguard 击杀回 +1 资金（先锋差异化：持续生费）
+      if (proj.sourceClass === 'vanguard') this.money += 1;
+      if (target.traits?.flying) this.onPactEvent('kill_flying');
+      if (target.traits?.stealth) this.onPactEvent('kill_stealth');
+      if (target.bossPhaseTriggered || target.traits?.bossPhase) this.onPactEvent('kill_elite');
+      // v3.11.0：击杀护盾敌 / 击杀狂怒中敌
+      if ((target.traits?.shield ?? 0) > 0) this.onPactEvent('kill_shielded');
+      if (target.effects.some(e => e.id === 'enrage_on_hit')) this.onPactEvent('kill_in_enrage');
+      // v2.4.0：死亡召唤
+      if (target.traits?.summon && target.traits.summon.on === 'death') {
+        const sm = target.traits.summon;
+        for (let i = 0; i < sm.count; i++) {
+          this.spawnEnemy(sm.childId, {
+            x: target.pos.x + (Math.random() - 0.5) * 20,
+            y: target.pos.y + (Math.random() - 0.5) * 20,
+            gridX: target.gridPos.x,
+            gridY: target.gridPos.y,
+            waypointIndex: target.waypointIndex,
+          });
+        }
+      }
+    }
   }
 
   private cleanup() {
     this.enemies = this.enemies.filter(e => !e.markedForDeletion);
     this.projectiles = this.projectiles.filter(p => !p.markedForDeletion);
-    if (this.lives <= 0) {
+    if (this.lives <= 0 && !this.settled && !this.finalState) {
+      this.settled = true;
       // v3.6.0：失败时结算碎片
       const epicCount = this.eventHistory.filter(h => h.rarity === 'epic').length;
       const earned = calcShardsForRun({ wavesCleared: this.waveIndex, victory: false, epicEventsTriggered: epicCount });
       addShards(earned);
       this.checkAndAnnounceAchievements();
       playSfx('wave_fail');
-      showAlert('任务失败', `清剿波次：${this.waveIndex}\n获得碎片：+${earned}\n点击确认后页面将刷新。`).then(() => location.reload());
+      if (this.onEliminated) this.onEliminated(earned);
+      else showAlert('任务失败', `清剿波次：${this.waveIndex}\n获得碎片：+${earned}\n点击确认后页面将刷新。`).then(() => location.reload());
     }
   }
 
@@ -1323,6 +1695,7 @@ export class GameEngine {
       waveIndex: this.waveIndex,
       coreLevel: this.coreLevel,
       combatTimeRemaining: Math.max(0, Math.round(this.combatTimeRemaining * 10) / 10),
+      battlefield: this.battlefield,
       enemies: this.enemies.map(e => ({
         id: e.id,
         x: Math.round(e.pos.x),
@@ -1343,6 +1716,10 @@ export class GameEngine {
         radius: o.radius,
         color: o.color,
         name: o.name,
+        templateId: o.templateId,
+        rank: o.rank,
+        direction: o.direction,
+        isRetreated: o.isRetreated,
       })),
       projectiles: this.projectiles.map(p => ({
         x: Math.round(p.pos.x),
@@ -1360,7 +1737,8 @@ export interface GameStateSnapshot {
   waveIndex: number;
   coreLevel: number;
   combatTimeRemaining: number;
+  battlefield: Battlefield | null;
   enemies: { id: string; x: number; y: number; hp: number; maxHp: number; radius: number; color: string; shield?: number; maxShield?: number }[];
-  operators: { id: string; x: number; y: number; hp: number; maxHp: number; radius: number; color: string; name: string }[];
+  operators: { id: string; templateId: string; x: number; y: number; hp: number; maxHp: number; radius: number; color: string; name: string; rank: 1 | 2; direction: Direction; isRetreated: boolean }[];
   projectiles: { x: number; y: number; color: string }[];
 }

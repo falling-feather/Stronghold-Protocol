@@ -77,17 +77,7 @@ function renderPactScreen(): void {
     const isShackled = !!sel?.shackled;
 
     const card = document.createElement('div');
-    card.className = 'pact-card' + (isSelected ? ' selected' : '');
-    card.style.cssText = `
-      border: 2px solid ${isSelected ? (isShackled ? '#c0392b' : '#f1c40f') : '#34495e'};
-      border-radius: 10px;
-      padding: 14px 16px;
-      background: ${isSelected ? (isShackled ? 'rgba(192,57,43,0.10)' : 'rgba(241,196,15,0.10)') : 'rgba(0,0,0,0.25)'};
-      cursor: pointer;
-      transition: all 0.15s;
-      color: #ecf0f1;
-      position: relative;
-    `;
+    card.className = 'pact-card' + (isSelected ? ' selected' : '') + (isShackled ? ' shackled' : '');
 
     const sources = def.sources.map(s => `${s.source}(+${s.perEvent})`).join('，');
     const decayTxt = def.decay ? `<div style="color:#e67e22;font-size:12px;">衰减：每 ${def.decay.interval}s 掉 ${def.decay.perTick} 层</div>` : '';
@@ -97,7 +87,7 @@ function renderPactScreen(): void {
       const eff = thrFn(t.threshold);
       const orig = t.threshold;
       const thrTxt = isShackled && eff !== orig ? `<s style="color:#7f8c8d;">${orig}</s> ${eff}` : `${eff}`;
-      return `<li style="margin:2px 0;color:${['#7f8c8d','#3498db','#9b59b6','#f1c40f'][Math.min(i+1,3)]};">阈值 ${thrTxt}：${t.description}</li>`;
+      return `<li style="margin:2px 0;color:${['#9baea0','#9ccfc6','#c2b5d9','#e5cc7e'][Math.min(i+1,3)]};">阈值 ${thrTxt}：${t.description}</li>`;
     }).join('');
     const penaltyTxt = def.penaltyDesc
       ? `<div style="margin-top:8px;padding:6px 8px;border-left:3px solid #c0392b;background:rgba(192,57,43,${isShackled ? 0.20 : 0.06});color:${isShackled ? '#e74c3c' : '#7f8c8d'};font-size:12px;">⛓ ${def.penaltyDesc}${isShackled ? '（已生效）' : '（未启用）'}</div>`

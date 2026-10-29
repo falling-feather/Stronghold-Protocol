@@ -2,7 +2,6 @@
 import { RoomInfo } from '../network/WsAdapter';
 import { mpAdapter } from '../network/mpBridge';
 import { showOnly } from './shared';
-import { showMultiplayerGuestViewer } from './MultiplayerGuestViewer';
 import { getDefaultMpUrl } from '../network/mpConfig';
 import { showAlert } from '../core/ModalSystem';
 
@@ -10,7 +9,6 @@ const adapter = mpAdapter;
 let initialized = false;
 let chatLog: string[] = [];
 let lastError = '';
-let peerReady: Map<string, boolean> = new Map(); // v4.1.1：对端准备状态
 let selfReady = false;
 
 // v3.15.0：默认 ws 地址取自 localStorage / VITE_MP_DEFAULT_URL / 本地回退
@@ -37,33 +35,29 @@ export function initMultiplayerScreen(): void {
       chatLog.push(`* ${(msg.payload as any).name} 加入`);
     } else if (msg.type === 'peer_ready') {
       const p = msg.payload as any;
-      peerReady.set(p.name, !!p.ready);
+      if (p.id === adapter.localPeer?.id) selfReady = !!p.ready;
       chatLog.push(`* ${p.name} ${p.ready ? '已准备' : '取消准备'}`);
     } else if (msg.type === 'peer_left') {
       const p = msg.payload as any;
-      peerReady.delete(p.name);
       chatLog.push(`* ${p.name} 离开`);
-    } else if (msg.type === 'left' || msg.type === 'joined') {
-      peerReady.clear();
+    } else if (msg.type === 'left' || msg.type === 'joined' || msg.type === 'disconnect') {
       selfReady = false;
-    } else if (msg.type === 'start') {
-      chatLog.push(`★ 双方就绪 — 进入对局（${adapter.role === 'host' ? '主机模式' : '观战模式'}）`);
-      // v4.1.0：guest 立即进入只读镜像观战
-      if (adapter.role === 'guest') {
-        setTimeout(() => showMultiplayerGuestViewer(), 80);
-      } else if (adapter.role === 'host') {
-        // v4.1.1：host 自动跳回主菜单提示开始游戏（保持联机连接）
-        setTimeout(() => {
-          showOnly('start-screen');
-          showAlert('双方已就绪 · 你是主机', '请点击「开始游戏」选择阵营进入战斗，画面会自动同步给观战方。');
-        }, 80);
+      if (msg.type === 'left') chatLog.push('* 已离开房间');
+      if (msg.type === 'disconnect') chatLog.push('* 与服务器连接断开');
+      if (msg.type === 'disconnect' && (msg.payload as { wasMatch?: boolean }).wasMatch) {
+        void showAlert('联机已断开', '本阶段暂不支持断线重连，请返回大厅重新开始。').then(() => location.reload());
       }
+    } else if (msg.type === 'match_ended') {
+      const name = String((msg.payload as { name?: string }).name || '队友');
+      void showAlert('联合模拟已结束', `${name} 已离开房间。请返回大厅重新开始。`).then(() => location.reload());
+    } else if (msg.type === 'start') {
+      chatLog.push('★ 全员就绪 — 进入联合模拟');
+      setTimeout(() => {
+        showOnly('start-screen');
+        showAlert('联合模拟已开始', '请点击「开始游戏」选择阵营。各自经营，同一回合全员准备后共同开战。');
+      }, 80);
     } else if (msg.type === 'error') {
       lastError = (msg.payload as any).msg || '未知错误';
-    } else if (msg.type === 'left') {
-      chatLog.push(`* 已离开房间`);
-    } else if (msg.type === 'disconnect') {
-      chatLog.push(`* 与服务器连接断开`);
     }
     if (chatLog.length > 80) chatLog = chatLog.slice(-80);
     if (document.getElementById('mp-screen')?.style.display !== 'none') render();
@@ -77,7 +71,7 @@ function ensureLobbyDom(): void {
   body.innerHTML = `
     <div class="mp-lobby-wrap">
       <div class="mp-banner">
-        <b>v4.0+ 联机骨架</b> · 房间 / 聊天 / 准备 / 双向标记 / 提议 / 提示。
+        <b>联合模拟</b> · 1–4 人独立经营、共享干员池、联防和最终攻势。
         本地联调请另开终端 <code>npm run mp-server</code>；公网部署见
         <a href="https://github.com/falling-feather/Stronghold-Protocol/blob/main/docs/MP_SERVER_DEPLOY.md" target="_blank" rel="noopener">MP_SERVER_DEPLOY.md</a>。
       </div>
@@ -110,6 +104,7 @@ function ensureLobbyDom(): void {
           <div id="mp-room-info" class="mp-room-info"></div>
           <div class="mp-room-actions">
             <button id="btn-mp-ready" class="mp-btn mp-btn-success">准备</button>
+            <button id="btn-mp-start" class="mp-btn mp-btn-primary">开始模拟</button>
             <button id="btn-mp-leave" class="mp-btn mp-btn-danger">离开</button>
           </div>
         </div>
@@ -147,18 +142,12 @@ function ensureLobbyDom(): void {
   body.querySelector<HTMLButtonElement>('#btn-mp-leave')?.addEventListener('click', () => {
     adapter.leaveRoom();
   });
-  let readyState = false;
   body.querySelector<HTMLButtonElement>('#btn-mp-ready')?.addEventListener('click', () => {
-    readyState = !readyState;
-    selfReady = readyState;
-    adapter.setReady(readyState);
-    const btn = body.querySelector<HTMLButtonElement>('#btn-mp-ready');
-    if (btn) {
-      btn.textContent = readyState ? '取消准备' : '准备';
-      btn.classList.toggle('mp-btn-success', !readyState);
-      btn.classList.toggle('mp-btn-warn', readyState);
-    }
+    selfReady = !selfReady;
+    adapter.setReady(selfReady);
+    render();
   });
+  body.querySelector<HTMLButtonElement>('#btn-mp-start')?.addEventListener('click', () => adapter.startRoom());
   const sendChat = () => {
     const inp = body.querySelector<HTMLInputElement>('#mp-chat-input');
     if (!inp || !inp.value.trim()) return;
@@ -188,6 +177,18 @@ function render(): void {
   const roomEl = document.getElementById('mp-room');
   if (roomEl) roomEl.style.display = adapter.currentRoomId ? 'block' : 'none';
 
+  const readyButton = document.querySelector<HTMLButtonElement>('#btn-mp-ready');
+  if (readyButton) {
+    readyButton.textContent = selfReady ? '取消准备' : '准备';
+    readyButton.classList.toggle('mp-btn-success', !selfReady);
+    readyButton.classList.toggle('mp-btn-warn', selfReady);
+  }
+  const startButton = document.querySelector<HTMLButtonElement>('#btn-mp-start');
+  if (startButton) {
+    startButton.style.display = adapter.role === 'host' ? '' : 'none';
+    startButton.disabled = !selfReady || adapter.peers.some(peer => !peer.ready);
+  }
+
   const listEl = document.getElementById('mp-room-list');
   if (listEl) {
     const rooms = adapter.rooms;
@@ -202,8 +203,8 @@ function render(): void {
   if (infoEl) {
     const me = adapter.localPeer?.name ?? '';
     const meTag = `${me}${selfReady ? ' ✓' : ''}`;
-    const peers = adapter.peers.map(p => `${p.name}${peerReady.get(p.name) ? ' ✓' : ''}`).join(', ');
-    const roleTag = adapter.role === 'host' ? '[主机]' : adapter.role === 'guest' ? '[观战]' : '';
+    const peers = adapter.peers.map(p => `${p.name}${p.ready ? ' ✓' : ''}`).join(', ');
+    const roleTag = adapter.role === 'host' ? '[房主]' : adapter.role === 'guest' ? '[队友]' : '';
     infoEl.textContent = `房间 ${adapter.currentRoomId ?? ''} ${roleTag} — 我：${meTag}${peers ? '；对端：' + peers : '；等待对端加入...'}`;
   }
 
@@ -218,14 +219,14 @@ function render(): void {
 }
 
 function renderRoomRow(r: RoomInfo): string {
-  const full = r.count >= 2;
+  const full = r.count >= r.capacity || r.started;
   return `
     <div class="mp-room-row">
       <div class="mp-room-row-info">
         <span class="mp-room-row-name">${escapeHtml(r.name)}</span>
-        <span class="mp-room-row-meta">${r.count}/2 · 准备 ${r.readyCount}</span>
+        <span class="mp-room-row-meta">${r.count}/${r.capacity} · 准备 ${r.readyCount}</span>
       </div>
-      <button data-room="${r.id}" ${full ? 'disabled' : ''} class="mp-btn ${full ? 'mp-btn-disabled' : 'mp-btn-success'} mp-btn-sm">${full ? '已满' : '加入'}</button>
+      <button data-room="${r.id}" ${full ? 'disabled' : ''} class="mp-btn ${full ? 'mp-btn-disabled' : 'mp-btn-success'} mp-btn-sm">${r.started ? '进行中' : full ? '已满' : '加入'}</button>
     </div>
   `;
 }

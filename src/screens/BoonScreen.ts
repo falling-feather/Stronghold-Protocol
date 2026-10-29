@@ -28,14 +28,15 @@ function ensureScreenDom(): void {
   const root = document.body;
   const div = document.createElement('div');
   div.id = 'boon-screen';
-  div.style.cssText = 'display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:30px;background:linear-gradient(135deg,#1a1d24,#2a1d3a);color:#fff;';
+  div.style.display = 'none';
   div.innerHTML = `
-    <h1 style="font-size:30px;margin:0 0 8px;background:linear-gradient(90deg,#f1c40f,#e67e22);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">⚜ 开局福利</h1>
-    <div style="color:#bdc3c7;margin-bottom:20px;font-size:14px;">从 3 个增益中选择 1 个，仅作用于本局</div>
-    <div id="boon-grid" style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;max-width:900px;"></div>
-    <div style="margin-top:24px;display:flex;gap:14px;">
-      <button id="btn-boon-skip" style="padding:10px 20px;background:#34495e;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:14px;">跳过 (无增益)</button>
-      <button id="btn-boon-confirm" disabled style="padding:10px 28px;background:linear-gradient(135deg,#27ae60,#16a085);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:15px;">确认开始 ▶</button>
+    <div class="screen-kicker">SIMULATION // PREPARATION</div>
+    <h1>选择开局福利</h1>
+    <div class="screen-description">从 3 个增益中选择 1 个，仅作用于本局</div>
+    <div id="boon-grid"></div>
+    <div class="screen-actions">
+      <button id="btn-boon-skip" class="faction-back">跳过（无增益）</button>
+      <button id="btn-boon-confirm" class="faction-confirm" disabled>确认开始 →</button>
     </div>
   `;
   root.appendChild(div);
@@ -57,7 +58,7 @@ function render(): void {
     const isSel = selected === b.id;
     const rarityColor = b.rarity === 'rare' ? '#9b59b6' : '#3498db';
     return `
-      <div data-id="${b.id}" class="boon-card" style="cursor:pointer;width:240px;padding:18px;border:2px solid ${isSel ? '#f1c40f' : rarityColor};border-radius:10px;background:linear-gradient(135deg,#2a2d35,#1a1d24);transition:transform 0.15s;${isSel ? 'transform:translateY(-4px);box-shadow:0 6px 20px rgba(241,196,15,0.4);' : ''}">
+      <div data-id="${b.id}" class="boon-card${isSel ? ' selected' : ''}">
         <div style="font-size:36px;text-align:center;margin-bottom:8px;">${b.icon}</div>
         <div style="font-size:18px;font-weight:700;text-align:center;color:#fff;margin-bottom:4px;">${b.name}</div>
         <div style="font-size:11px;text-align:center;color:${rarityColor};font-weight:700;margin-bottom:8px;">${b.rarity === 'rare' ? '★ 稀有' : '常规'}</div>

@@ -1,0 +1,16 @@
+{
+  "bossId": "final_musketeer",
+  "bossName": "假想敌：铳",
+  "healthPerPlayer": 225000,
+  "attack": 750,
+  "defense": 1100,
+  "magicResist": 60,
+  "attackInterval": 4.5,
+  "speed": 0.4,
+  "escortEnemyId": "soldier",
+  "escortCount": 4,
+  "escortIntervalSeconds": 4,
+  "timeLimitSeconds": 120,
+  "maxOvertimeSeconds": 150,
+  "damageLimit": 300000
+}

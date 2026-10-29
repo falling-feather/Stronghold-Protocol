@@ -6,6 +6,15 @@
 
 ---
 
+## 当前阶段
+
+- 1–4 人联合模拟：独立战场与资源、共同地图、共享干员池、同步回合、组合战场联防、淘汰后观战和共享领袖生命的最终攻势。现有组合地图及领袖行为仍有简化；具体行为和限制见 [MULTIPLAYER.md](MULTIPLAYER.md)。
+- 技能支持部分持续属性强化、下一击、多段、范围和多目标，并依据常规攻击/治疗或重装受击自动释放；特殊干员策略、持续灼烧、部分范围变化及大量原版数值仍未完成。重盾卫「龟壳姿态」原描述包含回血加速，但配置没有回血数值；当前只展示和实现停止攻击与防御加成，回血留待规则确定。
+- 下一阶段重点：原版回合编成与领袖能力、断线重连及更完整的多人流程。
+- 单人内容继续补齐原版的干员与盟约关联、策略、装备、关卡机关、敌人、领袖和难度层次。现有玩法是简化原型，并非原版规则的完整实现。
+
+规则参考：[《卫戍协议：盟约》活动资料](https://wiki.biligame.com/arknights/%E7%9B%9F%E7%BA%A6)；同类实现参考：[sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol)。下方版本记录保留历史状态，不代表当前联机模式仍是主机加观战者。
+
 ## v1.x — 框架与数据扩展
 
 - [x] v1.0.0 独立仓库
@@ -92,9 +101,10 @@
 - [x] v4.3.6 预告后 guest 快反馈：showEventToast 扩展 actions/stayMs 选项；guest 收到 wave 事件 toast 上附「✅ 可以」「🆘 需援」按钮（停留 8s），点击发 intel_response 事件（extra.ack=ready/help）；host 收到 intel_response → showHostBriefBanner + push history (✅/🆘) + 对应 sfx (wave_clear/event)
 - [x] v4.3.7 v4 阶段总结 + README/MULTIPLAYER 增补：新增 docs/V4_SUMMARY.md 收束 v4.0~v4.3.6 全量功能、协议、关键文件、设计决策、未完成项；README 加联机协作小节 + 快速启动段；MULTIPLAYER 顶部说明改写、协议表加 game/marker/event、新增 event.kind 一览（10 种）、新增"v4.3.x 协作 UI 概览"小节
 - [x] v4.3.8 提议防守点：guest 观战面板新增「🛡 提议防守」toggle（与部署/关注/敌情互斥），开启后下次点击发 defend_request(extra.x/y/gx/gy)；host 在该点叠加 🛡防守 marker（复用 mpMarkers）+ 顶部短暂绿色 banner（3s）+ history 🛡 行 + event sfx；guest 端本地立即 marker 反馈
-- [ ] 状态同步策略：增量帧 + 操作包
-- [ ] 双人共享地图、独立资源 / 独立队列
-- [ ] 断线重连 + 延迟补偿
+- [x] v4.3.9 组合战场联防、分组最终攻势和共享领袖生命；首批 PRTS 干员、敌人与装备；重整前端主题和小屏布局
+- [ ] 完整公共卡池规则与原版组合战场细节
+- [ ] 完整领袖攻击、特殊阶段与原版波次编成
+- [ ] 断线重连与延迟处理（已支持淘汰后观战和其他玩家继续）
 
 ## v5.x — 内容扩充
 

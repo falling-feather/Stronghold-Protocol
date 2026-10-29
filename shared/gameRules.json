@@ -1,0 +1,5 @@
+{
+  "operatorPoolByTier": { "1": 12, "2": 14, "3": 18, "4": 16, "5": 8, "6": 5 },
+  "alliancePoolMultiplier": 2,
+  "maxPlayers": 4
+}

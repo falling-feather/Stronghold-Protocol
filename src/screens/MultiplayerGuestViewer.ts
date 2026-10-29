@@ -3,6 +3,8 @@ import { mpAdapter } from '../network/mpBridge';
 import { GameStateSnapshot } from '../core/GameEngine';
 import { showOnly } from './shared';
 import { CONFIG } from '../config/gameData';
+import { drawBattleMap } from '../view/BattleMap';
+import { loadedPortrait } from '../view/OperatorArt';
 import { installMarkerListener, pushLocalMarker, drawMarkers } from '../network/mpMarkers';
 import { playSfx } from '../core/AudioSystem';
 
@@ -10,6 +12,9 @@ let initialized = false;
 let canvas: HTMLCanvasElement | null = null;
 let ctx: CanvasRenderingContext2D | null = null;
 let lastSnap: GameStateSnapshot | null = null;
+const peerSnapshots = new Map<string, GameStateSnapshot>();
+let selectedPeerId: string | null = null;
+let onViewerReturn: (() => void) | null = null;
 let infoBar: HTMLElement | null = null;
 let containerEl: HTMLElement | null = null;
 
@@ -28,11 +33,11 @@ export function initMultiplayerGuestViewer(): void {
     host.style.cssText = 'display:none;width:100%;height:100%;background:#0e1116;color:#ecf0f1;flex-direction:column;align-items:center;padding:20px;box-sizing:border-box;';
     host.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;width:100%;max-width:${W + 40}px;margin-bottom:10px;">
-        <button id="btn-mp-guest-back" style="padding:6px 14px;background:#7f8c8d;border:none;color:#fff;border-radius:3px;cursor:pointer;">← 退出观战</button>
-        <h3 style="margin:0;color:#3498db;">联机观战（只读镜像 v4.1.0）</h3>
-        <span style="width:90px;"></span>
+        <button id="btn-mp-guest-back" style="padding:6px 14px;background:#7f8c8d;border:none;color:#fff;border-radius:3px;cursor:pointer;">← 返回自己的战场</button>
+        <h3 style="margin:0;color:#3498db;">队友战场</h3>
+        <select id="mp-guest-peer" aria-label="选择队友" style="max-width:150px;padding:6px;background:#2c3e50;color:#fff;border:1px solid #4a627a;border-radius:3px;"></select>
       </div>
-      <div id="mp-guest-info" style="width:100%;max-width:${W + 40}px;background:#1a1d24;padding:8px 14px;border-radius:4px;font-family:monospace;font-size:13px;margin-bottom:10px;color:#bdc3c7;">等待 host 推送游戏状态...</div>
+      <div id="mp-guest-info" style="width:100%;max-width:${W + 40}px;background:#1a1d24;padding:8px 14px;border-radius:4px;font-family:monospace;font-size:13px;margin-bottom:10px;color:#bdc3c7;">等待队友同步游戏状态...</div>
       <canvas id="mp-guest-canvas" width="${W}" height="${H}" style="background:#1a1d24;border:1px solid #34495e;border-radius:4px;cursor:crosshair;"></canvas>
       <div id="mp-guest-quick" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;width:100%;max-width:${W + 40}px;justify-content:center;">
         <button id="btn-mp-guest-deploy" style="padding:6px 12px;background:#16a085;border:none;color:#fff;border-radius:3px;cursor:pointer;font-size:12px;font-weight:bold;">🎯 提议部署 (点格子)</button>
@@ -49,9 +54,7 @@ export function initMultiplayerGuestViewer(): void {
           <button id="mp-guest-chat-send" style="padding:4px 10px;background:#3498db;border:none;color:#fff;border-radius:3px;cursor:pointer;font-size:11px;">发送</button>
         </div>
       </div>
-      <div style="margin-top:6px;font-size:12px;color:#7f8c8d;text-align:center;max-width:${W + 40}px;">
-        v4.3.4：📍标记 / 🎯部署 / ⭐关注 / ⚠敌情 — 4 类提议；聊天框带快捷预设按钮。
-      </div>
+      <div class="viewer-hint">可在队友战场标记位置、部署建议、关注对象与敌情。</div>
     `;
     document.body.appendChild(host);
   }
@@ -59,6 +62,12 @@ export function initMultiplayerGuestViewer(): void {
   canvas = document.getElementById('mp-guest-canvas') as HTMLCanvasElement;
   ctx = canvas.getContext('2d');
   infoBar = document.getElementById('mp-guest-info');
+
+  document.getElementById('mp-guest-peer')?.addEventListener('change', (event) => {
+    selectedPeerId = (event.currentTarget as HTMLSelectElement).value || null;
+    lastSnap = selectedPeerId ? peerSnapshots.get(selectedPeerId) ?? null : null;
+    render();
+  });
 
   document.getElementById('btn-mp-guest-back')?.addEventListener('click', () => hideMultiplayerGuestViewer());
 
@@ -77,6 +86,7 @@ export function initMultiplayerGuestViewer(): void {
     };
   });
   canvas.addEventListener('click', (ev) => {
+    if (!selectedPeerId) return;
     const rect = canvas!.getBoundingClientRect();
     const x = Math.round((ev.clientX - rect.left) * (canvas!.width / rect.width));
     const y = Math.round((ev.clientY - rect.top) * (canvas!.height / rect.height));
@@ -84,10 +94,10 @@ export function initMultiplayerGuestViewer(): void {
       // v4.2.3：部署提议模式
       const gx = Math.floor(x / CONFIG.TILE_SIZE);
       const gy = Math.floor(y / CONFIG.TILE_SIZE);
-      mpAdapter.sendEvent('deploy_request', `提议在格 (${gx},${gy}) 部署干员`, 'warn');
+      mpAdapter.sendEvent('deploy_request', `提议在格 (${gx},${gy}) 部署干员`, 'warn', null, selectedPeerId);
       showEventToast(`已发送部署提议 → 格 (${gx},${gy})`, 'info');
       // 本地也放一个标记便于视觉确认
-      pushLocalMarker(x, y, mpAdapter.localPeer?.name ?? '我', '🎯部署');
+      pushLocalMarker(x, y, mpAdapter.localPeer?.name ?? '我', '🎯部署', selectedPeerId);
       playSfx('event'); // v4.2.4
       deployMode = false;
       updateDeployBtn();
@@ -105,13 +115,14 @@ export function initMultiplayerGuestViewer(): void {
       let nearest = lastSnap.operators[0];
       let bestD = Infinity;
       for (const o of lastSnap.operators) {
-        const d = (o.x - x) * (o.x - x) + (o.y - y) * (o.y - y);
+        const d = (o.x + CONFIG.TILE_SIZE / 2 - x) ** 2 + (o.y + CONFIG.TILE_SIZE / 2 - y) ** 2;
         if (d < bestD) { bestD = d; nearest = o; }
       }
       const name = (nearest as any).name || nearest.id;
-      mpAdapter.sendEvent('focus_request', `提议关注干员：${name}`, 'warn', { operatorId: nearest.id });
+      mpAdapter.sendEvent('focus_request', `提议关注干员：${name}`, 'warn', { operatorId: nearest.id }, selectedPeerId);
       showEventToast(`已发送关注提议 → ${name}`, 'info');
-      pushLocalMarker(nearest.x, nearest.y, mpAdapter.localPeer?.name ?? '我', `⭐${name}`);
+      pushLocalMarker(nearest.x + CONFIG.TILE_SIZE / 2, nearest.y + CONFIG.TILE_SIZE / 2,
+        mpAdapter.localPeer?.name ?? '我', `⭐${name}`, selectedPeerId);
       playSfx('event');
       focusMode = false;
       updateFocusBtn();
@@ -132,9 +143,9 @@ export function initMultiplayerGuestViewer(): void {
         const d = (e.x - x) * (e.x - x) + (e.y - y) * (e.y - y);
         if (d < bestD) { bestD = d; nearest = e; }
       }
-      mpAdapter.sendEvent('enemy_intel', `提议关注敌人 (id=${nearest.id})`, 'warn', { enemyId: nearest.id, x: nearest.x, y: nearest.y });
+      mpAdapter.sendEvent('enemy_intel', `提议关注敌人 (id=${nearest.id})`, 'warn', { enemyId: nearest.id, x: nearest.x, y: nearest.y }, selectedPeerId);
       showEventToast(`已标记敌情 → ${nearest.id}`, 'info');
-      pushLocalMarker(nearest.x, nearest.y, mpAdapter.localPeer?.name ?? '我', '⚠敌情');
+      pushLocalMarker(nearest.x, nearest.y, mpAdapter.localPeer?.name ?? '我', '⚠敌情', selectedPeerId);
       playSfx('event');
       enemyMode = false;
       updateEnemyBtn();
@@ -145,17 +156,17 @@ export function initMultiplayerGuestViewer(): void {
       // v4.3.8：防守提议模式 — 任意点位（格坐标）
       const gx = Math.floor(x / CONFIG.TILE_SIZE);
       const gy = Math.floor(y / CONFIG.TILE_SIZE);
-      mpAdapter.sendEvent('defend_request', `🛡 提议在格 (${gx},${gy}) 加固防守`, 'warn', { x, y, gx, gy });
+      mpAdapter.sendEvent('defend_request', `🛡 提议在格 (${gx},${gy}) 加固防守`, 'warn', { x, y, gx, gy }, selectedPeerId);
       showEventToast(`已发送防守提议 → 格 (${gx},${gy})`, 'info');
-      pushLocalMarker(x, y, mpAdapter.localPeer?.name ?? '我', '🛡防守');
+      pushLocalMarker(x, y, mpAdapter.localPeer?.name ?? '我', '🛡防守', selectedPeerId);
       playSfx('event');
       defendMode = false;
       updateDefendBtn();
       render();
       return;
     }
-    mpAdapter.sendMarker(x, y);
-    pushLocalMarker(x, y, mpAdapter.localPeer?.name ?? '我');
+    mpAdapter.sendMarker(x, y, '', selectedPeerId);
+    pushLocalMarker(x, y, mpAdapter.localPeer?.name ?? '我', '', selectedPeerId);
     playSfx('click'); // v4.2.4
     render();
   });
@@ -265,8 +276,9 @@ export function initMultiplayerGuestViewer(): void {
       b.style.cssText = `padding:6px 12px;background:${p.color};border:none;color:#fff;border-radius:3px;cursor:pointer;font-size:12px;font-weight:bold;`;
       b.addEventListener('click', () => {
         const label = `${p.emoji}${p.label}`;
-        mpAdapter.sendMarker(lastMouse.x, lastMouse.y, label);
-        pushLocalMarker(lastMouse.x, lastMouse.y, mpAdapter.localPeer?.name ?? '我', label);
+        if (!selectedPeerId) return;
+        mpAdapter.sendMarker(lastMouse.x, lastMouse.y, label, selectedPeerId);
+        pushLocalMarker(lastMouse.x, lastMouse.y, mpAdapter.localPeer?.name ?? '我', label, selectedPeerId);
         playSfx('click'); // v4.2.4
         render();
       });
@@ -275,15 +287,19 @@ export function initMultiplayerGuestViewer(): void {
   }
 
   mpAdapter.on('game', (msg) => {
-    const snap = (msg.payload as any)?.payload as GameStateSnapshot | undefined;
-    if (!snap) return;
-    lastSnap = snap;
-    if (containerEl && containerEl.style.display !== 'none') render();
+    const message = msg.payload as { fromId?: string; payload?: GameStateSnapshot };
+    if (!message.fromId || !message.payload) return;
+    peerSnapshots.set(message.fromId, message.payload);
+    if (message.fromId === selectedPeerId) {
+      lastSnap = message.payload;
+      if (containerEl && containerEl.style.display !== 'none') render();
+    }
   });
   mpAdapter.on('event', (msg) => {
     // v4.1.0：host 推送的事件 toast
     const p = msg.payload as any;
     if (!p) return;
+    if (p.fromId !== selectedPeerId || containerEl?.style.display === 'none') return;
     let toastText = String(p.text || '');
     // v4.3.3：wave 事件附带下一波预告高亮
     if (p.kind === 'wave' && p.extra && typeof p.extra.label === 'string') {
@@ -296,14 +312,14 @@ export function initMultiplayerGuestViewer(): void {
         {
           label: '✅ 可以',
           onClick: () => {
-            mpAdapter.sendEvent('intel_response', '已就绪迎战', 'success', { ack: 'ready' });
+            mpAdapter.sendEvent('intel_response', '已就绪迎战', 'success', { ack: 'ready' }, p.fromId);
             playSfx('wave_clear');
           },
         },
         {
           label: '🆘 需援',
           onClick: () => {
-            mpAdapter.sendEvent('intel_response', '需要援助！', 'danger', { ack: 'help' });
+            mpAdapter.sendEvent('intel_response', '需要援助！', 'danger', { ack: 'help' }, p.fromId);
             playSfx('event');
           },
         },
@@ -326,7 +342,10 @@ export function initMultiplayerGuestViewer(): void {
   function appendChat(from: string, text: string, color: string): void {
     if (!chatLog) return;
     const line = document.createElement('div');
-    line.innerHTML = `<span style="color:${color};">[${from}]</span> ${text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] || c))}`;
+    const name = document.createElement('span');
+    name.style.color = color;
+    name.textContent = `[${from}]`;
+    line.append(name, document.createTextNode(` ${text}`));
     chatLog.appendChild(line);
     chatLog.scrollTop = chatLog.scrollHeight;
   }
@@ -363,34 +382,69 @@ export function initMultiplayerGuestViewer(): void {
     if (!p) return;
     const from = String(p.from || '?');
     const text = String(p.text || '');
-    if (from === (mpAdapter.localPeer?.name ?? '我')) return;
+    if (p.fromId === mpAdapter.localPeer?.id) return;
     appendChat(from, text, '#e67e22');
     playSfx('event');
   });
-  mpAdapter.on('peer_left', () => {
-    lastSnap = null;
-    if (infoBar) infoBar.textContent = '⚠ 对端（host）已离开 — 直播结束';
+  mpAdapter.on('peer_left', (msg) => {
+    const id = (msg.payload as { id: string }).id;
+    peerSnapshots.delete(id);
+    if (id === selectedPeerId) selectedPeerId = mpAdapter.peers[0]?.id ?? null;
+    updatePeerSelector();
+    lastSnap = selectedPeerId ? peerSnapshots.get(selectedPeerId) ?? null : null;
     render();
   });
   mpAdapter.on('disconnect', () => {
+    peerSnapshots.clear();
     lastSnap = null;
     if (infoBar) infoBar.textContent = '⚠ 与服务器连接断开';
     render();
   });
 }
 
-export function showMultiplayerGuestViewer(): void {
+function updatePeerSelector(): void {
+  const selector = document.getElementById('mp-guest-peer') as HTMLSelectElement;
+  const match = mpAdapter.match;
+  const localId = mpAdapter.localPeer?.id;
+  const group = match?.phase === 'ASSAULT' ? match.assaultGroups.find(candidate => candidate.members.some(member => member.playerId === localId)) : undefined;
+  const visibleIds = match?.phase === 'ASSAULT'
+    ? new Set(group ? group.members.map(member => member.playerId) : match.assaultGroups.map(candidate => candidate.simulatorId))
+    : null;
+  selector.replaceChildren(...mpAdapter.peers.filter(peer => !visibleIds || visibleIds.has(peer.id)).map(peer => {
+    const option = document.createElement('option');
+    option.value = peer.id;
+    option.textContent = peer.name;
+    return option;
+  }));
+  selector.value = selectedPeerId ?? '';
+}
+
+export function showMultiplayerGuestViewer(preferredPeerId?: string, onReturn?: () => void): void {
   initMultiplayerGuestViewer();
-  showOnly('start-screen');
+  onViewerReturn = onReturn ?? null;
+  if (preferredPeerId && mpAdapter.peers.some(peer => peer.id === preferredPeerId)) selectedPeerId = preferredPeerId;
+  else if (!mpAdapter.peers.some(peer => peer.id === selectedPeerId)) selectedPeerId = mpAdapter.peers[0]?.id ?? null;
+  updatePeerSelector();
+  lastSnap = selectedPeerId ? peerSnapshots.get(selectedPeerId) ?? null : null;
+  showOnly('app-root');
   // 隐藏其他屏并显示自身
-  document.getElementById('start-screen')!.style.display = 'none';
+  document.getElementById('app-root')!.style.display = 'none';
   if (containerEl) containerEl.style.display = 'flex';
   render();
 }
 
 export function hideMultiplayerGuestViewer(): void {
   if (containerEl) containerEl.style.display = 'none';
-  showOnly('start-screen');
+  showOnly('app-root');
+  const banner = document.getElementById('mp-host-banner');
+  if (banner) banner.style.display = 'block';
+  const chat = document.getElementById('mp-host-chat');
+  const history = document.getElementById('mp-host-history');
+  if (chat) chat.style.display = 'block';
+  if (history) history.style.display = 'block';
+  const callback = onViewerReturn;
+  onViewerReturn = null;
+  callback?.();
 }
 
 // v4.1.0：host→guest 事件 toast
@@ -443,32 +497,45 @@ function showEventToast(text: string, level: string, opts?: { actions?: { label:
 
 function render(): void {
   if (!ctx || !canvas) return;
+  const width = (lastSnap?.battlefield?.layout[0].length ?? CONFIG.MAP_WIDTH) * CONFIG.TILE_SIZE;
+  if (canvas.width !== width) canvas.width = width;
   ctx.fillStyle = '#1a1d24';
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, width, H);
 
-  // 网格
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-  for (let x = 0; x <= CONFIG.MAP_WIDTH; x++) {
-    ctx.beginPath(); ctx.moveTo(x * CONFIG.TILE_SIZE, 0); ctx.lineTo(x * CONFIG.TILE_SIZE, H); ctx.stroke();
-  }
-  for (let y = 0; y <= CONFIG.MAP_HEIGHT; y++) {
-    ctx.beginPath(); ctx.moveTo(0, y * CONFIG.TILE_SIZE); ctx.lineTo(W, y * CONFIG.TILE_SIZE); ctx.stroke();
-  }
+  drawBattleMap(ctx, lastSnap?.battlefield);
 
   if (!lastSnap) {
-    if (infoBar) infoBar.textContent = '等待 host 推送游戏状态...';
+    if (infoBar) infoBar.textContent = selectedPeerId ? '等待队友同步游戏状态...' : '当前没有可查看的队友';
     return;
   }
   const s = lastSnap;
 
   // 操作员
   for (const o of s.operators) {
-    ctx.fillStyle = o.color || '#3498db';
-    ctx.beginPath(); ctx.arc(o.x, o.y, o.radius || 18, 0, Math.PI * 2); ctx.fill();
-    // 血条
-    const w = 30, h = 4, hpr = o.maxHp ? o.hp / o.maxHp : 1;
-    ctx.fillStyle = '#000'; ctx.fillRect(o.x - w / 2, o.y - (o.radius || 18) - 8, w, h);
-    ctx.fillStyle = '#27ae60'; ctx.fillRect(o.x - w / 2, o.y - (o.radius || 18) - 8, w * hpr, h);
+    const padding = 6, size = CONFIG.TILE_SIZE - padding * 2;
+    ctx.fillStyle = o.isRetreated ? '#555' : o.color;
+    ctx.fillRect(o.x + padding, o.y + padding, size, size);
+    const portrait = loadedPortrait(o.templateId);
+    if (portrait) {
+      ctx.save();
+      ctx.globalAlpha = o.isRetreated ? 0.35 : 0.8;
+      ctx.drawImage(portrait, o.x + padding, o.y + padding, size, size);
+      ctx.restore();
+    }
+    if (o.rank === 2) {
+      ctx.strokeStyle = '#f1c40f';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(o.x + padding, o.y + padding, size, size);
+    }
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px Arial';
+    ctx.fillText(o.name, o.x + 10, o.y + 20, size - 8);
+    const arrows = { up: '↑', down: '↓', left: '←', right: '→' };
+    ctx.font = 'bold 18px Arial';
+    ctx.fillText(arrows[o.direction], o.x + 24, o.y + 42);
+    const ratio = o.maxHp ? Math.max(0, Math.min(1, o.hp / o.maxHp)) : 0;
+    ctx.fillStyle = '#000'; ctx.fillRect(o.x + padding, o.y - 8, size, 4);
+    ctx.fillStyle = '#27ae60'; ctx.fillRect(o.x + padding, o.y - 8, size * ratio, 4);
   }
 
   // 敌人
@@ -487,10 +554,13 @@ function render(): void {
   }
 
   // v4.2.0：标记点
-  drawMarkers(ctx);
+  drawMarkers(ctx, selectedPeerId ?? undefined);
 
   if (infoBar) {
-    const hostName = mpAdapter.peers[0]?.name ?? 'host';
-    infoBar.textContent = `📡 ${hostName} · 阶段 ${s.phase} · 波次 ${s.waveIndex} · 生命 ${s.lives} · 金钱 ${s.money} · 核心 Lv${s.coreLevel} · 剩余 ${s.combatTimeRemaining}s · 敌 ${s.enemies.length} / 干 ${s.operators.length}`;
+    const hostName = mpAdapter.peers.find(peer => peer.id === selectedPeerId)?.name ?? '队友';
+    const final = mpAdapter.match?.phase === 'ASSAULT' ? mpAdapter.match.finalState : undefined;
+    infoBar.textContent = final
+      ? `最终攻势 · ${hostName} · 共同生命 ${final.teamLives} · 领袖 ${Math.ceil(final.bossHp)} / ${final.bossMaxHp} · ${final.remainingSeconds > 0 ? `剩余 ${final.remainingSeconds}s` : `超时 ${final.overtime}s`}`
+      : `📡 ${hostName} · 阶段 ${s.phase} · 波次 ${s.waveIndex + 1} · 生命 ${s.lives} · 金钱 ${s.money} · 核心 Lv${s.coreLevel} · 剩余 ${s.combatTimeRemaining}s · 敌 ${s.enemies.length} / 干 ${s.operators.length}`;
   }
 }

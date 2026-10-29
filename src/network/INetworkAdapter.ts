@@ -8,6 +8,7 @@ export interface NetworkPeerInfo {
   id: string;
   name: string;
   role: NetworkRole;
+  ready?: boolean;
 }
 
 export interface NetworkMessage<T = unknown> {

@@ -6,12 +6,15 @@
 
 | 文档 | 说明 |
 |------|------|
-| [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | **开发计划**：盟约叠层、角色选择、联机、技能系统等后续功能规划与优先级 |
-| [PROJECT_REVIEW.md](PROJECT_REVIEW.md) | **项目审查**：代码结构、已修复问题、技术债务与后续建议 |
+| [ROADMAP.md](ROADMAP.md) | 当前阶段、后续目标与历史迭代 |
+| [MULTIPLAYER.md](MULTIPLAYER.md) | 当前 1–4 人联机规则、运行方式与限制 |
+| [PRTS_DATA.md](PRTS_DATA.md) | 已采用的原版资料来源与原型差异 |
+| [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | 早期开发计划（历史资料） |
+| [PROJECT_REVIEW.md](PROJECT_REVIEW.md) | 早期项目审查（历史资料） |
 | [MOBILE_OPTIMIZATION.md](MOBILE_OPTIMIZATION.md) | **移动端优化**：自动横屏布局、弹性布局适配、Canvas响应式方案 |
 
 ## 使用建议
 
-- 日常开发与排期：参考 **DEVELOPMENT_PLAN.md**
-- 代码质量与重构：参考 **PROJECT_REVIEW.md**
+- 日常开发与排期：参考 **ROADMAP.md** 和相关源码
+- 早期计划与审查仅作历史参考
 - 移动端适配细节：参考 **MOBILE_OPTIMIZATION.md**

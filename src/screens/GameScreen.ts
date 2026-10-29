@@ -1,18 +1,22 @@
 // 游戏对局屏幕：包含初始化、UI 渲染循环、交互事件、详情面板、拖拽（v1.5.x）
 import { GameEngine } from '../core/GameEngine';
 import { Renderer } from '../view/Renderer';
-import { onLayoutChange } from '../core/LayoutManager';
 import { CONFIG, OPERATOR_DB, selectRandomMap, validateMaps, resolveSkillForRank, CLASS_TRAITS, PACT_DB, RESONANCE_DB, WAVES, ENEMY_DB } from '../config/gameData';
 import { FactionId } from '../config/factions';
 import { Roster, rosterToAllowedSet } from '../config/roster';
-import { Direction, PactSelection } from '../types';
+import { Direction, PactSelection, SpRecoveryType } from '../types';
 import { showOnly } from './shared';
 import { startBgm } from '../core/AudioSystem';
-import { showAlert } from '../core/ModalSystem';
+import { showAlert, showConfirm, showToast } from '../core/ModalSystem';
 import type { BoonId } from '../config/boonData';
-import { mpAdapter, isMpHost } from '../network/mpBridge';
+import { mpAdapter, isMpMatch } from '../network/mpBridge';
+import { showMultiplayerGuestViewer, hideMultiplayerGuestViewer } from './MultiplayerGuestViewer';
 import { installMarkerListener, drawMarkers, pushLocalMarker } from '../network/mpMarkers';
 import { playSfx } from '../core/AudioSystem';
+import { showSettingsScreen } from './SettingsScreen';
+import finalAssaultRules from '../../shared/finalAssault.json';
+import { EQUIPMENT_DB } from '../config/equipmentData';
+import { portraitUrl } from '../view/OperatorArt';
 
 let canvas: HTMLCanvasElement | null = null;
 let engine: GameEngine | null = null;
@@ -32,23 +36,32 @@ let detailContent: HTMLElement;
 let btnActionMain: HTMLButtonElement;
 let btnUpgrade: HTMLButtonElement;
 let txtUpgradeCost: HTMLElement;
-let appRoot: HTMLElement | null = null;
 
 let selectedType: 'shop' | 'bench' | 'map' | null = null;
 let selectedId: string | null = null;
+let selectedEquipmentUid: string | null = null;
 let isDragging = false;
 let draggedBenchUid: string | null = null;
 let dragGhost: HTMLElement | null = null;
 let lastTime = 0;
+let simulationPaused = false;
+let simulationSpeed: 1 | 2 = 1;
 let mouseGridPos: { x: number, y: number } | null = null;
 let isDraggingFromPending: boolean = false;
 let pendingDragStartGrid: { x: number, y: number } | null = null;
 
-let resizeListenersBound = false;
 let interactionEventsBound = false;
+let lastDetailMarkup = '';
+let lastDetailSelection = '';
+let matchListenersBound = false;
+const pendingPurchases = new Set<string>();
+const registeredOffers = { normal: '', temporary: '' };
+const spRecoveryLabels: Record<SpRecoveryType, string> = {
+  auto: '自然回复', attack: '攻击回复', defense: '受击回复', auto_attack: '自然与攻击回复',
+  auto_defense: '自然与受击回复', attack_defense: '攻击与受击回复', all: '自然、攻击与受击回复',
+};
 
 export function startGame(factionId: FactionId, roster: Roster, activePactSelections: PactSelection[] | null = null, activeBoonId: BoonId | null = null, isDaily: boolean = false): void {
-  appRoot = document.getElementById('app-root');
   showOnly('app-root');
 
   // UI 元素延迟获取
@@ -76,10 +89,31 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
     console.info('[validateMaps] 全部地图通过路径校验');
   }
 
-  selectRandomMap();
+  selectRandomMap(isMpMatch() ? () => mpAdapter.match!.mapSeed : Math.random);
 
   const allowed = rosterToAllowedSet(roster);
   engine = new GameEngine(factionId, allowed, activePactSelections, activeBoonId, isDaily);
+  simulationPaused = false;
+  simulationSpeed = isMpMatch() ? 2 : 1;
+  if (isMpMatch()) {
+    registeredOffers.normal = '';
+    registeredOffers.temporary = '';
+    engine.shop.sharedPoolCounts = mpAdapter.match!.poolCounts;
+    engine.shop.refreshShop(true);
+    engine.onRoundFinished = outcome => mpAdapter.finishRound(outcome);
+    engine.onDefenseFinished = survivors => mpAdapter.finishDefense(engine!.waveIndex, survivors);
+    engine.onFinalDamage = damage => {
+      if (mpAdapter.match?.phase === 'ASSAULT') mpAdapter.sendFinalDamage(mpAdapter.match.round, damage);
+    };
+    engine.onFinalLeak = () => {
+      if (mpAdapter.match?.phase === 'ASSAULT') mpAdapter.sendFinalLeak(mpAdapter.match.round);
+    };
+    engine.onEliminated = earned => {
+      showToast(`已淘汰，获得 ${earned} 碎片；可以继续观战。`, { level: 'info' });
+      renderUI();
+    };
+    installMatchListeners();
+  }
   renderer = new Renderer(canvas);
   // v2.3.0：开发期暴露 engine，便于 devtools 中验证 buff 框架（如：engine.applyEffectToOperator('op_xxx', {id:'t',name:'测试',kind:'buff',stat:'atk',mod:0.5,modType:'pct',duration:10,remaining:10})）
   (window as any).engine = engine;
@@ -87,9 +121,9 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
   engine.onStateUpdated = () => {
     renderUI();
     // v4.1.0：host 广播游戏快照（带节流：每 ~120ms 一帧）
-    if (isMpHost()) hostMaybeBroadcast();
+    if (isMpMatch()) hostMaybeBroadcast();
     // v4.1.0：host 检测关键事件并 toast 推送给 guest
-    if (isMpHost()) hostMaybeEmitEvents();
+    if (isMpMatch()) hostMaybeEmitEvents();
   };
 
   // v3.9.0：开战时启动 BGM（用户点击为合法手势）
@@ -99,19 +133,19 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
   ensureMpHostBanner();
 
   // v4.2.0：host 监听 guest 标记
-  if (isMpHost()) installMarkerListener();
+  if (isMpMatch()) installMarkerListener();
 
   // v4.1.0：重置 host 事件追踪
-  if (isMpHost()) resetHostEventTracker();
+  if (isMpMatch()) resetHostEventTracker();
 
   // v4.2.3：host 监听 guest 部署提议
-  if (isMpHost()) installGuestEventListener();
+  if (isMpMatch()) installGuestEventListener();
 
   // v4.3.1：联机时 host 在游戏内显示可折叠聊天面板
-  if (isMpHost()) ensureMpHostChatPanel();
+  if (isMpMatch()) ensureMpHostChatPanel();
 
   // v4.3.5：联机时 host 在游戏内显示提议历史面板
-  if (isMpHost()) ensureMpHostHistoryPanel();
+  if (isMpMatch()) ensureMpHostHistoryPanel();
 
   // v3.5.3：事件日志按钮（点击弹出已触发事件历史）
   const btnEventLog = document.getElementById('btn-event-log');
@@ -125,25 +159,37 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
   requestAnimationFrame(gameLoop);
 
   // 一次性绑定按钮（GameScreen 在整个会话内只启动一次时安全；如需重玩需在此清理旧 listener）
-  document.getElementById('btn-next-wave')?.addEventListener('click', () => engine!.tryStartCombat());
+  document.getElementById('btn-next-wave')?.addEventListener('click', () => { void requestNextRound(); });
   document.getElementById('btn-refresh')?.addEventListener('click', () => engine!.refreshShop());
   document.getElementById('btn-upgrade')?.addEventListener('click', () => engine!.upgradeCore());
-
-  setTimeout(() => {
-    handleResize();
-    if (renderer) renderer.resize();
-  }, 100);
-
-  if (!resizeListenersBound) {
-    // v3.20.0：布局变化由全局 LayoutManager 统一驱动；本屏只补 canvas 尺寸 + 内部布局
-    onLayoutChange(() => {
-      handleResize();
-      if (renderer) {
-        setTimeout(() => { if (renderer) renderer.resize(); }, 50);
-      }
-    });
-    resizeListenersBound = true;
-  }
+  const pauseButton = document.getElementById('btn-pause') as HTMLButtonElement;
+  const speedButton = document.getElementById('btn-speed') as HTMLButtonElement;
+  const updateControls = () => {
+    pauseButton.textContent = simulationPaused ? '▶' : '⏸';
+    pauseButton.title = isMpMatch() ? '联合模拟不可暂停' : simulationPaused ? '继续' : '暂停';
+    pauseButton.disabled = isMpMatch();
+    speedButton.textContent = `${simulationSpeed}x`;
+    speedButton.disabled = isMpMatch();
+    speedButton.title = isMpMatch() ? '联合模拟固定 2 倍速' : '切换倍速';
+  };
+  updateControls();
+  pauseButton.addEventListener('click', () => { simulationPaused = !simulationPaused; updateControls(); });
+  speedButton.addEventListener('click', () => { simulationSpeed = simulationSpeed === 1 ? 2 : 1; updateControls(); });
+  document.getElementById('btn-game-settings')?.addEventListener('click', () => {
+    const wasPaused = simulationPaused;
+    if (!isMpMatch()) simulationPaused = true;
+    updateControls();
+    showSettingsScreen('app-root', () => { simulationPaused = wasPaused; updateControls(); });
+  });
+  document.getElementById('btn-exit')?.addEventListener('click', async () => {
+    const multiplayer = isMpMatch();
+    const wasPaused = simulationPaused;
+    if (!multiplayer) simulationPaused = true;
+    updateControls();
+    const message = multiplayer ? '退出会结束本局联合模拟。确定退出？' : '当前进度不会保留。确定退出？';
+    if (await showConfirm('退出对局', message, { okLabel: '退出', danger: true })) location.reload();
+    else { simulationPaused = wasPaused; updateControls(); }
+  });
 
   if (!interactionEventsBound) {
     initInteractionEvents();
@@ -151,62 +197,193 @@ export function startGame(factionId: FactionId, roster: Roster, activePactSelect
   }
 }
 
-function calculateLayout(): void {
-  if (!appRoot) return;
-
-  const topBar = document.getElementById('top-bar');
-  const bottom = document.getElementById('bottom-area');
-  if (!topBar || !bottom) return;
-
-  appRoot.style.transform = 'none';
-  appRoot.style.width = '100%';
-  appRoot.style.height = '100%';
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      if (!appRoot || !topBar || !bottom) return;
-
-      const topBarHeight = topBar.offsetHeight || 50;
-      const bottomAreaHeight = bottom.offsetHeight || 220;
-      const availableHeight = window.innerHeight - topBarHeight - bottomAreaHeight;
-      const minMapHeight = 400;
-
-      let scale = 1;
-      if (availableHeight < minMapHeight) {
-        const totalRequiredHeight = topBarHeight + bottomAreaHeight + minMapHeight;
-        scale = window.innerHeight / totalRequiredHeight;
-      }
-
-      if (scale < 1) {
-        appRoot.style.transform = `scale(${scale})`;
-        appRoot.style.transformOrigin = 'top center';
-        appRoot.style.width = `${100 / scale}%`;
-        appRoot.style.height = `${100 / scale}%`;
+function installMatchListeners(): void {
+  if (matchListenersBound) return;
+  matchListenersBound = true;
+  mpAdapter.on('pool_state', () => {
+    if (engine && mpAdapter.match) {
+      engine.shop.sharedPoolCounts = mpAdapter.match.poolCounts;
+      renderUI();
+    }
+  });
+  mpAdapter.on('shop_offer_result', (message) => {
+    if (!engine) return;
+    const result = message.payload as { kind: 'normal' | 'temporary'; rejected: string[] };
+    if (!result.rejected.length) return;
+    const rejected = new Set(result.rejected);
+    const shop = engine.shop;
+    const items = result.kind === 'temporary' ? shop.temporaryShopItems : shop.shopItems;
+    if (!items.some(item => rejected.has(item.uid))) return;
+    const remaining = items.filter(item => !rejected.has(item.uid));
+    if (result.kind === 'temporary') shop.temporaryShopItems = remaining;
+    else shop.shopItems = remaining;
+    registeredOffers[result.kind] = remaining.map(item => item.uid).join('|');
+    if (result.kind === 'temporary' && !remaining.length && shop.isInTemporaryShop) {
+      shop.skipTemporaryShop();
+    } else {
+      engine.notifyUpdate();
+    }
+    showToast('部分干员的共享库存已耗尽。', { level: 'info' });
+  });
+  mpAdapter.on('round_status', () => renderUI());
+  mpAdapter.on('round_prep', message => {
+    const prep = message.payload as { stage?: string; teamLives?: number; bossMaxHp?: number };
+    if (engine && prep.stage === 'FINAL' && prep.teamLives !== undefined && prep.bossMaxHp !== undefined) {
+      engine.updateFinalState({ bossHp: prep.bossMaxHp, bossMaxHp: prep.bossMaxHp,
+        teamLives: prep.teamLives, remainingSeconds: finalAssaultRules.timeLimitSeconds, overtime: 0, result: null });
+      showToast('最终攻势：全队目标生命已合并。', { level: 'info' });
+    }
+    renderUI();
+  });
+  mpAdapter.on('peer_left', () => { ensureMpHostBanner(); renderUI(); });
+  mpAdapter.on('defense_start', (message) => {
+    const defense = message.payload as { round: number; helperId: string; enemies: import('../core/GameEngine').EscapedEnemy[];
+      helpers: import('../core/Battlefield').DefenseFormation[] };
+    if (!engine || engine.waveIndex !== defense.round) return;
+    if (!mpAdapter.match?.eliminatedIds.includes(mpAdapter.localPeer?.id ?? '') &&
+        document.getElementById('mp-guest-screen')?.style.display === 'flex') hideMultiplayerGuestViewer();
+    if (defense.helperId === mpAdapter.localPeer?.id) {
+      if (!engine.startDefense(defense.enemies, defense.helpers)) {
+        void showAlert('无法开始联防', '联防数据与当前战场不匹配，请重新开始对局。').then(() => mpAdapter.disconnect());
       } else {
-        appRoot.style.transform = 'none';
-        appRoot.style.width = '100%';
-        appRoot.style.height = '100%';
+        showToast('开始联防：拦截队友漏掉的敌人', { level: 'info' });
       }
-    });
+    }
+    renderUI();
+  });
+  mpAdapter.on('round_settle', (message) => {
+    const settlement = message.payload as { round: number; losses: Record<string, number> };
+    if (!mpAdapter.match?.eliminatedIds.includes(mpAdapter.localPeer?.id ?? '') &&
+        document.getElementById('mp-guest-screen')?.style.display === 'flex') hideMultiplayerGuestViewer();
+    if (engine && engine.waveIndex === settlement.round) engine.settleRound(settlement.losses[mpAdapter.localPeer?.id ?? ''] ?? 0);
+    renderUI();
+  });
+  mpAdapter.on('round_start', (message) => {
+    const round = (message.payload as { round: number }).round;
+    if (engine && engine.waveIndex === round) engine.startCombat();
+  });
+  mpAdapter.on('final_start', message => {
+    const start = message.payload as { round: number; state: import('../core/GameEngine').FinalAssaultState;
+      groups: { simulatorId: string; members: import('../core/Battlefield').DefenseFormation[] }[] };
+    if (!engine || engine.waveIndex !== start.round) return;
+    if (document.getElementById('mp-guest-screen')?.style.display === 'flex') hideMultiplayerGuestViewer();
+    engine.updateFinalState(start.state);
+    const group = start.groups.find(candidate => candidate.simulatorId === mpAdapter.localPeer?.id);
+    if (group && !engine.startFinalAssault(group.members, start.state, true)) {
+      void showAlert('无法开始最终攻势', '当前阵容与最终攻势数据不匹配，请重新开始对局。').then(() => mpAdapter.disconnect());
+    }
+    renderUI();
+  });
+  mpAdapter.on('final_state', message => {
+    const payload = message.payload as { state: import('../core/GameEngine').FinalAssaultState };
+    engine?.updateFinalState(payload.state);
+  });
+  mpAdapter.on('match_complete', message => {
+    const reason = (message.payload as { reason?: string }).reason;
+    if (document.getElementById('mp-guest-screen')?.style.display === 'flex') hideMultiplayerGuestViewer();
+    if (engine && (reason === 'victory' || reason === 'defeat')) engine.finishFinalAssault(reason);
+    renderUI();
   });
 }
 
-function handleResize(): void {
-  // v3.20.0：旋转/aspect 由 LayoutManager 负责，本函数只重算游戏区缩放
-  const overlay = document.getElementById('mobile-overlay');
-  if (overlay) overlay.style.display = 'none';
-  if (appRoot && appRoot.style.display !== 'none') {
-    setTimeout(() => calculateLayout(), 100);
+async function requestNextRound(): Promise<void> {
+  if (!engine) return;
+  if (!isMpMatch()) {
+    await engine.tryStartCombat();
+    return;
   }
+  const match = mpAdapter.match!;
+  if (match.eliminatedIds.includes(mpAdapter.localPeer?.id ?? '') || match.phase !== 'PREP' || match.round !== engine.waveIndex || engine.phase !== 'PREP') return;
+  if (match.readyIds.includes(mpAdapter.localPeer?.id ?? '')) {
+    mpAdapter.setRoundReady(match.round, false);
+    return;
+  }
+  if (pendingPurchases.size > 0 || engine.isInTemporaryShop || engine.pendingEvent || engine.pendingDeployment) {
+    showToast('请先完成当前购买、事件或部署。', { level: 'warn' });
+    return;
+  }
+  if (await engine.confirmStartCombat() && mpAdapter.match === match && match.phase === 'PREP') {
+    mpAdapter.setRoundReady(match.round, true, match.stage === 'FINAL' ? engine.getFormationSnapshot() : undefined);
+  }
+}
+
+function renderMatchStatus(): void {
+  if (!engine) return;
+  const button = document.getElementById('btn-next-wave') as HTMLButtonElement | null;
+  const match = isMpMatch() ? mpAdapter.match : null;
+  const eliminated = !!match?.eliminatedIds.includes(mpAdapter.localPeer?.id ?? '');
+  if (button) {
+    const final = match?.stage === 'FINAL' || (!match && engine.waveIndex >= WAVES.length);
+    button.textContent = final ? '准备最终攻势' : match ? '准备战斗' : '开始战斗';
+    button.disabled = engine.phase === 'COMBAT' || (!!match && (eliminated || match.phase !== 'PREP' || match.round !== engine.waveIndex));
+  }
+  let overlay = document.getElementById('mp-round-wait');
+  const ready = !!match?.readyIds.includes(mpAdapter.localPeer?.id ?? '');
+  const waitingForCombat = !!match && engine.phase === 'PREP' && ['COMBAT', 'DEFENSE', 'ASSAULT', 'SETTLE'].includes(match.phase);
+  if (!match || (!eliminated && !ready && !waitingForCombat)) {
+    overlay?.remove();
+    return;
+  }
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'mp-round-wait';
+    overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,9,15,.72);z-index:10000;';
+    document.body.appendChild(overlay);
+  }
+  if (document.getElementById('mp-guest-screen')?.style.display === 'flex') {
+    overlay.style.display = 'none';
+    return;
+  }
+  overlay.style.display = 'flex';
+  if (eliminated) {
+    const canWatch = match.activeIds.length > 0 && match.phase !== 'COMPLETE';
+    overlay.innerHTML = `<div style="padding:24px 32px;text-align:center;background:#1a222c;color:#fff;border:1px solid #4b657d;border-radius:8px;">
+      <div>${match.phase === 'COMPLETE' ? '联合模拟已结束' : '你已淘汰，持有干员已返回共享卡池'}</div>
+      ${canWatch ? '<button id="mp-watch-survivor" style="margin-top:14px;padding:8px 20px;">观看队友</button>' : ''}
+      <button id="mp-exit-eliminated" style="margin-top:14px;padding:8px 20px;">退出对局</button>
+    </div>`;
+    overlay.querySelector<HTMLButtonElement>('#mp-watch-survivor')?.addEventListener('click', () => {
+      overlay!.style.display = 'none';
+      openTeammateViewer(match.phase === 'ASSAULT' ? match.assaultGroups[0]?.simulatorId : match.activeIds[0], renderMatchStatus);
+    });
+    overlay.querySelector<HTMLButtonElement>('#mp-exit-eliminated')?.addEventListener('click', () => location.reload());
+    return;
+  }
+  const watchedId = match.phase === 'ASSAULT' ? match.assaultSimulatorId : match.defenseHelperId;
+  const canWatch = ['DEFENSE', 'ASSAULT'].includes(match.phase) && watchedId && watchedId !== mpAdapter.localPeer?.id;
+  overlay.innerHTML = `<div style="padding:24px 32px;text-align:center;background:#1a222c;color:#fff;border:1px solid #4b657d;border-radius:8px;">
+    <div>${ready ? '已准备，等待队友准备' : match.phase === 'DEFENSE' ? '队友正在联防，等待结果' : match.phase === 'ASSAULT' ? '最终攻势进行中' : '本回合结束，等待队友完成战斗'}</div>
+    ${ready ? '<button id="mp-cancel-round-ready" style="margin-top:14px;padding:8px 20px;">取消准备</button>' : ''}
+    ${canWatch ? `<button id="mp-watch-defense" style="margin-top:14px;padding:8px 20px;">${match.phase === 'ASSAULT' ? '查看共同战场' : '查看联防'}</button>` : ''}
+  </div>`;
+  overlay.querySelector<HTMLButtonElement>('#mp-cancel-round-ready')?.addEventListener('click', () => {
+    if (mpAdapter.match) mpAdapter.setRoundReady(mpAdapter.match.round, false);
+  });
+  overlay.querySelector<HTMLButtonElement>('#mp-watch-defense')?.addEventListener('click', () => {
+    const helperId = mpAdapter.match?.phase === 'ASSAULT' ? mpAdapter.match.assaultSimulatorId : mpAdapter.match?.defenseHelperId;
+    if (!helperId || !overlay) return;
+    overlay.style.display = 'none';
+    openTeammateViewer(helperId, renderMatchStatus);
+  });
+}
+
+function openTeammateViewer(peerId?: string, onReturn?: () => void): void {
+  for (const id of ['mp-host-banner', 'mp-host-chat', 'mp-host-history']) {
+    const element = document.getElementById(id);
+    if (element) element.style.display = 'none';
+  }
+  showMultiplayerGuestViewer(peerId, onReturn);
 }
 
 function renderUI(): void {
   if (!engine) return;
 
-  uiWave.innerText = (engine.waveIndex + 1).toString();
+  uiWave.innerText = (mpAdapter.match?.stage === 'FINAL' || engine.waveIndex >= WAVES.length) ? '最终' : (engine.waveIndex + 1).toString();
   uiLives.innerText = engine.lives.toString();
   uiMoney.innerText = Math.floor(engine.money).toString();
   if (uiCore) uiCore.innerText = engine.coreLevel.toString();
+  renderMatchStatus();
+  renderFinalStatus();
   renderPactBadges();
 
   if (engine.phase === 'COMBAT') {
@@ -221,6 +398,7 @@ function renderUI(): void {
 
   renderShop();
   renderBench();
+  renderEquipmentInventory();
   updateDetailPanel();
   renderEventModal();
   // v3.5.3：根据是否有事件历史显示日志按钮
@@ -239,7 +417,26 @@ function renderUI(): void {
     btnUpgrade.disabled = false;
   }
 
-  setTimeout(() => calculateLayout(), 50);
+}
+
+function renderFinalStatus(): void {
+  if (!engine) return;
+  let panel = document.getElementById('final-assault-status');
+  const state = engine.finalState;
+  if (!state || (engine.waveIndex < WAVES.length && !engine.isFinalAssault && mpAdapter.match?.stage !== 'FINAL')) {
+    panel?.remove();
+    return;
+  }
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'final-assault-status';
+    panel.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);width:min(440px,60vw);z-index:6;color:#fff;background:rgba(16,20,27,.9);padding:8px 12px;border:1px solid #9b4c4c;';
+    document.getElementById('game-container')?.appendChild(panel);
+  }
+  const ratio = state.bossMaxHp > 0 ? Math.max(0, Math.min(1, state.bossHp / state.bossMaxHp)) : 0;
+  panel.innerHTML = `<div style="display:flex;justify-content:space-between;font-size:12px;"><strong>最终攻势 · ${finalAssaultRules.bossName}</strong><span>${Math.ceil(state.bossHp).toLocaleString()} / ${state.bossMaxHp.toLocaleString()}</span></div>
+    <div style="height:6px;background:#382d30;margin-top:5px;"><div style="height:100%;width:${ratio * 100}%;background:#c85052;"></div></div>
+    <div style="font-size:11px;margin-top:4px;color:#d5b7b7;">共同生命 ${state.teamLives} · ${state.remainingSeconds > 0 ? `剩余 ${state.remainingSeconds}s` : `超时 ${state.overtime}s`}</div>`;
 }
 
 // v3.5.0：事件卡 modal 渲染（基于 engine.pendingEvent 状态）
@@ -444,7 +641,9 @@ function gameLoop(timestamp: number): void {
   const dt = (timestamp - lastTime) / 1000;
   lastTime = timestamp;
 
-  engine.update(dt);
+  if (!simulationPaused) engine.update(dt * simulationSpeed, dt);
+  if (engine.isFinalAssault) renderFinalStatus();
+  if (engine.phase === 'COMBAT') uiTimer.innerText = Math.max(0, Math.ceil(engine.combatTimeRemaining)).toString();
 
   let highlightTemplateId: string | null = null;
   if (isDragging && draggedBenchUid) {
@@ -473,9 +672,10 @@ function gameLoop(timestamp: number): void {
   }
 
   renderer.render(engine, highlightTemplateId, previewDirection);
+  if (isMpMatch()) hostMaybeBroadcast();
 
   // v4.2.0：host 在主画面叠加 guest 发来的标记
-  if (isMpHost() && canvas) {
+  if (isMpMatch() && canvas) {
     const ctx = canvas.getContext('2d');
     if (ctx) drawMarkers(ctx);
   }
@@ -606,6 +806,10 @@ function initInteractionEvents(): void {
 
     const op = engine.operators.find(o => o.gridPos.x === gridX && o.gridPos.y === gridY);
     if (op) {
+      if (selectedEquipmentUid && engine.phase === 'PREP') {
+        applySelectedEquipment('map', op.id);
+        return;
+      }
       selectItem('map', op.id);
     } else {
       closeDetailPanel();
@@ -618,18 +822,32 @@ function renderShop(): void {
   shopContainer.innerHTML = '';
 
   const itemsToRender = engine.isInTemporaryShop ? engine.temporaryShopItems : engine.shopItems;
+  if (isMpMatch() && mpAdapter.match?.phase === 'PREP' &&
+      !mpAdapter.match.eliminatedIds.includes(mpAdapter.localPeer?.id ?? '') && engine.phase === 'PREP') {
+    const kind = engine.isInTemporaryShop ? 'temporary' : 'normal';
+    const key = itemsToRender.map(item => item.uid).join('|');
+    if (key !== registeredOffers[kind]) {
+      registeredOffers[kind] = key;
+      mpAdapter.registerShopOffers(kind, itemsToRender.filter(item => !item.bought)
+        .map(item => ({ uid: item.uid, operatorId: item.templateId })));
+    }
+  }
 
   itemsToRender.forEach(item => {
     const template = OPERATOR_DB[item.templateId];
+    const available = engine!.shop.sharedPoolCounts === null ? null :
+      Math.max(0, engine!.shop.getPoolLimit(item.templateId) - (engine!.shop.sharedPoolCounts[item.templateId] ?? 0));
     const div = document.createElement('div');
     div.className = `shop-card ${item.bought ? 'bought' : ''} ${selectedType === 'shop' && selectedId === item.uid ? 'selected' : ''}`;
+    const portrait = portraitUrl(item.templateId);
+    if (portrait) { div.classList.add('has-portrait'); div.style.setProperty('--portrait', `url("${portrait}")`); }
     if (engine!.isInTemporaryShop) {
       div.style.border = '3px solid #f1c40f';
     }
     div.innerHTML = `
       <div class="shop-name">${template.name}</div>
-      <div class="shop-stars">${'★'.repeat(template.rarity)}</div>
-      <div class="shop-cost">${item.cost === 0 ? '免费' : item.cost}</div>
+      <div class="shop-stars">${template.tier}阶${template.rarity ? ` · ${'★'.repeat(template.rarity)}` : ''}</div>
+      <div class="shop-cost">${item.cost === 0 ? '免费' : item.cost}${available === null ? '' : ` · 余 ${available}`}</div>
     `;
     div.onclick = (e) => {
       e.stopPropagation();
@@ -643,6 +861,19 @@ function renderShop(): void {
     shopContainer.appendChild(div);
   });
 
+  if (!engine.isInTemporaryShop) for (const item of engine.shop.equipmentItems) {
+    const def = EQUIPMENT_DB[item.templateId];
+    const card = document.createElement('div');
+    card.className = `shop-card equipment-shop-card ${item.bought ? 'bought' : ''}`;
+    card.innerHTML = `<div class="shop-name">${def.name}</div><div class="shop-stars">装备 · ${def.description[0]}</div>
+      <button type="button" class="equipment-buy" ${item.bought ? 'disabled' : ''}>${item.bought ? '已购买' : `购买 · ${item.cost}`}</button>`;
+    card.querySelector('button')?.addEventListener('click', event => {
+      event.stopPropagation();
+      if (!engine?.shop.tryBuyEquipment(item.uid)) showToast('资金不足或当前不能购买装备。', { level: 'warn' });
+    });
+    shopContainer.appendChild(card);
+  }
+
   if (engine.isInTemporaryShop) {
     const tip = document.createElement('div');
     tip.style.width = '100%';
@@ -652,6 +883,10 @@ function renderShop(): void {
     tip.style.marginTop = '10px';
     tip.innerText = '临时商店 - 选择一个免费角色';
     shopContainer.appendChild(tip);
+    const skip = document.createElement('button');
+    skip.textContent = '放弃免费招募';
+    skip.addEventListener('click', () => { engine?.shop.skipTemporaryShop(); closeDetailPanel(); });
+    shopContainer.appendChild(skip);
   }
 }
 
@@ -669,21 +904,27 @@ function renderBench(): void {
 
       const card = document.createElement('div');
       card.className = `bench-card ${selectedType === 'bench' && selectedId === benchOp.uid ? 'selected' : ''}`;
-      card.style.background = template.color;
+      card.style.setProperty('--operator-color', template.color);
+      const portrait = portraitUrl(benchOp.templateId);
+      if (portrait) { card.classList.add('has-portrait'); card.style.setProperty('--portrait', `url("${portrait}")`); }
       card.style.color = '#fff';
-      card.innerText = template.name;
+      card.innerText = `${template.name}${benchOp.rank === 2 ? ' · 精锐' : ''}`;
 
       card.onclick = (e) => {
         e.stopPropagation();
+        if (selectedEquipmentUid && engine!.phase === 'PREP') {
+          applySelectedEquipment('bench', benchOp.uid);
+          return;
+        }
         if (engine!.phase === 'PREP') selectItem('bench', benchOp.uid);
       };
       card.onmousedown = (e) => {
         e.stopPropagation();
-        if (engine!.phase === 'PREP') startDrag(e, benchOp.uid, template.name, template.color);
+        if (!selectedEquipmentUid && engine!.phase === 'PREP') startDrag(e, benchOp.uid, template.name, template.color);
       };
       card.ontouchstart = (e) => {
         e.stopPropagation();
-        if (engine!.phase === 'PREP') {
+        if (!selectedEquipmentUid && engine!.phase === 'PREP') {
           const touch = e.touches[0];
           startDrag({ clientX: touch.clientX, clientY: touch.clientY } as any, benchOp.uid, template.name, template.color);
         }
@@ -701,6 +942,48 @@ function renderBench(): void {
   benchContainer.appendChild(sellSlot);
 }
 
+function applySelectedEquipment(target: 'bench' | 'map', id: string): void {
+  if (!engine || !selectedEquipmentUid) return;
+  const success = target === 'bench' ? engine.equipBenchOperator(id, selectedEquipmentUid) : engine.equipOperator(id, selectedEquipmentUid);
+  if (success) {
+    selectedEquipmentUid = null;
+    renderUI();
+    showToast('装备已配发。', { level: 'success' });
+  } else showToast('该干员已配满两件装备，或当前无法配发。', { level: 'warn' });
+}
+
+function renderEquipmentInventory(): void {
+  if (!engine) return;
+  const area = document.getElementById('equipment-area');
+  if (!area) return;
+  if (!engine.equipmentInventory.some(item => item.uid === selectedEquipmentUid)) selectedEquipmentUid = null;
+  area.replaceChildren();
+  const label = document.createElement('span');
+  label.className = 'equipment-area-label';
+  label.textContent = '装备整备';
+  area.appendChild(label);
+  if (!engine.equipmentInventory.length) {
+    const empty = document.createElement('span');
+    empty.className = 'equipment-empty';
+    empty.textContent = '暂无装备';
+    area.appendChild(empty);
+    return;
+  }
+  for (const item of engine.equipmentInventory) {
+    const def = EQUIPMENT_DB[item.templateId];
+    const button = document.createElement('button');
+    button.className = `equipment-item${selectedEquipmentUid === item.uid ? ' selected' : ''}`;
+    button.textContent = `${def.name} · ${item.rank === 2 ? '进阶' : '基础'}`;
+    button.title = `${def.description[item.rank - 1]}；选择后点击干员配发`;
+    button.addEventListener('click', () => {
+      selectedEquipmentUid = selectedEquipmentUid === item.uid ? null : item.uid;
+      renderEquipmentInventory();
+      if (selectedEquipmentUid) showToast('请选择场上或备战区干员配发装备。', { level: 'info' });
+    });
+    area.appendChild(button);
+  }
+}
+
 function selectItem(type: 'shop' | 'bench' | 'map', id: string): void {
   selectedType = type;
   selectedId = id;
@@ -714,11 +997,33 @@ function closeDetailPanel(): void {
   detailPanel.classList.remove('visible');
 }
 
-function buyShopItem(shopItemUid: string): boolean {
-  if (!engine) return false;
-  const bought = engine.tryBuyOperator(shopItemUid);
-  if (bought && selectedType === 'shop' && selectedId === shopItemUid) closeDetailPanel();
-  return bought;
+async function buyShopItem(shopItemUid: string): Promise<void> {
+  const currentEngine = engine;
+  if (!currentEngine || pendingPurchases.has(shopItemUid)) return;
+  if (!isMpMatch()) {
+    if (currentEngine.tryBuyOperator(shopItemUid) && selectedType === 'shop' && selectedId === shopItemUid) closeDetailPanel();
+    return;
+  }
+  const items = currentEngine.isInTemporaryShop ? currentEngine.temporaryShopItems : currentEngine.shopItems;
+  const item = items.find(i => i.uid === shopItemUid);
+  if (!item || item.bought || currentEngine.phase !== 'PREP') return;
+  if ((!currentEngine.isInTemporaryShop && currentEngine.money < item.cost) || currentEngine.bench.length >= CONFIG.MAX_BENCH_SIZE) {
+    currentEngine.tryBuyOperator(shopItemUid);
+    return;
+  }
+  pendingPurchases.add(shopItemUid);
+  try {
+    const acquired = await mpAdapter.takeFromPool(item.templateId, item.uid, currentEngine.isInTemporaryShop ? 'temporary' : 'normal');
+    if (!acquired) {
+      if (isMpMatch()) showToast('共享干员池已无可用名额，或当前不能购买。', { level: 'warn' });
+      return;
+    }
+    const bought = engine === currentEngine && currentEngine.tryBuyOperator(shopItemUid);
+    if (!bought) mpAdapter.returnToPool(item.templateId, 1);
+    else if (selectedType === 'shop' && selectedId === shopItemUid) closeDetailPanel();
+  } finally {
+    pendingPurchases.delete(shopItemUid);
+  }
 }
 
 function updateDetailPanel(): void {
@@ -726,6 +1031,7 @@ function updateDetailPanel(): void {
 
   let template: any = null;
   let currentData: any = null;
+  let templateId = '';
 
   btnActionMain.style.display = 'block';
   btnActionMain.className = '';
@@ -735,7 +1041,8 @@ function updateDetailPanel(): void {
     const itemsToSearch = engine.isInTemporaryShop ? engine.temporaryShopItems : engine.shopItems;
     const item = itemsToSearch.find(i => i.uid === selectedId);
     if (!item) return;
-    template = OPERATOR_DB[item.templateId];
+    templateId = item.templateId;
+    template = OPERATOR_DB[templateId];
     const costText = item.cost === 0 ? '免费' : item.cost.toString();
     btnActionMain.innerText = `购买 (${costText})`;
     btnActionMain.disabled = (engine.isInTemporaryShop ? false : engine.money < item.cost) || engine.bench.length >= CONFIG.MAX_BENCH_SIZE;
@@ -745,12 +1052,14 @@ function updateDetailPanel(): void {
   } else if (selectedType === 'bench') {
     const benchOp = engine.bench.find(b => b.uid === selectedId);
     if (!benchOp) { closeDetailPanel(); return; }
-    template = OPERATOR_DB[benchOp.templateId];
+    templateId = benchOp.templateId;
+    template = OPERATOR_DB[templateId];
     btnActionMain.style.display = 'none';
   } else if (selectedType === 'map') {
     const op = engine.operators.find(o => o.id === selectedId);
     if (!op) { closeDetailPanel(); return; }
-    template = OPERATOR_DB[op.templateId];
+    templateId = op.templateId;
+    template = OPERATOR_DB[templateId];
     currentData = op;
     btnActionMain.innerText = '撤回 (Recall)';
     btnActionMain.className = 'recall';
@@ -760,13 +1069,19 @@ function updateDetailPanel(): void {
     };
   }
 
-  const hp = currentData ? Math.floor(currentData.stats.hp) : template.stats.hp;
-  const maxHp = template.stats.maxHp;
   const rank: 1 | 2 = ((currentData && currentData.rank) || (selectedType === 'bench'
     ? (engine.bench.find(b => b.uid === selectedId)?.rank ?? 1)
     : 1)) as 1 | 2;
+  const stats = currentData?.stats ?? (rank === 2 ? template.eliteStats ?? template.stats : template.stats);
+  const hp = Math.floor(stats.hp);
+  const maxHp = stats.maxHp;
   const trait = CLASS_TRAITS[template.class as keyof typeof CLASS_TRAITS];
   const skillInfo = resolveSkillForRank(template, rank);
+  const equipment = currentData?.equipment ?? (selectedType === 'bench' ? engine.bench.find(item => item.uid === selectedId)?.equipment : []) ?? [];
+  const equipmentHtml = equipment.length ? equipment.map((item: import('../types').EquipmentItem) => {
+    const def = EQUIPMENT_DB[item.templateId];
+    return `<div class="detail-equipment">${def.name} · ${item.rank === 2 ? '进阶' : '基础'} / ${def.description[item.rank - 1]}</div>`;
+  }).join('') : '<div class="detail-equipment empty">暂无配发装备</div>';
 
   const talentsHtml = template.talents.length === 0
     ? '<div style="color:#7f8c8d;font-size:12px;">— 无天赋 —</div>'
@@ -778,15 +1093,15 @@ function updateDetailPanel(): void {
         </div>`;
       }).join('');
 
-  // v2.0.0：场上单位显示 SP 条 + 手动激活按钮
+  // 场上单位显示技能充能及自动释放状态。
   let spBlockHtml = '';
   if (selectedType === 'map' && currentData) {
     const op = currentData;
     const pct = Math.min(100, Math.floor((op.currentSp / op.skill.cost) * 100));
-    const isReady = op.currentSp >= op.skill.cost && !op.skillActive && op.skill.duration > 0;
+    const isReady = op.currentSp >= op.skill.cost && !op.skillActive;
     const stateLabel = op.skillActive
-      ? `<span style="color:#f1c40f;">激活中 ${op.skillDuration.toFixed(1)}s</span>`
-      : (op.skill.duration > 0 ? '待充能' : '瞬发型（暂未支持手动）');
+      ? `<span style="color:#f1c40f;">${op.skill.duration > 0 ? `激活中 ${op.skillDuration.toFixed(1)}s` : '等待下一次攻击'}</span>`
+      : isReady ? '已就绪 · 自动释放' : '待充能';
 
     // v2.2.0：先锋费用回流提示
     let refundHtml = '';
@@ -820,23 +1135,24 @@ function updateDetailPanel(): void {
         <div style="background:#1f2937;height:8px;border-radius:4px;overflow:hidden;">
           <div style="height:100%;width:${pct}%;background:${op.skillActive ? '#f1c40f' : '#3498db'};"></div>
         </div>
-        ${isReady && engine!.phase === 'COMBAT' ? `<button id="btn-activate-skill" style="margin-top:6px;width:100%;padding:6px;background:#f39c12;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:bold;">释放技能</button>` : ''}
         ${refundHtml}
         ${effectsHtml}
       </div>
     `;
   }
 
-  detailContent.innerHTML = `
+  const portrait = portraitUrl(templateId);
+  const markup = `
+    ${portrait ? `<img class="detail-portrait" src="${portrait}" alt="">` : ''}
     <div class="detail-header">${template.name}</div>
-    <div class="detail-sub">${'★'.repeat(template.rarity)} · ${trait.name} · ${template.placement === 'ground' ? '地面' : '高台'} · ${rank === 2 ? '精英Ⅱ' : '精英Ⅰ'}</div>
+    <div class="detail-sub">${template.tier}阶${template.rarity ? ` · ${'★'.repeat(template.rarity)}` : ''} · ${trait.name} · ${template.placement === 'ground' ? '地面' : '高台'} · ${rank === 2 ? '精锐' : '初始'}</div>
 
     <div class="detail-stats">
       <div class="stat-row">生命: ${hp} / ${maxHp}</div>
-      <div class="stat-row">攻击: ${template.stats.atk}</div>
-      <div class="stat-row">防御: ${template.stats.def}</div>
-      <div class="stat-row">阻挡: ${template.stats.blockCount}</div>
-      <div class="stat-row">攻速: ${template.stats.aspd}s</div>
+      <div class="stat-row">基础攻击: ${stats.atk}</div>
+      <div class="stat-row">基础防御: ${stats.def}</div>
+      <div class="stat-row">阻挡: ${stats.blockCount}</div>
+      <div class="stat-row">攻速: ${stats.aspd}s</div>
       <div class="stat-row">费用: ${template.cost}</div>
       <div class="stat-row">伤害类型: ${(() => {
         const t = template.atkType ?? (template.class === 'caster' ? 'magic' : template.class === 'medic' ? 'heal' : 'physical');
@@ -845,6 +1161,8 @@ function updateDetailPanel(): void {
     </div>
 
     <div class="skill-section">
+      <div style="font-weight:bold;color:#d6b762;margin-bottom:6px;">装备（${equipment.length}/2）</div>
+      ${equipmentHtml}
       <div style="font-size:12px;color:#7f8c8d;margin-bottom:6px;">职业特性 · ${trait.desc}</div>
       <div style="font-weight:bold;color:#f39c12;margin-bottom:6px;">天赋（${template.talents.length}/2）</div>
       ${talentsHtml}
@@ -852,22 +1170,18 @@ function updateDetailPanel(): void {
       <div class="skill-name">${skillInfo.name}</div>
       <div class="skill-desc">${skillInfo.desc}</div>
       <div style="margin-top:5px; font-size:12px; color:#bdc3c7;">
-        消耗: ${skillInfo.cost} / 初始: ${skillInfo.initialSp} / 回复: ${skillInfo.spRecovery}
+        消耗: ${skillInfo.cost} / 初始: ${skillInfo.initialSp} / ${spRecoveryLabels[skillInfo.spRecovery]}
       </div>
       ${spBlockHtml}
     </div>
   `;
-
-  // 绑定释放技能按钮（每次重渲染后重新查找）
-  if (selectedType === 'map' && currentData) {
-    const btn = document.getElementById('btn-activate-skill') as HTMLButtonElement | null;
-    if (btn) {
-      btn.onclick = (ev) => {
-        ev.stopPropagation();
-        engine!.tryActivateSkill(currentData.id);
-      };
-    }
+  const selection = `${selectedType}:${selectedId}`;
+  if (markup !== lastDetailMarkup || selection !== lastDetailSelection) {
+    detailContent.innerHTML = markup;
+    lastDetailMarkup = markup;
+    lastDetailSelection = selection;
   }
+
 }
 
 function startDrag(e: MouseEvent, benchUid: string, name: string, color: string): void {
@@ -955,7 +1269,12 @@ function onDragEnd(clientX: number, clientY: number): void {
   if (sellZone) {
     const rect = sellZone.getBoundingClientRect();
     if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
-      if (draggedBenchUid) engine.sellBenchOperator(draggedBenchUid);
+      if (draggedBenchUid) {
+        const sold = engine.bench.find(op => op.uid === draggedBenchUid);
+        if (sold && engine.sellBenchOperator(draggedBenchUid) && isMpMatch()) {
+          mpAdapter.returnToPool(sold.templateId, sold.rank === 2 ? 3 : 1);
+        }
+      }
       cleanupDrag();
       return;
     }
@@ -1007,7 +1326,7 @@ function hostMaybeBroadcast(): void {
 // v4.1.1：host 直播横幅
 function ensureMpHostBanner(): void {
   let banner = document.getElementById('mp-host-banner');
-  const visible = isMpHost();
+  const visible = isMpMatch();
   if (!visible) {
     if (banner) banner.style.display = 'none';
     return;
@@ -1015,12 +1334,24 @@ function ensureMpHostBanner(): void {
   if (!banner) {
     banner = document.createElement('div');
     banner.id = 'mp-host-banner';
-    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#27ae60;color:#fff;padding:6px 12px;font-size:12px;font-family:monospace;text-align:center;z-index:9999;box-shadow:0 2px 4px rgba(0,0,0,0.3);';
+    banner.style.cssText = 'position:fixed;top:72px;right:12px;background:#245a43;color:#fff;padding:6px 10px;font-size:12px;font-family:monospace;text-align:center;z-index:9000;border-radius:4px;box-shadow:0 2px 4px rgba(0,0,0,0.3);';
     document.body.appendChild(banner);
   }
-  const peer = mpAdapter.peers[0]?.name ?? '观战者';
-  banner.textContent = `📡 联机直播中 → ${peer}（你的画面会以 ~120ms 间隔同步给对端）`;
-  banner.style.display = 'block';
+  const peers = mpAdapter.peers;
+  banner.textContent = `联合模拟 · ${peers.length} 名队友 `;
+  banner.title = peers.map(peer => peer.name).join('、');
+  const viewButton = document.createElement('button');
+  viewButton.textContent = '查看队友';
+  viewButton.disabled = peers.length === 0;
+  viewButton.addEventListener('click', () => {
+    if (engine?.phase !== 'PREP' || mpAdapter.match?.phase !== 'PREP') {
+      showToast('请在休整期查看队友战场。', { level: 'info' });
+      return;
+    }
+    openTeammateViewer();
+  });
+  banner.appendChild(viewButton);
+  banner.style.display = document.getElementById('mp-guest-screen')?.style.display === 'flex' ? 'none' : 'block';
 }
 
 // v4.1.0：host 关键事件推送（波次/阶段/血量阈值/胜负）
@@ -1106,12 +1437,12 @@ function installGuestEventListener(): void {
     const from = String(p.from || '观战者');
     const text = String(p.text || '');
     if (p.kind === 'deploy_request') {
-      showDeployRequestPrompt(from, text);
+      showDeployRequestPrompt(from, text, p.fromId);
       playSfx('event');
       pushMpHostHistory({ icon: '🎯', from, text, ts: performance.now() });
     } else if (p.kind === 'focus_request') {
       const opId = (p.extra && p.extra.operatorId) ? String(p.extra.operatorId) : '';
-      showFocusRequestPrompt(from, text, opId);
+      showFocusRequestPrompt(from, text, opId, p.fromId);
       playSfx('event');
       pushMpHostHistory({
         icon: '⭐', from, text, ts: performance.now(),
@@ -1160,7 +1491,7 @@ function installGuestEventListener(): void {
   });
 }
 
-function showFocusRequestPrompt(from: string, text: string, operatorId: string): void {
+function showFocusRequestPrompt(from: string, text: string, operatorId: string, toId?: string): void {
   const id = 'mp-host-focus-prompt';
   let bar = document.getElementById(id);
   if (bar) bar.remove();
@@ -1168,7 +1499,7 @@ function showFocusRequestPrompt(from: string, text: string, operatorId: string):
   bar.id = id;
   bar.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#2c3e50;color:#fff;padding:10px 14px;border-radius:6px;font-family:monospace;font-size:13px;z-index:9999;display:flex;gap:10px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,0.4);border:1px solid #8e44ad;';
   bar.innerHTML = `
-    <span>⭐ <b>${from}</b>：${text}</span>
+    <span>⭐ <b>${escapeHostHistory(from)}</b>：${escapeHostHistory(text)}</span>
     <button id="btn-focus-accept" style="padding:4px 10px;background:#27ae60;border:none;color:#fff;border-radius:3px;cursor:pointer;">查看</button>
     <button id="btn-focus-reject" style="padding:4px 10px;background:#7f8c8d;border:none;color:#fff;border-radius:3px;cursor:pointer;">忽略</button>
   `;
@@ -1177,23 +1508,23 @@ function showFocusRequestPrompt(from: string, text: string, operatorId: string):
   document.getElementById('btn-focus-accept')?.addEventListener('click', () => {
     if (operatorId && engine?.operators.find(o => o.id === operatorId)) {
       selectItem('map', operatorId);
-      mpAdapter.sendEvent('focus_response', `host 已查看你提议的干员`, 'success');
+      mpAdapter.sendEvent('focus_response', '队友已查看你提议的干员', 'success', null, toId);
       playSfx('wave_clear');
     } else {
-      mpAdapter.sendEvent('focus_response', `host 未找到该干员（可能已撤离）`, 'info');
+      mpAdapter.sendEvent('focus_response', '队友未找到该干员（可能已撤离）', 'info', null, toId);
       playSfx('click');
     }
     cleanup();
   });
   document.getElementById('btn-focus-reject')?.addEventListener('click', () => {
-    mpAdapter.sendEvent('focus_response', `host 忽略了你的提议`, 'info');
+    mpAdapter.sendEvent('focus_response', '队友忽略了你的提议', 'info', null, toId);
     playSfx('click');
     cleanup();
   });
   setTimeout(cleanup, 10000);
 }
 
-function showDeployRequestPrompt(from: string, text: string): void {
+function showDeployRequestPrompt(from: string, text: string, toId?: string): void {
   // 顶部固定提示条 + 接受/拒绝按钮
   const id = 'mp-host-deploy-prompt';
   let bar = document.getElementById(id);
@@ -1202,19 +1533,19 @@ function showDeployRequestPrompt(from: string, text: string): void {
   bar.id = id;
   bar.style.cssText = 'position:fixed;top:36px;left:50%;transform:translateX(-50%);background:#2c3e50;color:#fff;padding:10px 14px;border-radius:6px;font-family:monospace;font-size:13px;z-index:9999;display:flex;gap:10px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,0.4);border:1px solid #3498db;';
   bar.innerHTML = `
-    <span>📨 <b>${from}</b>：${text}</span>
+    <span>📨 <b>${escapeHostHistory(from)}</b>：${escapeHostHistory(text)}</span>
     <button id="btn-deploy-accept" style="padding:4px 10px;background:#27ae60;border:none;color:#fff;border-radius:3px;cursor:pointer;">接受</button>
     <button id="btn-deploy-reject" style="padding:4px 10px;background:#c0392b;border:none;color:#fff;border-radius:3px;cursor:pointer;">拒绝</button>
   `;
   document.body.appendChild(bar);
   const cleanup = () => bar?.remove();
   document.getElementById('btn-deploy-accept')?.addEventListener('click', () => {
-    mpAdapter.sendEvent('deploy_response', `host 接受了你的提议：${text}`, 'success');
+    mpAdapter.sendEvent('deploy_response', `队友接受了你的提议：${text}`, 'success', null, toId);
     playSfx('wave_clear'); // v4.2.4
     cleanup();
   });
   document.getElementById('btn-deploy-reject')?.addEventListener('click', () => {
-    mpAdapter.sendEvent('deploy_response', `host 拒绝了你的提议`, 'info');
+    mpAdapter.sendEvent('deploy_response', '队友拒绝了你的提议', 'info', null, toId);
     playSfx('click'); // v4.2.4
     cleanup();
   });
@@ -1241,7 +1572,7 @@ function showHostBriefBanner(text: string): void {
 const CHAT_QUICK_PRESETS = ['好', '不好', '等一下', 'GG', 'GL'];
 let mpHostChatInstalled = false;
 function ensureMpHostChatPanel(): void {
-  if (!isMpHost()) return;
+  if (!isMpMatch()) return;
   if (mpHostChatInstalled) {
     const panel = document.getElementById('mp-host-chat');
     if (panel) panel.style.display = 'flex';
@@ -1281,7 +1612,10 @@ function ensureMpHostChatPanel(): void {
 
   function appendLog(from: string, text: string, color: string): void {
     const line = document.createElement('div');
-    line.innerHTML = `<span style="color:${color};">[${from}]</span> ${text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] || c))}`;
+    const name = document.createElement('span');
+    name.style.color = color;
+    name.textContent = `[${from}]`;
+    line.append(name, document.createTextNode(` ${text}`));
     log.appendChild(line);
     log.scrollTop = log.scrollHeight;
   }
@@ -1320,7 +1654,7 @@ function ensureMpHostChatPanel(): void {
     if (!p) return;
     const from = String(p.from || '?');
     const text = String(p.text || '');
-    if (from === (mpAdapter.localPeer?.name ?? '我')) return; // 自己已本地追加
+    if (p.fromId === mpAdapter.localPeer?.id) return; // 自己已本地追加
     appendLog(from, text, '#e67e22');
     playSfx('event');
   });
@@ -1377,7 +1711,7 @@ function renderMpHostHistory(): void {
 }
 
 function ensureMpHostHistoryPanel(): void {
-  if (!isMpHost()) return;
+  if (!isMpMatch()) return;
   if (mpHostHistoryInstalled) {
     const panel = document.getElementById('mp-host-history');
     if (panel) panel.style.display = 'flex';

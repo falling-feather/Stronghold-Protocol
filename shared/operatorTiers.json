@@ -1,0 +1,19 @@
+{
+  "recruit_guard": 1,
+  "reserve_defender": 1,
+  "reserve_sniper": 1,
+  "recruit_defender": 2,
+  "guard_sword": 3,
+  "defender_shield": 3,
+  "sniper_aa": 3,
+  "sniper_boom": 4,
+  "caster_volcano": 5,
+  "specialist_blade": 3,
+  "guard_lancer": 4,
+  "defender_bulwark": 4,
+  "sniper_marksman": 5,
+  "caster_arclight": 5,
+  "vanguard_scout": 3,
+  "medic_field": 3,
+  "supporter_jammer": 4
+}

@@ -1,11 +1,14 @@
 import { GameEngine } from '../core/GameEngine';
-import { CONFIG, MAP_LAYOUT, PATH_WAYPOINTS, OPERATOR_DB } from '../config/gameData';
+import { CONFIG, MAP_LAYOUT, OPERATOR_DB } from '../config/gameData';
 import { Direction } from '../types';
 import { getAttackRangeTiles } from '../core/MathUtils';
+import { drawBattleMap } from './BattleMap';
+import { loadedPortrait } from './OperatorArt';
 
 export class Renderer {
   ctx: CanvasRenderingContext2D;
   canvas: HTMLCanvasElement;
+  private mapWidth = CONFIG.MAP_WIDTH;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -13,48 +16,22 @@ export class Renderer {
     this.resize();
   }
 
-  resize() {
-    // 检测是否为移动设备
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                     (window.innerWidth <= 768);
-    
-    if (isMobile) {
-      // 移动端：页面已旋转90度，需要根据旋转后的容器大小自适应
-      const container = this.canvas.parentElement;
-      if (container) {
-        // 注意：由于页面旋转了90度，容器的宽高实际上已经互换了
-        // 但clientWidth和clientHeight仍然反映旋转后的实际显示尺寸
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
-        
-        // 保持地图比例，适应容器
-        const mapAspect = (CONFIG.MAP_WIDTH * CONFIG.TILE_SIZE) / (CONFIG.MAP_HEIGHT * CONFIG.TILE_SIZE);
-        const containerAspect = containerWidth / containerHeight;
-        
-        if (containerAspect > mapAspect) {
-          // 容器更宽，以高度为准
-          this.canvas.height = containerHeight;
-          this.canvas.width = containerHeight * mapAspect;
-        } else {
-          // 容器更高，以宽度为准
-          this.canvas.width = containerWidth;
-          this.canvas.height = containerWidth / mapAspect;
-        }
-      }
-    } else {
-      // 桌面端：固定尺寸
-      this.canvas.width = CONFIG.MAP_WIDTH * CONFIG.TILE_SIZE;
-      this.canvas.height = CONFIG.MAP_HEIGHT * CONFIG.TILE_SIZE;
-    }
+  resize(mapWidth = this.mapWidth) {
+    this.mapWidth = mapWidth;
+    const width = mapWidth * CONFIG.TILE_SIZE;
+    const height = CONFIG.MAP_HEIGHT * CONFIG.TILE_SIZE;
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
   }
 
   // 修改：增加 highlightTemplateId 参数，用于绘制部署热力图
   render(engine: GameEngine, highlightTemplateId?: string | null, highlightDirection?: Direction | null) {
+    const mapWidth = engine.battlefield?.layout[0].length ?? CONFIG.MAP_WIDTH;
+    if (mapWidth !== this.mapWidth) this.resize(mapWidth);
     this.ctx.fillStyle = '#1a1a1a';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    this.drawMap();
-    this.drawPathGuide();
+    drawBattleMap(this.ctx, engine.battlefield);
     
     // 如果有待部署的角色，显示预览和攻击范围
     if (engine.pendingDeployment) {
@@ -86,7 +63,7 @@ export class Renderer {
       this.ctx.save();
       this.ctx.fillStyle = 'rgba(127, 140, 141, 0.85)';
       const w = 220, h = 30;
-      const x = (CONFIG.MAP_WIDTH * CONFIG.TILE_SIZE - w) / 2;
+      const x = (this.mapWidth * CONFIG.TILE_SIZE - w) / 2;
       this.ctx.fillRect(x, 8, w, h);
       this.ctx.fillStyle = '#fff';
       this.ctx.font = 'bold 16px sans-serif';
@@ -95,54 +72,6 @@ export class Renderer {
       this.ctx.fillText('⚠ 医疗被压制（治疗 ×0.5）', x + w / 2, 8 + h / 2);
       this.ctx.restore();
     }
-  }
-
-  private drawMap() {
-    for (let y = 0; y < CONFIG.MAP_HEIGHT; y++) {
-      for (let x = 0; x < CONFIG.MAP_WIDTH; x++) {
-        const type = MAP_LAYOUT[y][x];
-        const posX = x * CONFIG.TILE_SIZE;
-        const posY = y * CONFIG.TILE_SIZE;
-
-        switch (type) {
-          case 0: this.ctx.fillStyle = '#34495e'; break; // 地面
-          case 1: this.ctx.fillStyle = '#95a5a6'; break; // 高台
-          case 2: this.ctx.fillStyle = '#2c3e50'; break; // 墙
-          case 3: this.ctx.fillStyle = 'rgba(231, 76, 60, 0.2)'; break; // 红门
-          case 4: this.ctx.fillStyle = 'rgba(52, 152, 219, 0.2)'; break; // 蓝门
-        }
-        
-        this.ctx.fillRect(posX, posY, CONFIG.TILE_SIZE, CONFIG.TILE_SIZE);
-        this.ctx.strokeStyle = '#222';
-        this.ctx.strokeRect(posX, posY, CONFIG.TILE_SIZE, CONFIG.TILE_SIZE);
-        
-        if(type === 3) {
-           this.ctx.fillStyle = '#e74c3c';
-           this.ctx.font = 'bold 16px Arial';
-           this.ctx.fillText("IN", posX + 22, posY + 38);
-        }
-        if(type === 4) {
-           this.ctx.fillStyle = '#3498db';
-           this.ctx.font = 'bold 16px Arial';
-           this.ctx.fillText("OUT", posX + 15, posY + 38);
-        }
-      }
-    }
-  }
-
-  private drawPathGuide() {
-    this.ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    this.ctx.lineWidth = 10;
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
-    this.ctx.beginPath();
-    PATH_WAYPOINTS.forEach((p, i) => {
-      const cx = p.x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE/2;
-      const cy = p.y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE/2;
-      if (i===0) this.ctx.moveTo(cx, cy);
-      else this.ctx.lineTo(cx, cy);
-    });
-    this.ctx.stroke();
   }
 
   private drawOperator(op: any) {
@@ -159,6 +88,18 @@ export class Renderer {
 
     this.ctx.fillRect(op.pos.x + padding, op.pos.y + padding, size, size);
     this.ctx.globalAlpha = 1.0; 
+    const portrait = loadedPortrait(op.templateId);
+    if (portrait) {
+      this.ctx.save();
+      this.ctx.globalAlpha = op.isRetreated ? 0.35 : 0.8;
+      this.ctx.drawImage(portrait, op.pos.x + padding, op.pos.y + padding, size, size);
+      this.ctx.restore();
+    }
+    if (op.rank === 2) {
+      this.ctx.strokeStyle = '#f1c40f';
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeRect(op.pos.x + padding, op.pos.y + padding, size, size);
+    }
 
     // 绘制朝向箭头
     if (!op.isRetreated && op.direction) {
@@ -201,7 +142,7 @@ export class Renderer {
     // 名字
     this.ctx.fillStyle = '#fff';
     this.ctx.font = '10px Arial';
-    this.ctx.fillText(op.name, op.pos.x + 10, op.pos.y + 20);
+    this.ctx.fillText(op.name, op.pos.x + 10, op.pos.y + 20, size - 8);
     
     // 血条（在角色上方）
     if (op.stats.hp < op.stats.maxHp || op.isRetreated) {

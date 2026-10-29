@@ -2,6 +2,11 @@ export interface Vector2 {
   x: number;
   y: number;
 }
+export interface EquipmentItem {
+  uid: string;
+  templateId: string;
+  rank: 1 | 2;
+}
 
 export type TileType = 0 | 1 | 2 | 3 | 4;
 export type GamePhase = 'PREP' | 'COMBAT';
@@ -50,13 +55,13 @@ export interface SkillInfo {
   // 可以组合：'auto_attack', 'auto_defense', 'attack_defense', 'all'
   spRecovery: SpRecoveryType;
   // v2.0.0：技能手动激活所需的运行时资源
-  duration: number;                // 持续时间，<=0 表示瞬发（版本限制：当前仅支持持续型）
+  duration: number;                // 持续时间，<=0 表示强化下一次攻击
   effectType: SkillEffectType;
   values: Record<string, number>;  // 如 atkMul / aspdPct / defPct / blkPlus / hits
 }
 
-// 角色等阶
-export type OperatorRank = 1 | 2; // 1阶或2阶
+// 同名干员合成状态，与协议阶级和星级无关。
+export type OperatorRank = 1 | 2; // 1 = 初始，2 = 精锐
 
 export interface Entity {
   id: string;
@@ -70,6 +75,8 @@ export interface Entity {
 
 // v2.4.0：敌人特性
 export interface EnemyTraits {
+  regeneratePerSecond?: number;
+  unblockable?: boolean;
   flying?: boolean;
   stealth?: boolean;
   summon?: { childId: string; count: number; on: 'death' };
@@ -171,6 +178,11 @@ export interface EventCard {
 }
 
 export interface Enemy extends Entity {
+  templateId: string;
+  assaultRoute?: number;
+  assaultBoss?: boolean;
+  leakId?: string;
+  ownerId?: string;
   waypointIndex: number;
   isBlockedBy: string | null;
   attackCooldown: number;
@@ -186,7 +198,8 @@ export interface Operator extends Entity {
   targetId: string | null;
   cost: number;
   placement: PlacementType;
-  rarity: number;
+  tier: number;
+  rarity?: number;
   blockingEnemyIds: string[];
   isRetreated: boolean;
   skill: SkillInfo;
@@ -198,9 +211,11 @@ export interface Operator extends Entity {
   // 技力相关状态
   skillActive: boolean; // 技能是否激活
   skillDuration: number; // 技能持续时间（如果技能有时长）
+  skillAutoCooldown: number; // 自动操作冷却，部署与技能开启后为 3 秒
+  equipment?: EquipmentItem[];
   
-  // 角色等阶
-  rank: OperatorRank; // 1阶或2阶
+  // 合成状态：初始或精锐
+  rank: OperatorRank;
 
   // v2.2.0：部署计时与费用回流（先锋职业）
   deployTime: number;     // 部署后累计存活时间（秒）
@@ -228,6 +243,7 @@ export interface Projectile {
   // v3.17.1：敌人远程攻击的类型标记
   targetIsOperator?: boolean; // true 表示 targetId 指向 operator（敌人远程弹）
   sourceEnemyId?: string; // 发射者 enemy id
+  splashRadius?: number; // 命中时的溅射半径（像素）
 }
 
 export interface ShopItem {
@@ -239,7 +255,7 @@ export interface ShopItem {
 
 // 角色池统计（v1.5.0：从 GameEngine 提到 types）
 export interface OperatorPoolStats {
-  count: number;       // 累计获得次数（上限 7）
+  count: number;       // 当前持有的原始干员数量（精锐按 3 名计算）
   rank1Count: number;  // 当前持有 1 阶数
   rank2Count: number;  // 当前持有 2 阶数
 }
@@ -249,7 +265,7 @@ export interface OperatorPoolStats {
 //
 // 设计：每个干员有
 //   - class: 职业，决定职业特性（如速射手优先打飞行 / 高威胁）
-//   - talents[]: 0-2 个天赋，按 rank（1阶/2阶）有不同数值
+//   - talents[]: 0-2 个天赋，按初始 / 精锐状态有不同数值
 //   - skills[]:  1-3 个技能，进入战斗只能携带其中 1 个
 //   - 同一技能在不同 rank 下数值/持续时间也不同（叠层强化）
 
@@ -303,12 +319,16 @@ export interface SkillDefinition {
 export interface OperatorTemplate {
     name: string;
     cost: number;
-    rarity: number;
+    tier: number;                    // 卫戍协议的干员等阶，与星级独立
+    rarity?: number;                 // 星级；原创占位模板暂不指定
     color: string;
+    portrait?: string;
     placement: PlacementType;
     class: OperatorClass;
+    targetPriority?: TargetPriority;
     atkType?: AttackType; // v2.1.0：缺省按职业推断（caster→magic, medic→heal, 其余→physical）
     stats: BaseStats;
+    eliteStats?: BaseStats;          // 精锐状态的基础属性；未配置时沿用初始属性
     talents: Talent[];                // 0-2 个
     skills: SkillDefinition[];        // 1-3 个
     defaultSkillIndex: number;        // 默认携带技能（v1.x 暂未做战前选择）

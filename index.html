@@ -527,6 +527,7 @@
         cursor: pointer;
       }
     </style>
+    <link rel="stylesheet" href="/src/styles/protocol-theme.css">
   </head>
   <body>
     <div id="mobile-overlay">
@@ -534,34 +535,37 @@
       <div>为了最佳体验，请旋转设备至横屏</div>
     </div>
 
-    <!-- 开始界面（v3.15.0：统一 .start-menu 视觉） -->
+    <!-- 开始界面 -->
     <div id="start-screen">
+      <div class="start-topline"><span>RHODES ISLAND // STRATEGIC SIMULATION</span><span>联合防御演练</span></div>
       <div class="start-hero">
-        <div class="start-tag">STRONGHOLD&nbsp;·&nbsp;PROTOCOL</div>
-        <h1 class="start-title">卫戍协议模拟器</h1>
-        <p class="start-subtitle">塔防 · Roguelike · 局内联机协作</p>
+        <div class="start-tag"><span></span> STRONGHOLD PROTOCOL</div>
+        <h1 class="start-title">卫戍协议<span>模拟终端</span></h1>
+        <p class="start-subtitle">编组干员 · 签订盟约 · 构筑联合防线</p>
+        <div class="start-rule"></div>
       </div>
+      <div class="start-emblem" aria-hidden="true"><div class="start-emblem-inner">S<span> / </span>P<small>TACTICAL<br>SIMULATION</small></div></div>
       <div class="start-menu">
         <button id="btn-start-game" class="start-menu-btn primary">
-          <span class="smb-icon">▶</span><span class="smb-text">开始游戏</span>
+          <span class="smb-icon">01</span><span class="smb-text">开始游戏<small>进入模拟</small></span><span class="smb-arrow">↗</span>
         </button>
         <button id="btn-multiplayer" class="start-menu-btn teal">
-          <span class="smb-icon">⇄</span><span class="smb-text">联机模式</span>
+          <span class="smb-icon">02</span><span class="smb-text">联合模拟<small>创建或加入房间</small></span><span class="smb-arrow">↗</span>
         </button>
         <button id="btn-daily" class="start-menu-btn teal">
-          <span class="smb-icon">📅</span><span class="smb-text">每日挑战</span>
+          <span class="smb-icon">03</span><span class="smb-text">每日挑战</span><span class="smb-arrow">↗</span>
         </button>
         <button id="btn-meta-tree" class="start-menu-btn purple">
-          <span class="smb-icon">⬢</span><span class="smb-text">升级树</span>
+          <span class="smb-icon">04</span><span class="smb-text">升级树</span><span class="smb-arrow">↗</span>
         </button>
         <button id="btn-achievements" class="start-menu-btn orange">
-          <span class="smb-icon">🏆</span><span class="smb-text">成 就</span>
+          <span class="smb-icon">05</span><span class="smb-text">成就记录</span><span class="smb-arrow">↗</span>
         </button>
         <button id="btn-settings" class="start-menu-btn slate">
-          <span class="smb-icon">⚙</span><span class="smb-text">设 置</span>
+          <span class="smb-icon">06</span><span class="smb-text">终端设置</span><span class="smb-arrow">↗</span>
         </button>
       </div>
-      <p class="start-footer">基于明日方舟的塔防策略游戏 · v3.15.0</p>
+      <p class="start-footer">ARKNIGHTS FAN PROJECT <span> / </span> 战术策略模拟</p>
     </div>
 
     <!-- v3.6.0：跨局升级树 -->
@@ -574,45 +578,14 @@
       <div id="meta-body" style="flex:1;padding:24px 30px;overflow-y:auto;"></div>
     </div>
 
-    <!-- 联机模式面板（v1.4.0 占位） -->
+    <!-- 联机房间 -->
     <div id="mp-screen" style="display:none;">
       <div class="faction-header">
         <button class="faction-back" id="btn-mp-back">← 返回</button>
-        <h2>联机模式（开发中）</h2>
+        <h2>联合模拟</h2>
         <span style="width:80px;"></span>
       </div>
-      <div id="mp-body" style="flex:1;padding:30px;overflow-y:auto;">
-        <div style="max-width:700px;margin:0 auto;color:#ecf0f1;">
-          <div style="background:rgba(243,156,18,0.1);border-left:4px solid #f39c12;padding:14px 18px;border-radius:3px;margin-bottom:24px;">
-            <b style="color:#f39c12;">⚠ 仅供调试</b>
-            <div style="margin-top:6px;font-size:13px;color:#bdc3c7;">本页面为 v1.4.0 骨架占位，未接入真实 WebSocket 服务。所有操作仅验证 UI 流程。</div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-            <!-- 创建房间 -->
-            <div style="background:rgba(255,255,255,0.04);border:1px solid #34495e;border-radius:6px;padding:20px;">
-              <div style="font-size:18px;font-weight:bold;margin-bottom:12px;color:#3498db;">创建房间</div>
-              <div style="font-size:13px;color:#bdc3c7;margin-bottom:14px;line-height:1.6;">作为房主创建一个对局，生成邀请码给朋友。</div>
-              <input id="mp-host-name" placeholder="你的昵称" value="Host" style="width:100%;padding:8px;background:#2c3e50;border:1px solid #4a627a;color:#ecf0f1;border-radius:3px;margin-bottom:10px;">
-              <button id="btn-mp-host" style="width:100%;padding:10px;background:#3498db;border:none;color:white;border-radius:3px;cursor:pointer;font-weight:bold;">创建房间</button>
-            </div>
-
-            <!-- 加入房间 -->
-            <div style="background:rgba(255,255,255,0.04);border:1px solid #34495e;border-radius:6px;padding:20px;">
-              <div style="font-size:18px;font-weight:bold;margin-bottom:12px;color:#16a085;">加入房间</div>
-              <div style="font-size:13px;color:#bdc3c7;margin-bottom:14px;line-height:1.6;">输入房主提供的邀请码加入对局。</div>
-              <input id="mp-room-code" placeholder="房间号" style="width:100%;padding:8px;background:#2c3e50;border:1px solid #4a627a;color:#ecf0f1;border-radius:3px;margin-bottom:8px;">
-              <input id="mp-guest-name" placeholder="你的昵称" value="Guest" style="width:100%;padding:8px;background:#2c3e50;border:1px solid #4a627a;color:#ecf0f1;border-radius:3px;margin-bottom:10px;">
-              <button id="btn-mp-join" style="width:100%;padding:10px;background:#16a085;border:none;color:white;border-radius:3px;cursor:pointer;font-weight:bold;">加入房间</button>
-            </div>
-          </div>
-
-          <!-- 连接状态 -->
-          <div id="mp-status" style="margin-top:24px;padding:16px;background:rgba(0,0,0,0.3);border-radius:4px;font-family:monospace;font-size:13px;color:#95a5a6;min-height:60px;">
-            状态：未连接
-          </div>
-        </div>
-      </div>
+      <div id="mp-body" style="flex:1;padding:30px;overflow-y:auto;"></div>
     </div>
 
     <!-- 阵营选择界面（v1.3.0） -->
@@ -664,15 +637,15 @@
         <!-- 左上角：暂停、设置、退出 -->
         <div id="top-bar-left">
           <button class="top-btn" id="btn-pause" title="暂停">⏸</button>
-          <button class="top-btn" id="btn-settings" title="设置">⚙</button>
+          <button class="top-btn" id="btn-game-settings" title="设置">⚙</button>
           <button class="top-btn" id="btn-exit" title="退出">✕</button>
         </div>
         
         <!-- 中间：核心资源（图标化） -->
         <div id="top-bar-center">
           <div class="stat-box" data-kind="lives" title="生命"><span class="stat-ico">❤</span><span id="lives-display">10</span></div>
-          <div class="stat-box" data-kind="money" title="资金"><span class="stat-ico">💰</span><span id="money-display">50</span></div>
-          <div class="stat-box" data-kind="timer" id="timer-box" title="时间"><span class="stat-ico">⏱</span><span id="timer-display">60</span></div>
+          <div class="stat-box" data-kind="money" title="资金"><span class="stat-ico">◆</span><span id="money-display">50</span></div>
+          <div class="stat-box" data-kind="timer" id="timer-box" title="时间"><span class="stat-ico">◷</span><span id="timer-display">60</span></div>
           <div id="pact-badges"></div>
           <button id="btn-event-log" class="top-btn" title="事件日志" style="display:none;">📜</button>
         </div>
@@ -680,7 +653,7 @@
         <!-- 右上角：倍速、波次、开始战斗 -->
         <div id="top-bar-right">
           <button class="top-btn" id="btn-speed" data-kind="speed" title="倍速">1x</button>
-          <div class="stat-box" data-kind="wave" title="波次"><span class="stat-ico">🌊</span><span id="wave-display">1</span></div>
+          <div class="stat-box" data-kind="wave" title="波次"><span class="stat-ico">ROUND</span><span id="wave-display">1</span></div>
           <button id="btn-next-wave">开始战斗</button>
         </div>
       </div>
@@ -698,6 +671,7 @@
 
       <div id="bottom-area">
         <div id="bench-area"></div>
+        <div id="equipment-area" aria-label="装备整备区"></div>
         
         <div id="shop-area">
           <div class="shop-title-box">采购中心</div>

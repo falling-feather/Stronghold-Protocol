@@ -1,5 +1,7 @@
 # 卫戍协议：盟约 - 后续开发计划
 
+> 历史计划：部分待办已经实现或调整，当前方向见 [ROADMAP.md](ROADMAP.md)。
+
 本文档基于 PRTS Wiki 的[卫戍协议：盟约](https://prts.wiki/w/%E5%8D%AB%E6%88%8D%E5%8D%8F%E8%AE%AE%EF%BC%9A%E7%9B%9F%E7%BA%A6)页面，规划后续功能开发。
 
 ## 📋 当前项目状态

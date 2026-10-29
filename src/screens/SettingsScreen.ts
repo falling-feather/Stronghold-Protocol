@@ -3,6 +3,8 @@ import { showOnly } from './shared';
 import { getAudioSettings, setAudioSetting, playSfx, startBgm, stopBgm, isBgmRunning, AudioSettings } from '../core/AudioSystem';
 
 let initialized = false;
+let returnScreen: 'start-screen' | 'app-root' = 'start-screen';
+let onReturn: (() => void) | undefined;
 
 export function initSettingsScreen(): void {
   if (initialized) return;
@@ -10,8 +12,10 @@ export function initSettingsScreen(): void {
   initialized = true;
 }
 
-export function showSettingsScreen(): void {
+export function showSettingsScreen(target: 'start-screen' | 'app-root' = 'start-screen', afterReturn?: () => void): void {
   ensureScreenDom();
+  returnScreen = target;
+  onReturn = afterReturn;
   showOnly('settings-screen');
   render();
 }
@@ -20,20 +24,23 @@ function ensureScreenDom(): void {
   if (document.getElementById('settings-screen')) return;
   const div = document.createElement('div');
   div.id = 'settings-screen';
-  div.style.cssText = 'display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:30px;background:linear-gradient(135deg,#1a1d24,#1d2a3a);color:#fff;';
+  div.style.display = 'none';
   div.innerHTML = `
-    <h1 style="font-size:30px;margin:0 0 18px;background:linear-gradient(90deg,#3498db,#2c3e50);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">⚙ 音频设置</h1>
-    <div id="settings-body" style="width:380px;background:#2a2d35;padding:22px;border-radius:10px;border:1px solid #3a3d45;"></div>
-    <div style="margin-top:24px;display:flex;gap:14px;">
-      <button id="btn-settings-test" style="padding:8px 18px;background:#16a085;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">▶ 测试音效</button>
-      <button id="btn-settings-bgm" style="padding:8px 18px;background:#8e44ad;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">♪ 试听 BGM</button>
-      <button id="btn-settings-back" style="padding:8px 22px;background:#34495e;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">◀ 返回</button>
+    <div class="screen-kicker">SYSTEM // AUDIO</div>
+    <h1>音频设置</h1>
+    <div id="settings-body"></div>
+    <div class="screen-actions">
+      <button id="btn-settings-test" class="faction-back">测试音效</button>
+      <button id="btn-settings-bgm" class="faction-back">试听 BGM</button>
+      <button id="btn-settings-back" class="faction-confirm">返回</button>
     </div>
   `;
   document.body.appendChild(div);
   div.querySelector<HTMLButtonElement>('#btn-settings-back')?.addEventListener('click', () => {
-    stopBgm();
-    showOnly('start-screen');
+    if (returnScreen === 'start-screen') stopBgm();
+    showOnly(returnScreen);
+    onReturn?.();
+    onReturn = undefined;
   });
   div.querySelector<HTMLButtonElement>('#btn-settings-test')?.addEventListener('click', () => playSfx('click'));
   div.querySelector<HTMLButtonElement>('#btn-settings-bgm')?.addEventListener('click', () => {

@@ -7,6 +7,7 @@ WORKDIR /app
 
 # 仅拷贝 server 与最小化的 package 信息（避免把整个前端塞进镜像）
 COPY server/ ./server/
+COPY shared/ ./shared/
 COPY package.json ./package.json
 
 # 只装生产依赖（ws）

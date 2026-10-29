@@ -26,7 +26,7 @@ export const FACTION_DB: Record<FactionId, FactionDef> = {
     name: '指挥',
     shortDesc: '前线指挥部 · 重防守',
     fullDesc: '依托坚固的前线指挥所，承受更高的进攻压力。代价是常规资金不变，必须更精打细算。',
-    color: '#c0392b',
+    color: '#efad99',
     effect: { initialLives: 30 },
     perks: [
       '初始生命：30（默认 10）',
@@ -39,7 +39,7 @@ export const FACTION_DB: Record<FactionId, FactionDef> = {
     name: '后勤',
     shortDesc: '后勤补给线 · 重经济',
     fullDesc: '充裕的开局资金允许你在第一波就拉出更厚的阵容，但承伤上限不变，开局更脆。',
-    color: '#16a085',
+    color: '#a9dfc4',
     effect: { initialMoney: 20 },
     perks: [
       '初始生命：保持默认（10）',

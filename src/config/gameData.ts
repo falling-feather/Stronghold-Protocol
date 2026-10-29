@@ -1,4 +1,6 @@
 import { Vector2, TileType, SkillInfo, OperatorTemplate, SpRecoveryType, OperatorClass, ClassTrait, SkillDefinition, BaseStats, Talent, StatusEffect, EnemyTraits, PactDefinition, PactResonance } from '../types';
+import operatorTiers from '../../shared/operatorTiers.json';
+import finalAssault from '../../shared/finalAssault.json';
 
 export const CONFIG = {
   TILE_SIZE: 64,
@@ -166,15 +168,15 @@ export let MAP_LAYOUT: TileType[][] = MAP_LIBRARY[0].layout;
 export let PATH_WAYPOINTS: Vector2[] = MAP_LIBRARY[0].waypoints;
 
 // 随机选择地图
-export function selectRandomMap() {
-  const randomIndex = Math.floor(Math.random() * MAP_LIBRARY.length);
+export function selectRandomMap(random: () => number = Math.random) {
+  const randomIndex = Math.floor(random() * MAP_LIBRARY.length);
   const selectedMap = MAP_LIBRARY[randomIndex];
   MAP_LAYOUT = selectedMap.layout;
   PATH_WAYPOINTS = selectedMap.waypoints;
   return randomIndex;
 }
 
-export const RARITY_RATES: number[][] = [
+export const TIER_RATES: number[][] = [
   [1.0, 0.0, 0.0, 0.0, 0.0],
   [0.6, 0.4, 0.0, 0.0, 0.0],
   [0.3, 0.5, 0.2, 0.0, 0.0],
@@ -183,11 +185,11 @@ export const RARITY_RATES: number[][] = [
 ];
 
 // 旧 defaultSkill helper 已废弃，迁移到 mkSkill。
-// === 职业特性表（v1.2 仅记录元数据，targetPriority 在敌人类型扩展后生效）===
+// === 职业特性表；个别分支的目标优先级由干员模板覆盖 ===
 export const CLASS_TRAITS: Record<OperatorClass, ClassTrait> = {
   guard:      { name: '近卫',  desc: '高攻近战，单段输出',           targetPriority: 'first' },
   defender:   { name: '重装',  desc: '高血高防，多阻挡',             targetPriority: 'first' },
-  sniper:     { name: '狙击',  desc: '远程，优先攻击空中/高威胁单位', targetPriority: 'flying' },
+  sniper:     { name: '狙击',  desc: '远程输出',                      targetPriority: 'first' },
   caster:     { name: '术师',  desc: '法术伤害，无视防御',           targetPriority: 'first' },
   medic:      { name: '医疗',  desc: '治疗友军',                    targetPriority: 'lowest_hp' },
   vanguard:   { name: '先锋',  desc: '部署费用回流',                 targetPriority: 'first' },
@@ -211,9 +213,13 @@ export function resolveSkillForRank(template: OperatorTemplate, rank: 1 | 2, ski
   const idx = skillIndex ?? template.defaultSkillIndex;
   const def = template.skills[idx];
   const lvl = rank === 2 ? def.levels.rank2 : def.levels.rank1;
+  const desc = def.desc.replace(/\{(\w+)\}/g, (placeholder, key: string) => {
+    const value = key === 'duration' ? lvl.duration : lvl.values[key];
+    return value === undefined ? placeholder : String(value);
+  });
   return {
     name: def.name + (rank === 2 ? '·精炼' : ''),
-    desc: def.desc,
+    desc,
     initialSp: lvl.initialSp,
     cost: lvl.cost,
     spRecovery: def.spRecovery,
@@ -265,19 +271,49 @@ export function buildTalentEffects(talents: Talent[], rank: 1 | 2, ownerId: stri
 // === v1.2 干员模板库（职业 / 天赋 / 多技能 / 叠层数值）===
 export const OPERATOR_DB: Record<string, OperatorTemplate> = {
   'recruit_guard': {
-    name: '预备近卫', cost: 8, rarity: 1, color: '#95a5a6', placement: 'ground', class: 'guard',
-    stats: { hp: 1200, maxHp: 1200, atk: 200, def: 50, spd: 0, range: 1.1, aspd: 1.2, blockCount: 1 },
-    talents: [],
+    name: '预备干员-近卫', cost: 8, tier: operatorTiers.recruit_guard, rarity: 4, color: '#95a5a6', portrait: 'assets/operators/reserve-guard.png', placement: 'ground', class: 'guard',
+    // PRTS：Ⅰ阶初始为精英1 Lv55，精锐为精英2 Lv50；不含信赖及潜能加成。
+    stats: { hp: 2510, maxHp: 2510, atk: 709, def: 122, spd: 0, range: 1.1, aspd: 1.5, blockCount: 1 },
+    eliteStats: { hp: 3204, maxHp: 3204, atk: 827, def: 141, spd: 0, range: 1.1, aspd: 1.5, blockCount: 1 },
+    talents: [mkTalent('攻击提升', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 4, 8)],
     skills: [
-      mkSkill('s_alpha_strike', '强力击·α', '下一次攻击力提升至 {atkMul}×', 'attack', 'attack_buff',
-        { initialSp: 0, cost: 10, values: { atkMul: 1.5 } },
-        { initialSp: 2, cost: 9,  values: { atkMul: 1.8 } }),
+      mkSkill('s_alpha_attack', '攻击力强化·α型', '攻击 +{atkPct}% 持续 {duration}s', 'auto', 'attack_buff',
+        { initialSp: 0, cost: 45, duration: 20, values: { atkPct: 30 } },
+        { initialSp: 0, cost: 40, duration: 20, values: { atkPct: 50 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 0,
+  },
+  'reserve_defender': {
+    name: '预备干员-重装', cost: 8, tier: operatorTiers.reserve_defender, rarity: 4, color: '#718991', portrait: 'assets/operators/reserve-defender.png', placement: 'ground', class: 'defender',
+    // PRTS：Ⅰ阶初始精英1 Lv55，精锐精英2 Lv50；不含信赖及潜能加成。
+    stats: { hp: 2083, maxHp: 2083, atk: 271, def: 399, spd: 0, range: 1, aspd: 1.2, blockCount: 3 },
+    eliteStats: { hp: 2776, maxHp: 2776, atk: 311, def: 515, spd: 0, range: 1, aspd: 1.2, blockCount: 3 },
+    talents: [mkTalent('防御提升', '防御力 +{r1}% / +{r2}%', 'def_pct', 5, 10)],
+    skills: [
+      mkSkill('s_alpha_defense', '防御力强化·α型', '防御 +{defPct}% 持续 {duration}s', 'auto', 'defense_buff',
+        { initialSp: 0, cost: 45, duration: 30, values: { defPct: 30 } },
+        { initialSp: 0, cost: 40, duration: 30, values: { defPct: 50 } }),
+    ],
+    defaultSkillIndex: 0,
+    saleValue: 1, shopLevel: 0,
+  },
+  'reserve_sniper': {
+    name: '预备干员-狙击', cost: 8, tier: operatorTiers.reserve_sniper, rarity: 4, color: '#718c7d', portrait: 'assets/operators/reserve-sniper.png', placement: 'high_ground', class: 'sniper', targetPriority: 'flying',
+    // PRTS：Ⅰ阶初始精英1 Lv55，精锐精英2 Lv50；不含信赖及潜能加成。
+    stats: { hp: 1247, maxHp: 1247, atk: 360, def: 82, spd: 0, range: 3, aspd: 1, blockCount: 1 },
+    eliteStats: { hp: 1469, maxHp: 1469, atk: 427, def: 95, spd: 0, range: 3, aspd: 1, blockCount: 1 },
+    talents: [mkTalent('攻击提升', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 4, 8)],
+    skills: [
+      mkSkill('s_alpha_attack', '攻击力强化·α型', '攻击 +{atkPct}% 持续 {duration}s', 'auto', 'attack_buff',
+        { initialSp: 0, cost: 45, duration: 20, values: { atkPct: 30 } },
+        { initialSp: 0, cost: 40, duration: 20, values: { atkPct: 50 } }),
     ],
     defaultSkillIndex: 0,
     saleValue: 1, shopLevel: 0,
   },
   'recruit_defender': {
-    name: '轻装盾兵', cost: 10, rarity: 2, color: '#7f8c8d', placement: 'ground', class: 'defender',
+    name: '轻装盾兵', cost: 10, tier: operatorTiers.recruit_defender, color: '#7f8c8d', placement: 'ground', class: 'defender',
     stats: { hp: 2000, maxHp: 2000, atk: 120, def: 250, spd: 0, range: 1.0, aspd: 1.5, blockCount: 2 },
     talents: [
       mkTalent('坚毅', '初始生命 +{r1}% / +{r2}%', 'hp_pct', 5, 10),
@@ -291,7 +327,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     saleValue: 1, shopLevel: 0,
   },
   'guard_sword': {
-    name: '剑豪', cost: 15, rarity: 3, color: '#3498db', placement: 'ground', class: 'guard',
+    name: '剑豪', cost: 15, tier: operatorTiers.guard_sword, color: '#3498db', placement: 'ground', class: 'guard',
     stats: { hp: 1800, maxHp: 1800, atk: 450, def: 150, spd: 0, range: 1.2, aspd: 1.1, blockCount: 1 },
     talents: [
       mkTalent('双手剑技', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 8, 15),
@@ -308,15 +344,15 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     saleValue: 1, shopLevel: 1,
   },
   'defender_shield': {
-    name: '重盾卫', cost: 18, rarity: 3, color: '#2ecc71', placement: 'ground', class: 'defender',
+    name: '重盾卫', cost: 18, tier: operatorTiers.defender_shield, color: '#2ecc71', placement: 'ground', class: 'defender',
     stats: { hp: 3500, maxHp: 3500, atk: 200, def: 600, spd: 0, range: 1.0, aspd: 1.6, blockCount: 3 },
     talents: [
       mkTalent('盾阵', '防御 +{r1}% / +{r2}%', 'def_pct', 8, 15),
     ],
     skills: [
-      mkSkill('s_turtle_stance', '龟壳姿态', '停止攻击，防御 +{defPct}%，回血加速', 'defense', 'defense_buff',
-        { initialSp: 0, cost: 15, duration: 20, values: { defPct: 50 } },
-        { initialSp: 4, cost: 13, duration: 25, values: { defPct: 75 } }),
+      mkSkill('s_turtle_stance', '龟壳姿态', '停止攻击，防御 +{defPct}%，持续 {duration}s', 'defense', 'defense_buff',
+        { initialSp: 0, cost: 15, duration: 20, values: { defPct: 50, stopAttack: 1 } },
+        { initialSp: 4, cost: 13, duration: 25, values: { defPct: 75, stopAttack: 1 } }),
       mkSkill('s_taunt', '挑衅', '阻挡数 +{blkPlus}，仇恨拉满', 'auto', 'passive',
         { initialSp: 0, cost: 30, duration: 12, values: { blkPlus: 1 } },
         { initialSp: 6, cost: 26, duration: 15, values: { blkPlus: 2 } }),
@@ -325,7 +361,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     saleValue: 1, shopLevel: 1,
   },
   'sniper_aa': {
-    name: '速射手', cost: 14, rarity: 3, color: '#e67e22', placement: 'high_ground', class: 'sniper',
+    name: '速射手', cost: 14, tier: operatorTiers.sniper_aa, color: '#e67e22', placement: 'high_ground', class: 'sniper', targetPriority: 'flying',
     stats: { hp: 800, maxHp: 800, atk: 300, def: 50, spd: 0, range: 3.5, aspd: 1.0, blockCount: 0 },
     talents: [
       mkTalent('精确射击', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 5, 12),
@@ -342,7 +378,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     saleValue: 1, shopLevel: 1,
   },
   'sniper_boom': {
-    name: '炮击手', cost: 25, rarity: 4, color: '#d35400', placement: 'high_ground', class: 'sniper',
+    name: '炮击手', cost: 25, tier: operatorTiers.sniper_boom, color: '#d35400', placement: 'high_ground', class: 'sniper',
     stats: { hp: 1000, maxHp: 1000, atk: 600, def: 80, spd: 0, range: 4.5, aspd: 2.8, blockCount: 0 },
     talents: [
       mkTalent('爆破师', '范围攻击伤害 +{r1}% / +{r2}%', 'atk_pct', 10, 18),
@@ -359,7 +395,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     saleValue: 1, shopLevel: 2,
   },
   'caster_volcano': {
-    name: '天灾术师', cost: 35, rarity: 5, color: '#9b59b6', placement: 'high_ground', class: 'caster',
+    name: '天灾术师', cost: 35, tier: operatorTiers.caster_volcano, color: '#9b59b6', placement: 'high_ground', class: 'caster',
     stats: { hp: 1500, maxHp: 1500, atk: 750, def: 100, spd: 0, range: 3.5, aspd: 1.5, blockCount: 0 },
     talents: [
       mkTalent('魔力涌动', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 12, 20),
@@ -380,7 +416,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     saleValue: 1, shopLevel: 3,
   },
   'specialist_blade': {
-    name: '影刃', cost: 16, rarity: 3, color: '#1abc9c', placement: 'ground', class: 'specialist',
+    name: '影刃', cost: 16, tier: operatorTiers.specialist_blade, color: '#1abc9c', placement: 'ground', class: 'specialist',
     atkType: 'physical',
     stats: { hp: 1300, maxHp: 1300, atk: 520, def: 120, spd: 0, range: 1.2, aspd: 1.1, blockCount: 1 },
     talents: [
@@ -396,7 +432,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
   },
   // === v3.15.0 干员扩充：4 名新干员，全部沿用现有职业逻辑 ===
   'guard_lancer': {
-    name: '破阵长矛手', cost: 17, rarity: 4, color: '#c0392b', placement: 'ground', class: 'guard',
+    name: '破阵长矛手', cost: 17, tier: operatorTiers.guard_lancer, color: '#c0392b', placement: 'ground', class: 'guard',
     atkType: 'physical',
     stats: { hp: 2200, maxHp: 2200, atk: 540, def: 180, spd: 0, range: 1.4, aspd: 1.3, blockCount: 1 },
     talents: [
@@ -415,7 +451,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     saleValue: 1, shopLevel: 2,
   },
   'defender_bulwark': {
-    name: '壁垒守望', cost: 22, rarity: 4, color: '#16a085', placement: 'ground', class: 'defender',
+    name: '壁垒守望', cost: 22, tier: operatorTiers.defender_bulwark, color: '#16a085', placement: 'ground', class: 'defender',
     stats: { hp: 4200, maxHp: 4200, atk: 240, def: 720, spd: 0, range: 1.0, aspd: 1.7, blockCount: 3 },
     talents: [
       mkTalent('钢墙', '防御 +{r1}% / +{r2}%', 'def_pct', 10, 18),
@@ -433,7 +469,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     saleValue: 1, shopLevel: 2,
   },
   'sniper_marksman': {
-    name: '神射手', cost: 28, rarity: 5, color: '#f39c12', placement: 'high_ground', class: 'sniper',
+    name: '神射手', cost: 28, tier: operatorTiers.sniper_marksman, color: '#f39c12', placement: 'high_ground', class: 'sniper',
     stats: { hp: 950, maxHp: 950, atk: 720, def: 60, spd: 0, range: 5.0, aspd: 1.6, blockCount: 0 },
     talents: [
       mkTalent('鹰眼', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 12, 22),
@@ -451,7 +487,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
     saleValue: 1, shopLevel: 3,
   },
   'caster_arclight': {
-    name: '弧光术师', cost: 32, rarity: 5, color: '#1abc9c', placement: 'high_ground', class: 'caster',
+    name: '弧光术师', cost: 32, tier: operatorTiers.caster_arclight, color: '#1abc9c', placement: 'high_ground', class: 'caster',
     stats: { hp: 1400, maxHp: 1400, atk: 820, def: 90, spd: 0, range: 3.2, aspd: 1.7, blockCount: 0 },
     talents: [
       mkTalent('魔能洪流', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 14, 22),
@@ -470,7 +506,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
   },
   // v3.16.0：vanguard 先锋（击杀回 +1 资金 + 部署费回流）
   'vanguard_scout': {
-    name: '游骑斥候', cost: 12, rarity: 3, color: '#e67e22', placement: 'ground', class: 'vanguard',
+    name: '游骑斥候', cost: 12, tier: operatorTiers.vanguard_scout, color: '#e67e22', placement: 'ground', class: 'vanguard',
     stats: { hp: 1900, maxHp: 1900, atk: 320, def: 110, spd: 0, range: 1.1, aspd: 1.05, blockCount: 2 },
     talents: [
       mkTalent('快速集结', '部署费回流加速 +{r1}% / +{r2}%', 'aspd_pct', 6, 12),
@@ -489,7 +525,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
   },
   // v3.16.0：medic 医疗（治疗友军 operator，攻速即治疗速率）
   'medic_field': {
-    name: '战地医师', cost: 14, rarity: 3, color: '#2ecc71', placement: 'ground', class: 'medic',
+    name: '战地医师', cost: 14, tier: operatorTiers.medic_field, color: '#2ecc71', placement: 'ground', class: 'medic',
     stats: { hp: 1500, maxHp: 1500, atk: 320, def: 90, spd: 0, range: 2.4, aspd: 1.4, blockCount: 0 },
     talents: [
       mkTalent('稳定剂量', '治疗量 +{r1}% / +{r2}%', 'atk_pct', 12, 20),
@@ -508,7 +544,7 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
   },
   // v3.16.0：supporter 辅助（命中附加减速：spd -25%、aspd +25% 减缓 1.8s）
   'supporter_jammer': {
-    name: '电磁干扰师', cost: 24, rarity: 4, color: '#9b59b6', placement: 'high_ground', class: 'supporter',
+    name: '电磁干扰师', cost: 24, tier: operatorTiers.supporter_jammer, color: '#9b59b6', placement: 'high_ground', class: 'supporter',
     stats: { hp: 1100, maxHp: 1100, atk: 380, def: 70, spd: 0, range: 3.0, aspd: 1.6, blockCount: 0 },
     talents: [
       mkTalent('频谱压制', '攻击力 +{r1}% / +{r2}%', 'atk_pct', 10, 18),
@@ -528,13 +564,26 @@ export const OPERATOR_DB: Record<string, OperatorTemplate> = {
 };
 
 export const ENEMY_DB: Record<string, { name: string; color: string; radius: number; stats: BaseStats; traits?: EnemyTraits }> = {
+  [finalAssault.bossId]: {
+    name: finalAssault.bossName, color: '#7f2632', radius: 24,
+    stats: { hp: finalAssault.healthPerPlayer, maxHp: finalAssault.healthPerPlayer, atk: finalAssault.attack,
+      def: finalAssault.defense, spd: finalAssault.speed, range: 2, aspd: finalAssault.attackInterval,
+      blockCount: 0, magicResist: finalAssault.magicResist },
+    traits: { unblockable: true, ranged: { rangeTiles: 2 } },
+  },
   'slug': {
     name: '源石虫', color: '#e74c3c', radius: 15,
     stats: { hp: 350, maxHp: 350, atk: 150, def: 0, spd: 2.2, range: 0, aspd: 1.0, blockCount: 0, magicResist: 0 }
   },
   'soldier': {
     name: '步兵', color: '#c0392b', radius: 18,
-    stats: { hp: 1200, maxHp: 1200, atk: 350, def: 100, spd: 1.5, range: 0, aspd: 1.5, blockCount: 0, magicResist: 30 }
+    // PRTS：卫戍协议·盟约 AC-3 敌方基础属性。
+    stats: { hp: 2500, maxHp: 2500, atk: 280, def: 85, spd: 1.1, range: 0, aspd: 2, blockCount: 0, magicResist: 40 }
+  },
+  'host_soldier': {
+    name: '宿主士兵', color: '#b36b55', radius: 18,
+    stats: { hp: 2500, maxHp: 2500, atk: 250, def: 100, spd: 0.9, range: 0, aspd: 1.8, blockCount: 0, magicResist: 30 },
+    traits: { regeneratePerSecond: 80 }
   },
   'heavy': {
     name: '大盾兵', color: '#8e44ad', radius: 22,
@@ -599,6 +648,7 @@ export const WAVES = [
   { count: 6, interval: 1.5, enemyId: 'slug', reward: 15 },
   { count: 10, interval: 1.2, enemyId: 'slug', reward: 20 },
   { count: 6, interval: 2.5, enemyId: 'soldier', reward: 30 },
+  { count: 4, interval: 2.5, enemyId: 'host_soldier', reward: 35 },
   { count: 5, interval: 1.4, enemyId: 'flyer', reward: 25 },
   { count: 4, interval: 2.0, enemyId: 'phantom', reward: 35 },
   { count: 12, interval: 2.0, enemyId: 'soldier', reward: 40 },
